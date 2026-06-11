@@ -1,5 +1,10 @@
 import { SCORE_CATEGORIES } from "@/lib/criteria";
-import type { Company, CompanyScoreResult, CriteriaSettings } from "@/lib/types";
+import type {
+  Company,
+  CompanyScoreResult,
+  CriteriaSettings,
+  EvidenceLevel,
+} from "@/lib/types";
 
 export function calculateAverage(values: number[]): number {
   const validValues = values.filter((value) => value > 0);
@@ -31,9 +36,13 @@ export function evaluateCompany(
   const normalizedWeightTotal = weightTotal > 0 ? weightTotal : 1;
 
   const categoryScores = SCORE_CATEGORIES.map((category) => {
-    const average = calculateAverage(
+    const baseAverage = calculateAverage(
       category.items.map((item) => company.scores[category.key]?.[item.id] ?? 0),
     );
+    const average =
+      category.key === "designGrowth"
+        ? applyDesignerFitAdjustment(baseAverage, company)
+        : baseAverage;
     const weight = settings.weights[category.key] / normalizedWeightTotal;
 
     return {
@@ -45,21 +54,61 @@ export function evaluateCompany(
     };
   });
 
-  const totalScore = categoryScores.reduce(
+  const companyFitScore = categoryScores.reduce(
     (sum, category) => sum + category.weighted,
     0,
   );
   const riskCount = company.riskFlags.length;
+  const averageEvidenceLevel = getAverageEvidenceLevel(company);
 
   return {
     categoryScores,
-    totalScore,
-    recommendationLabel: getRecommendationLabel(totalScore),
+    companyFitScore,
+    totalScore: companyFitScore,
+    recommendationLabel: getRecommendationLabel(companyFitScore),
     highRisk: riskCount >= settings.highRiskThreshold,
+    needsValidation:
+      company.needsRefresh ||
+      company.evidenceLevel <= 2 ||
+      averageEvidenceLevel < 3,
+    averageEvidenceLevel,
     riskCount,
   };
 }
 
 export function formatScore(score: number): string {
   return score > 0 ? score.toFixed(1) : "-";
+}
+
+function applyDesignerFitAdjustment(baseAverage: number, company: Company): number {
+  const checklist = company.designerFit;
+  const positiveCount = [
+    checklist.hasDesignSystemOpportunity,
+    checklist.hasDesignOpsOpportunity,
+    checklist.hasComponentOwnership,
+    checklist.hasDocumentationCulture,
+    checklist.canImproveProcess,
+  ].filter(Boolean).length;
+  const positiveAdjustment = positiveCount * 0.08;
+  const visualOnlyPenalty = checklist.isOnlyVisualProductionRole ? 0.4 : 0;
+
+  return clampScore(baseAverage + positiveAdjustment - visualOnlyPenalty);
+}
+
+function getAverageEvidenceLevel(company: Company): number {
+  const levels: EvidenceLevel[] = [company.evidenceLevel];
+
+  SCORE_CATEGORIES.forEach((category) => {
+    category.items.forEach((item) => {
+      levels.push(company.scoreEvidence[category.key]?.[item.id] ?? 1);
+    });
+  });
+
+  return (
+    levels.reduce((sum, level) => sum + level, 0) / Math.max(levels.length, 1)
+  );
+}
+
+function clampScore(score: number): number {
+  return Math.min(5, Math.max(1, score));
 }

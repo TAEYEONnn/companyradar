@@ -6,7 +6,9 @@ import {
   Building2,
   CalendarClock,
   Check,
+  ClipboardCheck,
   ExternalLink,
+  Flag,
   FileText,
   ListFilter,
   PanelRightOpen,
@@ -27,6 +29,15 @@ import {
   COMPANY_SIZE_LABELS,
   COMPANY_SIZE_OPTIONS,
   DEFAULT_CRITERIA_SETTINGS,
+  DESIGNER_FIT_LABELS,
+  DISCOVERY_REASON_LABELS,
+  DISCOVERY_REASON_OPTIONS,
+  EVIDENCE_LEVEL_LABELS,
+  EVIDENCE_LEVEL_OPTIONS,
+  JOB_STATUS_LABELS,
+  JOB_STATUS_OPTIONS,
+  PRIORITY_LABELS,
+  PRIORITY_OPTIONS,
   RISK_CHECKLIST,
   SCORE_CATEGORIES,
   STATUS_LABELS,
@@ -34,13 +45,19 @@ import {
 } from "@/lib/criteria";
 import { evaluateCompany, formatScore } from "@/lib/scoring";
 import { SAMPLE_COMPANIES } from "@/lib/sample-data";
-import { localStorageRepository } from "@/lib/storage";
+import { localStorageRepository, makeDefaultScoreEvidence } from "@/lib/storage";
 import type {
+  ApplicationPriority,
   ApplicationStatus,
   Company,
   CompanyScoreResult,
   CriteriaSettings,
+  EvidenceLevel,
+  FollowUpTask,
+  InterviewRound,
+  JobStatus,
   ResearchLog,
+  ResearchSignal,
   SortMode,
 } from "@/lib/types";
 import { cn, createId, today } from "@/lib/utils";
@@ -65,12 +82,27 @@ function createEmptyCompany(): Company {
     name: "",
     homepageUrl: "",
     jobPostUrl: "",
+    sourceUrls: [],
     industry: "",
     size: "unknown",
     growthInfo: "",
     productDescription: "",
     interestLevel: 3,
     status: "interested",
+    applicationPriority: "watch",
+    priorityReason: "포지션 적합도와 채용 상태를 확인한 뒤 우선순위를 조정하세요.",
+    evidenceLevel: 1,
+    sourceConfidence: 1,
+    discoveryReason: "manual",
+    firstImpressionNote: "",
+    candidateReason: "",
+    jobDeadline: "",
+    jobStatus: "unknown",
+    lastCheckedAt: "",
+    lastVerifiedAt: "",
+    lastResearchedAt: "",
+    isSampleData: false,
+    needsRefresh: false,
     memo: "",
     scores: SCORE_CATEGORIES.reduce((scores, category) => {
       scores[category.key] = category.items.reduce(
@@ -82,6 +114,29 @@ function createEmptyCompany(): Company {
       );
       return scores;
     }, {} as Company["scores"]),
+    scoreEvidence: makeDefaultScoreEvidence(1),
+    signals: {
+      greenFlags: [],
+      redFlags: [],
+      unknowns: [],
+    },
+    designerFit: {
+      hasDesignSystemOpportunity: false,
+      hasDesignOpsOpportunity: false,
+      hasComponentOwnership: false,
+      hasDocumentationCulture: false,
+      canImproveProcess: false,
+      isOnlyVisualProductionRole: false,
+    },
+    applicationChecklist: {
+      resumeReady: false,
+      portfolioReady: false,
+      coverLetterReady: false,
+      referralChecked: false,
+      submitted: false,
+    },
+    interviewRounds: [],
+    followUpTasks: [],
     researchLogs: [],
     riskFlags: [],
     interviewNotes: [],
@@ -149,9 +204,15 @@ export function CompanyTrackerApp() {
       if (sortMode === "updated_desc") {
         return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
       }
+      if (sortMode === "priority_desc") {
+        return getPriorityRank(b.applicationPriority) - getPriorityRank(a.applicationPriority);
+      }
+      if (sortMode === "deadline_asc") {
+        return getDeadlineRank(a) - getDeadlineRank(b);
+      }
       return (
-        (scoreMap.get(b.id)?.totalScore ?? 0) -
-        (scoreMap.get(a.id)?.totalScore ?? 0)
+        (scoreMap.get(b.id)?.companyFitScore ?? 0) -
+        (scoreMap.get(a.id)?.companyFitScore ?? 0)
       );
     });
   }, [companies, query, scoreMap, sortMode, statusFilter]);
@@ -172,13 +233,42 @@ export function CompanyTrackerApp() {
     const highRisk = companies.filter(
       (company) => scoreMap.get(company.id)?.highRisk,
     ).length;
+    const needsValidation = companies.filter(
+      (company) => scoreMap.get(company.id)?.needsValidation,
+    ).length;
+    const highPriority = companies.filter(
+      (company) => company.applicationPriority === "high",
+    ).length;
     const average =
       companies.reduce(
-        (sum, company) => sum + (scoreMap.get(company.id)?.totalScore ?? 0),
+        (sum, company) => sum + (scoreMap.get(company.id)?.companyFitScore ?? 0),
         0,
       ) / Math.max(companies.length, 1);
 
-    return { active, highRisk, average };
+    return { active, highRisk, needsValidation, highPriority, average };
+  }, [companies, scoreMap]);
+
+  const dashboardSections = useMemo(() => {
+    const deadlineSoon = companies.filter(isDeadlineSoon);
+    const waitingResponse = companies.filter((company) =>
+      ["applied", "interviewing"].includes(company.status),
+    );
+    const followUpNeeded = companies.filter((company) =>
+      company.followUpTasks.some((task) => !task.completed && isDueOrOverdue(task.dueDate)),
+    );
+    const lackingInfo = companies.filter(
+      (company) =>
+        scoreMap.get(company.id)?.needsValidation ||
+        company.jobStatus === "unknown" ||
+        company.needsRefresh,
+    );
+
+    return {
+      deadlineSoon,
+      waitingResponse,
+      followUpNeeded,
+      lackingInfo,
+    };
   }, [companies, scoreMap]);
 
   function upsertCompany(company: Company) {
@@ -264,14 +354,42 @@ export function CompanyTrackerApp() {
           </div>
         </header>
 
-        <section className="grid grid-cols-4 gap-3">
+        <section className="grid grid-cols-5 gap-3">
           <Metric label="전체 회사" value={`${companies.length}`} />
           <Metric label="진행 중" value={`${summary.active}`} />
-          <Metric label="평균 점수" value={formatScore(summary.average)} />
+          <Metric label="평균 회사핏" value={formatScore(summary.average)} />
+          <Metric label="우선순위 높음" value={`${summary.highPriority}`} />
           <Metric
             label="리스크 높음"
             tone={summary.highRisk > 0 ? "red" : "green"}
             value={`${summary.highRisk}`}
+          />
+        </section>
+
+        <section className="grid grid-cols-4 gap-3">
+          <DashboardSection
+            companies={dashboardSections.deadlineSoon}
+            label="마감 임박"
+            onSelect={setSelectedId}
+            tone="amber"
+          />
+          <DashboardSection
+            companies={dashboardSections.waitingResponse}
+            label="회신 대기"
+            onSelect={setSelectedId}
+            tone="blue"
+          />
+          <DashboardSection
+            companies={dashboardSections.followUpNeeded}
+            label="팔로업 필요"
+            onSelect={setSelectedId}
+            tone="red"
+          />
+          <DashboardSection
+            companies={dashboardSections.lackingInfo}
+            label="정보 부족 후보"
+            onSelect={setSelectedId}
+            tone="slate"
           />
         </section>
 
@@ -344,12 +462,53 @@ function Metric({
       <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
       <div
         className={cn(
-          "mt-2 text-2xl font-semibold",
+          "mt-2 whitespace-nowrap text-xl font-semibold",
           tone === "green" && "text-emerald-700",
           tone === "red" && "text-red-700",
         )}
       >
         {value}
+      </div>
+    </div>
+  );
+}
+
+function DashboardSection({
+  companies,
+  label,
+  onSelect,
+  tone,
+}: {
+  companies: Company[];
+  label: string;
+  onSelect: (id: string) => void;
+  tone: "slate" | "green" | "amber" | "red" | "blue";
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+        <Badge tone={tone}>{companies.length}</Badge>
+      </div>
+      <div className="mt-3 space-y-2">
+        {companies.slice(0, 3).map((company) => (
+          <button
+            className="block w-full rounded-md border border-slate-100 px-2 py-2 text-left hover:bg-slate-50"
+            key={company.id}
+            onClick={() => onSelect(company.id)}
+            type="button"
+          >
+            <div className="truncate text-sm font-medium text-slate-900">
+              {company.name}
+            </div>
+            <div className="mt-1 truncate text-xs text-slate-500">
+              {company.jobDeadline || company.priorityReason || "확인 필요"}
+            </div>
+          </button>
+        ))}
+        {companies.length === 0 ? (
+          <p className="py-3 text-sm text-slate-400">없음</p>
+        ) : null}
       </div>
     </div>
   );
@@ -409,10 +568,12 @@ function Toolbar({
           value={sortMode}
         >
           <option value="score_desc">점수순</option>
+          <option value="priority_desc">지원 우선순위순</option>
+          <option value="deadline_asc">마감 임박순</option>
           <option value="updated_desc">최근 수정순</option>
         </Select>
       </div>
-      <Button onClick={onReset} variant="ghost">
+      <Button aria-label="샘플 데이터 초기화" onClick={onReset} variant="ghost">
         <RotateCcw className="h-4 w-4" />
       </Button>
     </div>
@@ -434,15 +595,16 @@ function CompanyTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
         <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
           <tr>
             <th className="px-4 py-3">회사</th>
             <th className="px-4 py-3">상태</th>
-            <th className="px-4 py-3">총점</th>
-            <th className="px-4 py-3">판단</th>
+            <th className="px-4 py-3">회사핏</th>
+            <th className="px-4 py-3">지원 우선순위</th>
+            <th className="px-4 py-3">근거</th>
+            <th className="px-4 py-3">공고</th>
             <th className="px-4 py-3">리스크</th>
-            <th className="px-4 py-3">관심도</th>
             <th className="px-4 py-3">수정</th>
           </tr>
         </thead>
@@ -471,30 +633,38 @@ function CompanyTable({
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-lg font-semibold">
-                    {formatScore(score?.totalScore ?? 0)}
+                    {formatScore(score?.companyFitScore ?? 0)}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <Badge
-                    tone={
-                      score?.recommendationLabel === "적극 지원"
-                        ? "green"
-                        : score?.recommendationLabel === "지원 고려"
-                          ? "blue"
-                          : score?.recommendationLabel === "정보 추가 필요"
-                            ? "amber"
-                            : "slate"
-                    }
-                  >
-                    {score?.recommendationLabel}
+                  <Badge tone={getPriorityTone(company.applicationPriority)}>
+                    {PRIORITY_LABELS[company.applicationPriority]}
                   </Badge>
+                  <div className="mt-1 max-w-40 truncate text-xs text-slate-500">
+                    {company.priorityReason}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge tone={score?.needsValidation ? "amber" : "green"}>
+                    {score?.needsValidation ? "검증 필요" : "확인됨"}
+                  </Badge>
+                  <div className="mt-1 text-xs text-slate-500">
+                    Lv.{Math.round(score?.averageEvidenceLevel ?? company.evidenceLevel)}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge tone={company.jobStatus === "open" ? "green" : company.jobStatus === "closed" ? "red" : "slate"}>
+                    {JOB_STATUS_LABELS[company.jobStatus]}
+                  </Badge>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {company.jobDeadline || "마감 미확인"}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone={score?.highRisk ? "red" : "slate"}>
                     {score?.highRisk ? "리스크 높음" : `${score?.riskCount ?? 0}개`}
                   </Badge>
                 </td>
-                <td className="px-4 py-3">{company.interestLevel}/5</td>
                 <td className="px-4 py-3">
                   <Button
                     aria-label={`${company.name} 수정`}
@@ -535,35 +705,82 @@ function CompanyDetailPanel({
   onEdit: (company: Company) => void;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
 }) {
-  const [researchDraft, setResearchDraft] = useState<Omit<ResearchLog, "id">>({
-    source: "",
-    link: "",
-    positiveSignals: "",
-    negativeSignals: "",
-    questions: "",
+  const [signalKind, setSignalKind] = useState<keyof Company["signals"]>("greenFlags");
+  const [signalDraft, setSignalDraft] = useState<Omit<ResearchSignal, "id">>({
+    label: "",
+    description: "",
+    sourceUrl: "",
+    confidence: 2,
     createdAt: today(),
+  });
+  const [taskDraft, setTaskDraft] = useState({
+    title: "",
+    dueDate: today(),
+  });
+  const [roundDraft, setRoundDraft] = useState({
+    title: "",
+    scheduledAt: today(),
+    memo: "",
   });
   const [noteDraft, setNoteDraft] = useState("");
 
-  function addResearchLog() {
-    if (!researchDraft.source.trim()) return;
+  function addSignal() {
+    if (!signalDraft.label.trim()) return;
     onPatch(company.id, {
-      researchLogs: [
-        {
-          id: createId("research"),
-          ...researchDraft,
-        },
-        ...company.researchLogs,
-      ],
+      signals: {
+        ...company.signals,
+        [signalKind]: [
+          {
+            id: createId("signal"),
+            ...signalDraft,
+          },
+          ...company.signals[signalKind],
+        ],
+      },
     });
-    setResearchDraft({
-      source: "",
-      link: "",
-      positiveSignals: "",
-      negativeSignals: "",
-      questions: "",
+    setSignalDraft({
+      label: "",
+      description: "",
+      sourceUrl: "",
+      confidence: 2,
       createdAt: today(),
     });
+  }
+
+  function addFollowUpTask() {
+    if (!taskDraft.title.trim()) return;
+    onPatch(company.id, {
+      followUpTasks: [
+        {
+          id: createId("task"),
+          title: taskDraft.title,
+          dueDate: taskDraft.dueDate,
+          completed: false,
+          createdAt: today(),
+        },
+        ...company.followUpTasks,
+      ],
+    });
+    setTaskDraft({ title: "", dueDate: today() });
+  }
+
+  function addInterviewRound() {
+    if (!roundDraft.title.trim()) return;
+    onPatch(company.id, {
+      interviewRounds: [
+        {
+          id: createId("round"),
+          type: "first",
+          title: roundDraft.title,
+          scheduledAt: roundDraft.scheduledAt,
+          result: "scheduled",
+          memo: roundDraft.memo,
+          createdAt: today(),
+        },
+        ...company.interviewRounds,
+      ],
+    });
+    setRoundDraft({ title: "", scheduledAt: today(), memo: "" });
   }
 
   function addInterviewNote() {
@@ -594,6 +811,8 @@ function CompanyDetailPanel({
                 리스크 높음
               </Badge>
             ) : null}
+            {score.needsValidation ? <Badge tone="amber">검증 필요</Badge> : null}
+            {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
           <p className="mt-1 text-sm text-slate-500">{company.industry}</p>
         </div>
@@ -614,8 +833,13 @@ function CompanyDetailPanel({
 
       <div className="max-h-[790px] space-y-5 overflow-y-auto p-4">
         <section className="grid grid-cols-3 gap-2">
-          <Metric label="총점" value={formatScore(score.totalScore)} />
+          <Metric label="회사핏" value={formatScore(score.companyFitScore)} />
+          <Metric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
+          <Metric label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
+        </section>
+        <section className="grid grid-cols-3 gap-2">
           <Metric label="리스크" value={`${score.riskCount}개`} tone={score.highRisk ? "red" : "slate"} />
+          <Metric label="공고 상태" value={JOB_STATUS_LABELS[company.jobStatus]} />
           <Metric label="관심도" value={`${company.interestLevel}/5`} />
         </section>
 
@@ -625,8 +849,13 @@ function CompanyDetailPanel({
             <Badge tone={STATUS_TONE[company.status]}>{STATUS_LABELS[company.status]}</Badge>
           </div>
           <InfoRow label="규모" value={COMPANY_SIZE_LABELS[company.size]} />
+          <InfoRow label="우선순위" value={`${PRIORITY_LABELS[company.applicationPriority]} · ${company.priorityReason}`} />
+          <InfoRow label="발견 이유" value={`${DISCOVERY_REASON_LABELS[company.discoveryReason]} · ${company.firstImpressionNote || "첫인상 메모 없음"}`} />
+          <InfoRow label="공고 상태" value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"} · 최근 확인 ${company.lastCheckedAt || "없음"}`} />
+          <InfoRow label="근거 수준" value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "재검증 필요" : "최신"}`} />
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
+          <InfoRow label="후보 이유" value={company.candidateReason || "없음"} />
           <InfoRow label="메모" value={company.memo || "없음"} />
           <div className="flex gap-2 pt-1">
             {company.homepageUrl ? (
@@ -671,6 +900,69 @@ function CompanyDetailPanel({
         </section>
 
         <section className="space-y-2">
+          <h3 className="text-sm font-semibold">디자이너 적합도</h3>
+          <div className="grid grid-cols-1 gap-2">
+            {Object.entries(DESIGNER_FIT_LABELS).map(([key, label]) => (
+              <label
+                className="flex items-center gap-2 rounded-md border border-slate-200 p-2 text-sm"
+                key={key}
+              >
+                <input
+                  checked={company.designerFit[key as keyof Company["designerFit"]]}
+                  className="accent-slate-900"
+                  onChange={(event) =>
+                    onPatch(company.id, {
+                      designerFit: {
+                        ...company.designerFit,
+                        [key]: event.target.checked,
+                      },
+                    })
+                  }
+                  type="checkbox"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <ClipboardCheck className="h-4 w-4" />
+            지원 준비 체크리스트
+          </h3>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              ["resumeReady", "이력서 준비"],
+              ["portfolioReady", "포트폴리오 준비"],
+              ["coverLetterReady", "지원동기/자기소개 준비"],
+              ["referralChecked", "추천인/네트워크 확인"],
+              ["submitted", "지원 제출 완료"],
+            ].map(([key, label]) => (
+              <label
+                className="flex items-center gap-2 rounded-md border border-slate-200 p-2 text-sm"
+                key={key}
+              >
+                <input
+                  checked={company.applicationChecklist[key as keyof Company["applicationChecklist"]]}
+                  className="accent-slate-900"
+                  onChange={(event) =>
+                    onPatch(company.id, {
+                      applicationChecklist: {
+                        ...company.applicationChecklist,
+                        [key]: event.target.checked,
+                      },
+                    })
+                  }
+                  type="checkbox"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
           <h3 className="text-sm font-semibold">경고 신호</h3>
           {company.riskFlags.length > 0 ? (
             <div className="space-y-1">
@@ -689,89 +981,175 @@ function CompanyDetailPanel({
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" />
-            리서치 로그
+            구조화 신호
+          </h3>
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Select
+              aria-label="신호 유형"
+              onChange={(event) =>
+                setSignalKind(event.target.value as keyof Company["signals"])
+              }
+              value={signalKind}
+            >
+              <option value="greenFlags">Green flag</option>
+              <option value="redFlags">Red flag</option>
+              <option value="unknowns">Unknown</option>
+            </Select>
+            <Input
+              aria-label="신호 라벨"
+              onChange={(event) =>
+                setSignalDraft((draft) => ({ ...draft, label: event.target.value }))
+              }
+              placeholder="라벨"
+              value={signalDraft.label}
+            />
+            <Textarea
+              aria-label="신호 설명"
+              onChange={(event) =>
+                setSignalDraft((draft) => ({
+                  ...draft,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="설명"
+              value={signalDraft.description}
+            />
+            <Input
+              aria-label="출처 URL"
+              onChange={(event) =>
+                setSignalDraft((draft) => ({
+                  ...draft,
+                  sourceUrl: event.target.value,
+                }))
+              }
+              placeholder="출처 URL"
+              value={signalDraft.sourceUrl}
+            />
+            <Select
+              aria-label="신뢰도"
+              onChange={(event) =>
+                setSignalDraft((draft) => ({
+                  ...draft,
+                  confidence: Number(event.target.value) as EvidenceLevel,
+                }))
+              }
+              value={signalDraft.confidence}
+            >
+              {EVIDENCE_LEVEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  Lv.{option.value} {option.label}
+                </option>
+              ))}
+            </Select>
+            <Button onClick={addSignal} size="sm">
+              <Plus className="h-4 w-4" />
+              신호 추가
+            </Button>
+          </div>
+          <SignalGroup title="Green flags" tone="green" signals={company.signals.greenFlags} />
+          <SignalGroup title="Red flags" tone="red" signals={company.signals.redFlags} />
+          <SignalGroup title="Unknowns" tone="amber" signals={company.signals.unknowns} />
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarClock className="h-4 w-4" />
+            면접 라운드
           </h3>
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Input
-              aria-label="출처"
+              aria-label="라운드 제목"
               onChange={(event) =>
-                setResearchDraft((draft) => ({
-                  ...draft,
-                  source: event.target.value,
-                }))
+                setRoundDraft((draft) => ({ ...draft, title: event.target.value }))
               }
-              placeholder="출처"
-              value={researchDraft.source}
+              placeholder="예: 1차 제품 인터뷰"
+              value={roundDraft.title}
             />
             <Input
-              aria-label="링크"
+              aria-label="면접 날짜"
               onChange={(event) =>
-                setResearchDraft((draft) => ({
+                setRoundDraft((draft) => ({
                   ...draft,
-                  link: event.target.value,
+                  scheduledAt: event.target.value,
                 }))
               }
-              placeholder="링크"
-              value={researchDraft.link}
+              type="date"
+              value={roundDraft.scheduledAt}
             />
             <Textarea
-              aria-label="긍정 신호"
+              aria-label="라운드 메모"
               onChange={(event) =>
-                setResearchDraft((draft) => ({
-                  ...draft,
-                  positiveSignals: event.target.value,
-                }))
+                setRoundDraft((draft) => ({ ...draft, memo: event.target.value }))
               }
-              placeholder="긍정 신호"
-              value={researchDraft.positiveSignals}
+              placeholder="질문, 준비할 점, 받은 인상"
+              value={roundDraft.memo}
             />
-            <Textarea
-              aria-label="부정 신호"
-              onChange={(event) =>
-                setResearchDraft((draft) => ({
-                  ...draft,
-                  negativeSignals: event.target.value,
-                }))
-              }
-              placeholder="부정 신호"
-              value={researchDraft.negativeSignals}
-            />
-            <Textarea
-              aria-label="확인 필요 사항"
-              onChange={(event) =>
-                setResearchDraft((draft) => ({
-                  ...draft,
-                  questions: event.target.value,
-                }))
-              }
-              placeholder="확인 필요 사항"
-              value={researchDraft.questions}
-            />
-            <Button onClick={addResearchLog} size="sm">
-              <Plus className="h-4 w-4" />
-              로그 추가
+            <Button onClick={addInterviewRound} size="sm">
+              라운드 추가
             </Button>
           </div>
-          {company.researchLogs.map((log) => (
-            <div className="rounded-md border border-slate-200 p-3" key={log.id}>
+          {company.interviewRounds.map((round) => (
+            <div className="rounded-md border border-slate-200 p-3" key={round.id}>
               <div className="flex items-center justify-between gap-2">
-                <strong className="text-sm">{log.source}</strong>
-                <span className="text-xs text-slate-500">{log.createdAt}</span>
+                <strong className="text-sm">{round.title}</strong>
+                <Badge>{round.result}</Badge>
               </div>
-              {log.link ? (
-                <a
-                  className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"
-                  href={log.link}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  링크 열기 <ExternalLink className="h-3 w-3" />
-                </a>
-              ) : null}
-              <Signal label="긍정" value={log.positiveSignals} />
-              <Signal label="부정" value={log.negativeSignals} />
-              <Signal label="확인" value={log.questions} />
+              <div className="mt-1 text-xs text-slate-500">{round.scheduledAt}</div>
+              <p className="mt-2 text-sm text-slate-700">{round.memo}</p>
             </div>
+          ))}
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Flag className="h-4 w-4" />
+            다음 할일
+          </h3>
+          <div className="grid grid-cols-[1fr,128px,64px] gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Input
+              aria-label="할일"
+              onChange={(event) =>
+                setTaskDraft((draft) => ({ ...draft, title: event.target.value }))
+              }
+              placeholder="예: 채용담당자에게 팔로업 메일"
+              value={taskDraft.title}
+            />
+            <Input
+              aria-label="할일 기한"
+              onChange={(event) =>
+                setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
+              }
+              type="date"
+              value={taskDraft.dueDate}
+            />
+            <Button onClick={addFollowUpTask} size="sm">
+              추가
+            </Button>
+          </div>
+          {company.followUpTasks.map((task) => (
+            <label
+              className="flex items-start gap-2 rounded-md border border-slate-200 p-3 text-sm"
+              key={task.id}
+            >
+              <input
+                checked={task.completed}
+                className="mt-1 accent-slate-900"
+                onChange={(event) =>
+                  onPatch(company.id, {
+                    followUpTasks: company.followUpTasks.map((item) =>
+                      item.id === task.id
+                        ? { ...item, completed: event.target.checked }
+                        : item,
+                    ),
+                  })
+                }
+                type="checkbox"
+              />
+              <span className={task.completed ? "text-slate-400 line-through" : ""}>
+                {task.title}
+                <span className="ml-2 text-xs text-slate-500">{task.dueDate}</span>
+              </span>
+            </label>
           ))}
         </section>
 
@@ -808,20 +1186,53 @@ function CompanyDetailPanel({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[72px,1fr] gap-3 text-sm">
+    <div className="grid grid-cols-[86px,1fr] gap-3 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className="text-slate-800">{value}</span>
     </div>
   );
 }
 
-function Signal({ label, value }: { label: string; value: string }) {
-  if (!value) return null;
+function SignalGroup({
+  title,
+  tone,
+  signals,
+}: {
+  title: string;
+  tone: "green" | "red" | "amber";
+  signals: ResearchSignal[];
+}) {
   return (
-    <p className="mt-2 text-sm text-slate-700">
-      <span className="font-medium text-slate-500">{label}: </span>
-      {value}
-    </p>
+    <div className="rounded-md border border-slate-200 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold">{title}</h4>
+        <Badge tone={tone}>{signals.length}</Badge>
+      </div>
+      <div className="space-y-2">
+        {signals.map((signal) => (
+          <div className="rounded-md bg-slate-50 p-2" key={signal.id}>
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-sm">{signal.label}</strong>
+              <span className="text-xs text-slate-500">Lv.{signal.confidence}</span>
+            </div>
+            <p className="mt-1 text-sm text-slate-700">{signal.description}</p>
+            {signal.sourceUrl ? (
+              <a
+                className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"
+                href={signal.sourceUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                출처 <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
+        ))}
+        {signals.length === 0 ? (
+          <p className="text-sm text-slate-400">기록 없음</p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -847,6 +1258,23 @@ function CompanyForm({
         ...current.scores,
         [categoryKey]: {
           ...current.scores[categoryKey as keyof Company["scores"]],
+          [itemId]: value,
+        },
+      },
+    }));
+  }
+
+  function updateScoreEvidence(
+    categoryKey: string,
+    itemId: string,
+    value: EvidenceLevel,
+  ) {
+    setDraft((current) => ({
+      ...current,
+      scoreEvidence: {
+        ...current.scoreEvidence,
+        [categoryKey]: {
+          ...current.scoreEvidence[categoryKey as keyof Company["scoreEvidence"]],
           [itemId]: value,
         },
       },
@@ -962,6 +1390,103 @@ function CompanyForm({
               </Select>
             </Field>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="지원 우선순위">
+              <Select
+                onChange={(event) =>
+                  update(
+                    "applicationPriority",
+                    event.target.value as ApplicationPriority,
+                  )
+                }
+                value={draft.applicationPriority}
+              >
+                {PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="근거 수준">
+              <Select
+                onChange={(event) =>
+                  update("evidenceLevel", Number(event.target.value) as EvidenceLevel)
+                }
+                value={draft.evidenceLevel}
+              >
+                {EVIDENCE_LEVEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    Lv.{option.value} {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field label="우선순위 이유">
+            <Textarea
+              onChange={(event) => update("priorityReason", event.target.value)}
+              value={draft.priorityReason}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="발견 이유">
+              <Select
+                onChange={(event) =>
+                  update("discoveryReason", event.target.value as Company["discoveryReason"])
+                }
+                value={draft.discoveryReason}
+              >
+                {DISCOVERY_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="공고 상태">
+              <Select
+                onChange={(event) =>
+                  update("jobStatus", event.target.value as JobStatus)
+                }
+                value={draft.jobStatus}
+              >
+                {JOB_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="공고 마감일">
+              <Input
+                onChange={(event) => update("jobDeadline", event.target.value)}
+                type="date"
+                value={draft.jobDeadline}
+              />
+            </Field>
+            <Field label="최근 확인일">
+              <Input
+                onChange={(event) => update("lastCheckedAt", event.target.value)}
+                type="date"
+                value={draft.lastCheckedAt}
+              />
+            </Field>
+          </div>
+          <Field label="첫인상 메모">
+            <Textarea
+              onChange={(event) => update("firstImpressionNote", event.target.value)}
+              value={draft.firstImpressionNote}
+            />
+          </Field>
+          <Field label="후보 저장 이유">
+            <Textarea
+              onChange={(event) => update("candidateReason", event.target.value)}
+              value={draft.candidateReason}
+            />
+          </Field>
           <Field label="투자/매출/성장 정보">
             <Textarea
               onChange={(event) => update("growthInfo", event.target.value)}
@@ -997,7 +1522,11 @@ function CompanyForm({
                   {category.items.map((item) => (
                     <ScoreSlider
                       key={item.id}
+                      evidenceLevel={draft.scoreEvidence[category.key][item.id]}
                       label={item.label}
+                      onEvidenceChange={(value) =>
+                        updateScoreEvidence(category.key, item.id, value)
+                      }
                       onChange={(value) =>
                         updateScore(category.key, item.id, value)
                       }
@@ -1024,6 +1553,31 @@ function CompanyForm({
                     type="checkbox"
                   />
                   <span>{flag}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-slate-200 p-3">
+            <h3 className="text-sm font-semibold">디자이너 적합도 체크리스트</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {Object.entries(DESIGNER_FIT_LABELS).map(([key, label]) => (
+                <label
+                  className="flex items-start gap-2 rounded-md border border-slate-200 p-2 text-sm"
+                  key={key}
+                >
+                  <input
+                    checked={draft.designerFit[key as keyof Company["designerFit"]]}
+                    className="mt-1 accent-slate-900"
+                    onChange={(event) =>
+                      update("designerFit", {
+                        ...draft.designerFit,
+                        [key]: event.target.checked,
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  <span>{label}</span>
                 </label>
               ))}
             </div>
@@ -1182,4 +1736,40 @@ function LabelRow({
       <Badge tone={tone}>{value}</Badge>
     </div>
   );
+}
+
+function getPriorityTone(
+  priority: ApplicationPriority,
+): "slate" | "green" | "amber" | "red" | "blue" | "purple" {
+  if (priority === "high") return "red";
+  if (priority === "medium") return "amber";
+  if (priority === "low") return "slate";
+  return "blue";
+}
+
+function getPriorityRank(priority: ApplicationPriority): number {
+  const ranks: Record<ApplicationPriority, number> = {
+    high: 4,
+    medium: 3,
+    low: 2,
+    watch: 1,
+  };
+  return ranks[priority];
+}
+
+function getDeadlineRank(company: Company): number {
+  if (!company.jobDeadline) return Number.MAX_SAFE_INTEGER;
+  return Date.parse(company.jobDeadline);
+}
+
+function isDeadlineSoon(company: Company): boolean {
+  if (company.jobStatus !== "open" || !company.jobDeadline) return false;
+  const diff = Date.parse(company.jobDeadline) - Date.now();
+  const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+  return diff >= 0 && diff <= fourteenDays;
+}
+
+function isDueOrOverdue(date: string): boolean {
+  if (!date) return false;
+  return Date.parse(date) <= Date.now();
 }

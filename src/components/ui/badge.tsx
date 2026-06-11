@@ -9,7 +9,7 @@ export function Badge({ className, tone = "slate", ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium",
+        "inline-flex items-center whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium",
         tone === "slate" && "border-slate-200 bg-slate-50 text-slate-700",
         tone === "green" && "border-emerald-200 bg-emerald-50 text-emerald-700",
         tone === "amber" && "border-amber-200 bg-amber-50 text-amber-800",
