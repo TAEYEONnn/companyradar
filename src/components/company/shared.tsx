@@ -1,7 +1,7 @@
 import type { ApplicationPriority, ApplicationStatus, Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export type ViewMode = "dashboard" | "form" | "settings" | "stats" | "inbox" | "timeline";
+export type ViewMode = "dashboard" | "form" | "settings" | "stats" | "inbox" | "timeline" | "compare";
 export type ListMode = "table" | "kanban";
 
 export const STATUS_TONE: Record<

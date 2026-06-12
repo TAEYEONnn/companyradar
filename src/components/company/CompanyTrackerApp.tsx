@@ -62,6 +62,7 @@ import {
   type ListMode,
   type ViewMode,
 } from "./shared";
+import { ComparePanel } from "./ComparePanel";
 import { StatsPanel } from "./StatsPanel";
 import { TimelinePanel } from "./TimelinePanel";
 import { Toolbar } from "./Toolbar";
@@ -88,6 +89,7 @@ export function CompanyTrackerApp() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [listMode, setListMode] = useState<ListMode>("table");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
@@ -741,6 +743,16 @@ export function CompanyTrackerApp() {
               setViewMode("dashboard");
             }}
           />
+        ) : viewMode === "compare" ? (
+          <ComparePanel
+            companies={companies.filter((c) => compareIds.includes(c.id))}
+            onBack={() => setViewMode("dashboard")}
+            onSelectCompany={(id) => {
+              setSelectedId(id);
+              setViewMode("dashboard");
+            }}
+            scoreMap={scoreMap}
+          />
         ) : viewMode === "form" && editingCompany ? (
           <CompanyForm
             company={editingCompany}
@@ -766,6 +778,25 @@ export function CompanyTrackerApp() {
                 sortMode={sortMode}
                 statusFilter={statusFilter}
               />
+              {compareIds.length >= 2 && (
+                <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
+                  <span className="text-sky-700 font-medium">
+                    {compareIds.length}개 선택됨
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
+                      onClick={() => setCompareIds([])}
+                      type="button"
+                    >
+                      선택 해제
+                    </button>
+                    <Button onClick={() => setViewMode("compare")} size="sm">
+                      비교 보기 →
+                    </Button>
+                  </div>
+                </div>
+              )}
               {listMode === "kanban" ? (
                 <KanbanBoard
                   companies={filteredCompanies}
@@ -778,9 +809,19 @@ export function CompanyTrackerApp() {
                 />
               ) : (
                 <CompanyTable
+                  compareIds={compareIds}
                   companies={filteredCompanies}
                   onEdit={startEdit}
                   onSelect={setSelectedId}
+                  onToggleCompare={(id) =>
+                    setCompareIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((x) => x !== id)
+                        : prev.length < 3
+                          ? [...prev, id]
+                          : prev,
+                    )
+                  }
                   scoreMap={scoreMap}
                   selectedId={selectedCompany?.id ?? ""}
                 />

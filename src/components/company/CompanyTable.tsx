@@ -18,16 +18,20 @@ interface CompanyTableProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
   selectedId: string;
+  compareIds?: string[];
   onEdit: (company: Company) => void;
   onSelect: (id: string) => void;
+  onToggleCompare?: (id: string) => void;
 }
 
 export function CompanyTable({
   companies,
   scoreMap,
   selectedId,
+  compareIds = [],
   onEdit,
   onSelect,
+  onToggleCompare,
 }: CompanyTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -38,6 +42,7 @@ export function CompanyTable({
       >
         <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
           <tr>
+            {onToggleCompare && <th className="w-8 px-2 py-3" scope="col" />}
             <th className="px-4 py-3" scope="col">회사</th>
             <th className="px-4 py-3" scope="col">상태</th>
             <th className="px-4 py-3" scope="col">회사핏</th>
@@ -52,12 +57,15 @@ export function CompanyTable({
           {companies.map((company) => {
             const score = scoreMap.get(company.id);
             const isSelected = selectedId === company.id;
+            const isComparing = compareIds.includes(company.id);
+            const canAddCompare = !isComparing && compareIds.length < 3;
             return (
               <tr
                 aria-selected={isSelected}
                 className={cn(
                   "cursor-pointer border-t border-slate-100 hover:bg-slate-50",
                   isSelected && "bg-slate-50",
+                  isComparing && "ring-1 ring-inset ring-sky-300",
                 )}
                 key={company.id}
                 onClick={() => onSelect(company.id)}
@@ -70,6 +78,18 @@ export function CompanyTable({
                 role="row"
                 tabIndex={0}
               >
+                {onToggleCompare && (
+                  <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      aria-label={`${company.name} 비교 선택`}
+                      checked={isComparing}
+                      className="h-4 w-4 cursor-pointer accent-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!canAddCompare && !isComparing}
+                      onChange={() => onToggleCompare(company.id)}
+                      type="checkbox"
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-950">{company.name}</div>
                   <div className="mt-1 text-xs text-slate-500">
