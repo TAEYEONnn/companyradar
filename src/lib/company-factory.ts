@@ -33,6 +33,7 @@ export function createEmptyCompany(): Company {
     isSampleData: false,
     needsRefresh: false,
     memo: "",
+    privateSensitiveNote: "",
     scores: SCORE_CATEGORIES.reduce((scores, category) => {
       scores[category.key] = category.items.reduce(
         (items, item) => {

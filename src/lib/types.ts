@@ -192,6 +192,8 @@ export interface Company {
   isSampleData: boolean;
   needsRefresh: boolean;
   memo: string;
+  /** AES-GCM ciphertext. Decrypted client-side with per-device key in localStorage. */
+  privateSensitiveNote: string;
   scores: ScoreValues;
   scoreEvidence: ScoreEvidenceValues;
   signals: SignalGroups;

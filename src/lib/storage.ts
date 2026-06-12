@@ -90,6 +90,7 @@ export function normalizeCompany(company: Company): Company {
     lastResearchedAt: company.lastResearchedAt ?? "",
     isSampleData: company.isSampleData ?? false,
     needsRefresh: company.needsRefresh ?? false,
+    privateSensitiveNote: company.privateSensitiveNote ?? "",
     scoreEvidence: company.scoreEvidence ?? makeDefaultScoreEvidence(1),
     signals: company.signals ?? makeDefaultSignals(),
     designerFit: company.designerFit ?? makeDefaultDesignerFit(),

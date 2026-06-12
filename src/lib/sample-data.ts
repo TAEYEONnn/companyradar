@@ -105,6 +105,7 @@ function company(input: {
     isSampleData: true,
     needsRefresh: true,
     memo: "샘플 seed 데이터입니다. 실제 지원 전 공고 상태, 포지션 요구사항, 후기 신호를 다시 확인하세요.",
+    privateSensitiveNote: "",
     scores: makeScores(input.scores),
     scoreEvidence: makeScoreEvidence(2),
     signals: {

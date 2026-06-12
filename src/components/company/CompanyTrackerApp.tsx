@@ -751,6 +751,7 @@ export function CompanyTrackerApp() {
                 onEdit={startEdit}
                 onPatch={patchCompany}
                 score={selectedScore}
+                userId={userId}
               />
             ) : (
               <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">

@@ -6,16 +6,19 @@ import {
   CalendarClock,
   ClipboardCheck,
   Clock,
+  Download,
   ExternalLink,
   FileText,
   Flag,
+  Lock,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
@@ -42,12 +45,21 @@ import type {
   InterviewRoundType,
   ResearchSignal,
 } from "@/lib/types";
+import {
+  decryptNote,
+  encryptNote,
+  exportEncryptionKey,
+  getEncryptionKey,
+  getKeyFingerprint,
+  importAndSaveEncryptionKey,
+} from "@/lib/crypto";
 import { createId, today } from "@/lib/utils";
 import { InfoRow, Metric, STATUS_TONE } from "./shared";
 
 interface CompanyDetailPanelProps {
   company: Company;
   score: CompanyScoreResult;
+  userId: string;
   onDelete: (companyId: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
@@ -56,6 +68,7 @@ interface CompanyDetailPanelProps {
 export function CompanyDetailPanel({
   company,
   score,
+  userId,
   onDelete,
   onEdit,
   onPatch,
@@ -794,15 +807,17 @@ export function CompanyDetailPanel({
           ))}
         </section>
 
+        <EncryptedNoteSection
+          company={company}
+          onPatch={onPatch}
+          userId={userId}
+        />
+
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
             면접 메모
           </h3>
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-            v0.3에서는 면접 메모가 암호화 없이 저장됩니다. 연봉/처우, 사람 이름,
-            내부 정보는 v0.4에서 암호화 저장이 구현된 후 기록하기를 권장합니다.
-          </div>
           <div className="flex gap-2">
             <Input
               aria-label="면접 메모"
@@ -939,6 +954,121 @@ function NextActionBanner({ company }: { company: Company }) {
         ) : null}
       </span>
     </div>
+  );
+}
+
+function EncryptedNoteSection({
+  company,
+  userId,
+  onPatch,
+}: {
+  company: Company;
+  userId: string;
+  onPatch: (companyId: string, patch: Partial<Company>) => void;
+}) {
+  const [decrypted, setDecrypted] = useState("");
+  const [fingerprint, setFingerprint] = useState("");
+  const [saving, setSaving] = useState(false);
+  const keyRef = useRef<CryptoKey | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    getEncryptionKey(userId).then(async (key) => {
+      if (cancelled) return;
+      keyRef.current = key;
+      const plain = await decryptNote(key, company.privateSensitiveNote);
+      const fp = await getKeyFingerprint(key);
+      if (!cancelled) {
+        setDecrypted(plain);
+        setFingerprint(fp);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, company.privateSensitiveNote]);
+
+  const handleChange = useCallback(
+    async (text: string) => {
+      setDecrypted(text);
+      if (!keyRef.current) return;
+      setSaving(true);
+      const ct = await encryptNote(keyRef.current, text);
+      onPatch(company.id, { privateSensitiveNote: ct });
+      setSaving(false);
+    },
+    [company.id, onPatch],
+  );
+
+  async function handleDownload() {
+    if (!keyRef.current) return;
+    const b64 = await exportEncryptionKey(keyRef.current);
+    const blob = new Blob([b64], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `enc-key-${fingerprint}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    const b64 = (await file.text()).trim();
+    const key = await importAndSaveEncryptionKey(userId, b64);
+    keyRef.current = key;
+    const plain = await decryptNote(key, company.privateSensitiveNote);
+    const fp = await getKeyFingerprint(key);
+    setDecrypted(plain);
+    setFingerprint(fp);
+    if (importInputRef.current) importInputRef.current.value = "";
+  }
+
+  return (
+    <section className="space-y-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <Lock className="h-4 w-4" />
+        민감 메모
+        <span className="ml-auto flex items-center gap-1 font-mono text-xs font-normal text-slate-400">
+          키 지문: {fingerprint || "…"}
+          {saving && <RefreshCw className="h-3 w-3 animate-spin" />}
+        </span>
+      </h3>
+      <p className="text-xs text-slate-500">
+        AES-GCM 256-bit 암호화 — 이 기기의 브라우저 localStorage에만 키가 저장됩니다.
+      </p>
+      <Textarea
+        aria-label="민감 메모 (암호화 저장)"
+        onChange={(e) => void handleChange(e.target.value)}
+        placeholder="연봉/처우 협상 내용, 내부자 정보, 인맥 연결 등 민감한 메모"
+        rows={4}
+        value={decrypted}
+      />
+      <div className="flex gap-2">
+        <Button onClick={handleDownload} size="sm" variant="secondary">
+          <Download className="mr-1 h-3 w-3" />
+          키 백업
+        </Button>
+        <Button
+          onClick={() => importInputRef.current?.click()}
+          size="sm"
+          variant="secondary"
+        >
+          <Upload className="mr-1 h-3 w-3" />
+          키 가져오기
+        </Button>
+        <input
+          accept=".txt"
+          className="hidden"
+          onChange={(e) => void handleImport(e)}
+          ref={importInputRef}
+          type="file"
+        />
+      </div>
+    </section>
   );
 }
 
