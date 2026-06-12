@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Building2, Inbox, Plus, Settings2 } from "lucide-react";
+import { AlertCircle, BarChart3, Building2, CheckCircle2, CloudOff, Inbox, Loader2, Plus, RefreshCw, Settings2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   mergeByUpdatedAt,
   pullRemoteCompanies,
   pushRemoteCompanies,
+  type SyncStatus,
 } from "@/lib/remote-sync";
 import { evaluateCompany, formatScore } from "@/lib/scoring";
 import {
@@ -94,8 +95,14 @@ export function CompanyTrackerApp() {
     useState<MigrationPromptState | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    state: "idle",
+    lastAt: "",
+  });
 
-  const debouncedPushRef = useRef(createDebouncedPush());
+  const debouncedPushRef = useRef(
+    createDebouncedPush(1500, (status) => setSyncStatus(status)),
+  );
   const userId = session?.user.id ?? "";
   const userEmail = session?.user.email ?? "";
 
@@ -601,9 +608,14 @@ export function CompanyTrackerApp() {
               <Building2 className="h-4 w-4" />
               Career Company Tracker
               {isRemoteSyncEnabled() ? (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                  Supabase 동기화
-                </span>
+                <SyncStatusBadge
+                  onRetry={() =>
+                    void pushRemoteCompanies(companies, userId).then((ok) =>
+                      setSyncStatus({ state: ok ? "ok" : "error", lastAt: new Date().toISOString() }),
+                    )
+                  }
+                  status={syncStatus}
+                />
               ) : null}
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
@@ -842,4 +854,58 @@ function getHostLabel(url: string): string {
   } catch {
     return "";
   }
+}
+
+function SyncStatusBadge({
+  status,
+  onRetry,
+}: {
+  status: SyncStatus;
+  onRetry: () => void;
+}) {
+  const timeLabel = status.lastAt
+    ? new Date(status.lastAt).toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+  if (status.state === "syncing") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-600">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        동기화 중…
+      </span>
+    );
+  }
+  if (status.state === "ok") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        <CheckCircle2 className="h-3 w-3" />
+        동기화됨 {timeLabel}
+      </span>
+    );
+  }
+  if (status.state === "error") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
+        <AlertCircle className="h-3 w-3" />
+        동기화 실패
+        <button
+          className="ml-0.5 hover:text-red-800"
+          onClick={onRetry}
+          type="button"
+        >
+          <RefreshCw className="h-3 w-3" />
+        </button>
+      </span>
+    );
+  }
+  // idle — not yet synced this session
+  return (
+    <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+      <CloudOff className="h-3 w-3" />
+      Supabase 연결됨
+    </span>
+  );
 }

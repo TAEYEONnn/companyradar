@@ -105,14 +105,27 @@ export function mergeByUpdatedAt(local: Company[], remote: Company[]): Company[]
   return Array.from(map.values());
 }
 
-/** 디바운스된 push 헬퍼 */
-export function createDebouncedPush(delayMs = 1500) {
+export interface SyncStatus {
+  state: "idle" | "syncing" | "ok" | "error";
+  lastAt: string;
+}
+
+/** 디바운스된 push 헬퍼. onResult로 동기화 결과를 알림. */
+export function createDebouncedPush(
+  delayMs = 1500,
+  onResult?: (status: SyncStatus) => void,
+) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   return (companies: Company[], userId: string) => {
     if (!isRemoteSyncEnabled()) return;
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      void pushRemoteCompanies(companies, userId);
+    onResult?.({ state: "syncing", lastAt: new Date().toISOString() });
+    timer = setTimeout(async () => {
+      const ok = await pushRemoteCompanies(companies, userId);
+      onResult?.({
+        state: ok ? "ok" : "error",
+        lastAt: new Date().toISOString(),
+      });
     }, delayMs);
   };
 }
