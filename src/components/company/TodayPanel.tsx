@@ -1,8 +1,10 @@
 "use client";
 
-import { CalendarCheck, CheckCircle2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowRight, CalendarCheck, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { getCompanyValidationReasons } from "@/lib/company-validation";
 import type { Company } from "@/lib/types";
 import { INTERVIEW_ROUND_TYPE_LABELS } from "@/lib/criteria";
 import { addDays, cn, parseLocalDate, today as formatToday } from "@/lib/utils";
@@ -12,11 +14,15 @@ type Urgency = "overdue" | "high" | "medium" | "low";
 
 type ActionItem = {
   id: string;
+  type: "follow-up" | "interview" | "deadline" | "generated-follow-up" | "pending-result" | "validation";
   companyId: string;
   companyName: string;
   action: string;
   urgency: Urgency;
   meta?: string;
+  taskId?: string;
+  validationReasons?: string[];
+  canCompleteDirectly: boolean;
 };
 
 function daysSince(dateStr: string, nowMs: number): number {
@@ -43,45 +49,25 @@ const URGENCY_CONFIG: Record<Urgency, { dot: string; label: string; meta: string
   low: { dot: "bg-slate-300", label: "text-slate-600", meta: "text-slate-400" },
 };
 
-function loadChecked(today: string): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = sessionStorage.getItem("today_checked_v1");
-    if (!raw) return new Set();
-    const { date, ids } = JSON.parse(raw) as { date: string; ids: string[] };
-    return date === today ? new Set(ids) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function saveChecked(today: string, ids: Set<string>) {
-  try {
-    sessionStorage.setItem(
-      "today_checked_v1",
-      JSON.stringify({ date: today, ids: Array.from(ids) }),
-    );
-  } catch { /* ignore */ }
-}
-
 interface TodayPanelProps {
   companies: Company[];
+  onCompleteFollowUpTask: (companyId: string, taskId: string) => void;
+  onMarkVerified: (companyId: string) => void;
   onSelectCompany: (id: string) => void;
 }
 
-export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
+export function TodayPanel({
+  companies,
+  onCompleteFollowUpTask,
+  onMarkVerified,
+  onSelectCompany,
+}: TodayPanelProps) {
   const today = useCurrentDate();
   const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
   const weekEnd = useMemo(
     () => formatToday(addDays(parseLocalDate(today), 7)),
     [today],
   );
-
-  const [checkedState, setCheckedState] = useState(() => ({
-    date: today,
-    ids: loadChecked(today),
-  }));
-  const checked = checkedState.date === today ? checkedState.ids : new Set<string>();
 
   const items = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
@@ -94,11 +80,14 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         if (!task.completed && task.dueDate && task.dueDate < today) {
           list.push({
             id: `task-overdue-${task.id}`,
+            type: "follow-up",
             companyId: company.id,
             companyName: company.name,
             action: task.title,
             urgency: "overdue",
             meta: `기한 ${task.dueDate} 초과`,
+            taskId: task.id,
+            canCompleteDirectly: true,
           });
         }
       }
@@ -115,11 +104,13 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
           const roundLabel = INTERVIEW_ROUND_TYPE_LABELS[round.type] ?? round.type;
           list.push({
             id: `interview-${round.id}`,
+            type: "interview",
             companyId: company.id,
             companyName: company.name,
             action: `${roundLabel} 면접 준비`,
             urgency: days <= 3 ? "high" : "medium",
             meta: `${round.scheduledAt} · ${days}일 후`,
+            canCompleteDirectly: false,
           });
         }
       }
@@ -134,11 +125,13 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         if (days >= 0 && days <= 7) {
           list.push({
             id: `deadline-${company.id}`,
+            type: "deadline",
             companyId: company.id,
             companyName: company.name,
             action: "공고 마감 전 지원",
             urgency: days <= 2 ? "high" : "medium",
             meta: `마감 ${company.jobDeadline} · ${days}일 남음`,
+            canCompleteDirectly: false,
           });
         }
       }
@@ -157,11 +150,13 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         if (!hasUpcoming && sinceApplied !== null && sinceApplied >= 7) {
           list.push({
             id: `followup-${company.id}`,
+            type: "generated-follow-up",
             companyId: company.id,
             companyName: company.name,
             action: "팔로업 메일 발송",
             urgency: sinceApplied >= 14 ? "high" : "medium",
             meta: `지원 후 ${sinceApplied}일 경과`,
+            canCompleteDirectly: false,
           });
         }
       }
@@ -176,11 +171,14 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         ) {
           list.push({
             id: `task-due-${task.id}`,
+            type: "follow-up",
             companyId: company.id,
             companyName: company.name,
             action: task.title,
             urgency: "medium",
             meta: `기한 ${task.dueDate}`,
+            taskId: task.id,
+            canCompleteDirectly: true,
           });
         }
       }
@@ -191,13 +189,30 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
           const roundLabel = INTERVIEW_ROUND_TYPE_LABELS[round.type] ?? round.type;
           list.push({
             id: `pending-${round.id}`,
+            type: "pending-result",
             companyId: company.id,
             companyName: company.name,
             action: `${roundLabel} 결과 입력`,
             urgency: "low",
             meta: "결과 대기 중",
+            canCompleteDirectly: false,
           });
         }
+      }
+
+      const validationReasons = getCompanyValidationReasons(company, today);
+      if (validationReasons.length > 0) {
+        list.push({
+          id: `validation-${company.id}`,
+          type: "validation",
+          companyId: company.id,
+          companyName: company.name,
+          action: "정보 검증 필요",
+          urgency: company.needsRefresh ? "high" : "low",
+          meta: `${validationReasons.length}개 사유`,
+          validationReasons,
+          canCompleteDirectly: false,
+        });
       }
     }
 
@@ -205,29 +220,13 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
     return list;
   }, [companies, today, todayMs, weekEnd]);
 
-  const doneCount = items.filter((item) => checked.has(item.id)).length;
-  const remaining = items.length - doneCount;
+  const completableItems = items.filter((item) => item.canCompleteDirectly && item.taskId);
+  const actionRequiredCount = items.length - completableItems.length;
 
-  function toggle(id: string) {
-    setCheckedState((prev) => {
-      const current = prev.date === today ? prev.ids : new Set<string>();
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      saveChecked(today, next);
-      return { date: today, ids: next };
-    });
-  }
-
-  function resetChecked() {
-    setCheckedState({ date: today, ids: new Set() });
-    try { sessionStorage.removeItem("today_checked_v1"); } catch { /* ignore */ }
-  }
-
-  function checkAll() {
-    const next = new Set(items.map((item) => item.id));
-    setCheckedState({ date: today, ids: next });
-    saveChecked(today, next);
+  function completeAllDirectTasks() {
+    for (const item of completableItems) {
+      if (item.taskId) onCompleteFollowUpTask(item.companyId, item.taskId);
+    }
   }
 
   return (
@@ -242,19 +241,17 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
             {today} ·{" "}
             {items.length === 0
               ? "할 일 없음"
-              : remaining > 0
-                ? `${remaining}개 남음${doneCount > 0 ? ` · ${doneCount}개 완료` : ""}`
-                : "모두 완료!"}
+              : `${items.length}개 남음${actionRequiredCount > 0 ? ` · 확인 필요 ${actionRequiredCount}개` : ""}`}
           </p>
         </div>
-        {items.length > 0 && (
+        {completableItems.length > 0 && (
           <Button
-            onClick={remaining > 0 ? checkAll : resetChecked}
+            onClick={completeAllDirectTasks}
             size="sm"
-            variant={remaining > 0 ? "primary" : "secondary"}
+            variant="primary"
           >
             <CheckCircle2 className="h-4 w-4" />
-            {remaining > 0 ? "전체 완료" : "전체 해제"}
+            완료 가능한 항목 전체 완료
           </Button>
         )}
       </div>
@@ -267,46 +264,30 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
       ) : (
         <ul className="divide-y divide-slate-100 py-1">
           {items.map((item) => {
-            const isChecked = checked.has(item.id);
             const cfg = URGENCY_CONFIG[item.urgency];
             return (
               <li
                 key={item.id}
-                className={cn(
-                  "flex items-start gap-3 px-4 py-3 transition-opacity",
-                  isChecked && "opacity-40",
-                )}
+                className="flex items-start gap-3 px-4 py-3"
               >
-                {/* 체크박스 */}
-                <button
-                  aria-label={isChecked ? "완료 취소" : "완료 표시"}
-                  className="mt-0.5 shrink-0"
-                  onClick={() => toggle(item.id)}
-                  type="button"
-                >
-                  <div
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border-2 transition-colors",
-                      isChecked
-                        ? "border-emerald-500 bg-emerald-500"
-                        : "border-slate-300 hover:border-slate-500",
-                    )}
+                {item.canCompleteDirectly && item.taskId ? (
+                  <button
+                    aria-label={`${item.action} 완료`}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => onCompleteFollowUpTask(item.companyId, item.taskId!)}
+                    type="button"
                   >
-                    {isChecked && (
-                      <svg
-                        className="h-2.5 w-2.5 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        viewBox="0 0 12 12"
-                      >
-                        <polyline points="1.5,6 4.5,9 10.5,3" />
-                      </svg>
+                    <div className="flex h-4 w-4 items-center justify-center rounded border-2 border-slate-300 transition-colors hover:border-emerald-500 hover:bg-emerald-50" />
+                  </button>
+                ) : (
+                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50">
+                    {item.type === "validation" ? (
+                      <ShieldCheck className="h-3 w-3 text-amber-500" />
+                    ) : (
+                      <ArrowRight className="h-3 w-3 text-slate-400" />
                     )}
                   </div>
-                </button>
+                )}
 
                 {/* 긴급도 도트 */}
                 <div className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", cfg.dot)} />
@@ -316,7 +297,7 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
                   <button
                     className={cn(
                       "w-full text-left text-sm leading-snug transition-colors hover:text-slate-950",
-                      isChecked ? "line-through text-slate-400" : cfg.label,
+                      cfg.label,
                     )}
                     onClick={() => onSelectCompany(item.companyId)}
                     type="button"
@@ -325,32 +306,42 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
                     {item.action}
                   </button>
                   {item.meta && (
-                    <p
-                      className={cn(
-                        "mt-0.5 text-xs",
-                        isChecked ? "text-slate-300" : cfg.meta,
-                      )}
-                    >
+                    <p className={cn("mt-0.5 text-xs", cfg.meta)}>
                       {item.meta}
                     </p>
+                  )}
+                  {item.validationReasons && item.validationReasons.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {item.validationReasons.slice(0, 4).map((reason) => (
+                        <Badge key={reason} tone="amber">
+                          {reason}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {item.type === "validation" && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => onSelectCompany(item.companyId)}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        상세 확인
+                      </Button>
+                      <Button
+                        onClick={() => onMarkVerified(item.companyId)}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        검증 완료
+                      </Button>
+                    </div>
                   )}
                 </div>
               </li>
             );
           })}
         </ul>
-      )}
-
-      {doneCount > 0 && (
-        <div className="border-t border-slate-100 px-4 py-2">
-          <button
-            className="text-xs text-slate-400 hover:text-slate-600"
-            onClick={resetChecked}
-            type="button"
-          >
-            완료 초기화
-          </button>
-        </div>
       )}
     </section>
   );

@@ -11,6 +11,11 @@ import {
   upsertCandidateInboxItem,
 } from "@/lib/candidate-sync";
 import { exportBackup, mergeCompanies, parseBackupFile } from "@/lib/backup";
+import {
+  getCompanyValidationReasons,
+  getValidationCompletePatch,
+  VALIDATION_REASON_LABELS,
+} from "@/lib/company-validation";
 import { importAndSaveEncryptionKey } from "@/lib/crypto";
 import { createEmptyCompany } from "@/lib/company-factory";
 import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
@@ -279,8 +284,13 @@ export function CompanyTrackerApp() {
       const matchesRed = !advancedFilter.hasRedFlag || company.signals.redFlags.length > 0;
       const matchesRisk = !advancedFilter.hasRisk || (scoreMap.get(company.id)?.riskCount ?? 0) > 0;
       const matchesInterviews = !advancedFilter.hasInterviews || company.interviewRounds.length > 0;
+      const validationReasons = getCompanyValidationReasons(company);
+      const matchesValidation =
+        !advancedFilter.needsValidation ||
+        scoreMap.get(company.id)?.needsValidation ||
+        validationReasons.length > 0;
 
-      return matchesStatus && matchesQuery && matchesMinScore && matchesGreen && matchesRed && matchesRisk && matchesInterviews;
+      return matchesStatus && matchesQuery && matchesMinScore && matchesGreen && matchesRed && matchesRisk && matchesInterviews && matchesValidation;
     });
 
     return rows.sort((a, b) => {
@@ -428,6 +438,27 @@ export function CompanyTrackerApp() {
         return next;
       }),
     );
+  }
+
+  function completeFollowUpTask(companyId: string, taskId: string) {
+    setCompanies((current) =>
+      current.map((company) =>
+        company.id === companyId
+          ? {
+              ...company,
+              followUpTasks: company.followUpTasks.map((task) =>
+                task.id === taskId ? { ...task, completed: true } : task,
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : company,
+      ),
+    );
+  }
+
+  function markCompanyVerified(companyId: string) {
+    patchCompany(companyId, getValidationCompletePatch());
+    showToast("검증 완료로 표시했습니다.");
   }
 
   function startCreate() {
@@ -745,6 +776,8 @@ export function CompanyTrackerApp() {
             ) : viewMode === "today" ? (
               <TodayPanel
                 companies={companies}
+                onCompleteFollowUpTask={completeFollowUpTask}
+                onMarkVerified={markCompanyVerified}
                 onSelectCompany={(id) => {
                   setSelectedId(id);
                   setDrawerOpen(true);
@@ -803,6 +836,11 @@ export function CompanyTrackerApp() {
                       <span className="ml-2 text-xs text-sky-600">
                         삭제 가능 · 비교는 2-3개 선택 시 가능
                       </span>
+                      {selectedCompanyIds.length > 3 && (
+                        <span className="ml-2 text-xs font-medium text-amber-700">
+                          비교는 최대 3개까지 가능
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -965,6 +1003,12 @@ function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
     evidenceLevel: parsed?.signals?.greenFlags?.length ? 2 : 1,
     sourceConfidence: 1,
     needsRefresh: true,
+    validationReason: [
+      VALIDATION_REASON_LABELS.aiExtracted,
+      VALIDATION_REASON_LABELS.staleJobCheck,
+      ...(parsed?.jobDeadline ? [] : [VALIDATION_REASON_LABELS.missingDeadline]),
+      VALIDATION_REASON_LABELS.lowEvidence,
+    ],
     createdAt: now,
     updatedAt: now,
   };

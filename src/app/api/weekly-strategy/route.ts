@@ -15,6 +15,7 @@ interface CompanySnapshot {
   jobDeadline?: string;
   followUpDueDates?: string[];
   interviewCount?: number;
+  validationReasons?: string[];
 }
 
 export async function POST(request: Request) {
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     .slice(0, 20)
     .map(
       (c) =>
-        `- ${c.name}: 상태=${c.status}, 우선순위=${c.applicationPriority ?? "?"}, 핏=${c.fitScore?.toFixed(1) ?? "?"}, 마감=${c.jobDeadline || "없음"}, 면접=${c.interviewCount ?? 0}회, 팔로업마감=${(c.followUpDueDates ?? []).join(",") || "없음"}`,
+        `- ${c.name}: 상태=${c.status}, 우선순위=${c.applicationPriority ?? "?"}, 핏=${c.fitScore?.toFixed(1) ?? "?"}, 마감=${c.jobDeadline || "없음"}, 면접=${c.interviewCount ?? 0}회, 검증사유=${(c.validationReasons ?? []).join(",") || "없음"}`,
     )
     .join("\n");
 
@@ -69,16 +70,16 @@ export async function POST(request: Request) {
 ## 이번 주 전략 요약
 2~3문장
 
-## 즉시 행동 필요 (Today)
-- 구체적인 액션 아이템 (회사명 포함, 최대 3개)
+## 이번 주 기회
+- 지원 비중 편향, 특정 분야 과다 지원, 검증 완료 후 우선 지원 가능 후보 중 의미 있는 항목만 최대 3개
 
-## 이번 주 중 처리
-- 구체적인 액션 아이템 (회사명 포함, 최대 4개)
+## 리스크와 조정
+- 정보 검증, 파이프라인 쏠림, 지원 우선순위 조정 관점의 조언 최대 4개
 
 ## 전략 인사이트
 1~2문장 (현재 상태의 패턴 분석, 개선 방향)
 
-규칙: 한국어로, 구체적인 회사명 사용, 추상적 조언 금지`;
+규칙: 한국어로, 구체적인 회사명 사용, 추상적 조언 금지, 오늘 할 일 목록에 나올 법한 단순 팔로업/면접 준비 액션 반복 금지`;
 
   try {
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {

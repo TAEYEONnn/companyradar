@@ -1,4 +1,5 @@
 import { SCORE_CATEGORIES } from "@/lib/criteria";
+import { needsCompanyValidation } from "@/lib/company-validation";
 import type {
   Company,
   CompanyScoreResult,
@@ -67,10 +68,7 @@ export function evaluateCompany(
     totalScore: companyFitScore,
     recommendationLabel: getRecommendationLabel(companyFitScore),
     highRisk: riskCount >= settings.highRiskThreshold,
-    needsValidation:
-      company.needsRefresh ||
-      company.evidenceLevel <= 2 ||
-      averageEvidenceLevel < 3,
+    needsValidation: needsCompanyValidation(company),
     averageEvidenceLevel,
     riskCount,
   };

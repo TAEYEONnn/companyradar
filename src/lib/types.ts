@@ -208,6 +208,7 @@ export interface Company {
   lastResearchedAt: string;
   isSampleData: boolean;
   needsRefresh: boolean;
+  validationReason: string[];
   memo: string;
   /** AES-GCM ciphertext. Decrypted client-side with per-device key in localStorage. */
   privateSensitiveNote: string;

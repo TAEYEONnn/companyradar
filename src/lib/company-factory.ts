@@ -32,6 +32,7 @@ export function createEmptyCompany(): Company {
     lastResearchedAt: "",
     isSampleData: false,
     needsRefresh: false,
+    validationReason: [],
     memo: "",
     privateSensitiveNote: "",
     scores: SCORE_CATEGORIES.reduce((scores, category) => {

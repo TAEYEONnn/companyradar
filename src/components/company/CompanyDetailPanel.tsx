@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
+import { getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
   DESIGNER_FIT_LABELS,
@@ -125,6 +126,7 @@ export function CompanyDetailPanel({
   });
   const [aiResearchLoading, setAiResearchLoading] = useState(false);
   const [aiResearchError, setAiResearchError] = useState("");
+  const validationReasons = getCompanyValidationReasons(company);
 
   async function generateAiResearchLog() {
     setAiResearchLoading(true);
@@ -332,6 +334,15 @@ export function CompanyDetailPanel({
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
           <p className="mt-1 text-sm text-slate-500">{company.industry}</p>
+          {validationReasons.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {validationReasons.map((reason) => (
+                <Badge key={reason} tone="amber">
+                  {reason}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-1">
           <Button aria-label="수정" onClick={() => onEdit(company)} size="icon" variant="ghost">
@@ -412,7 +423,7 @@ export function CompanyDetailPanel({
             <DateStampButton
               label="검증"
               onStamp={() =>
-                onPatch(company.id, { lastVerifiedAt: today(), needsRefresh: false })
+                onPatch(company.id, getValidationCompletePatch(today()))
               }
               value={company.lastVerifiedAt}
             />
