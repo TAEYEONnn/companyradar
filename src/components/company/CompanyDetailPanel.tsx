@@ -381,6 +381,8 @@ export function CompanyDetailPanel({
           </div>
         </section>
 
+        <CompanySummarySection company={company} userId={userId} />
+
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">평가 점수</h3>
           {score.categoryScores.map((category) => (
@@ -1537,6 +1539,119 @@ function DraftEmailSection({ company }: { company: Company }) {
               <span className="ml-1 text-xs text-emerald-600">복사됨</span>
             ) : null}
           </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CompanySummarySection({
+  company,
+  userId: _userId,
+}: {
+  company: Company;
+  userId: string;
+}) {
+  const [summary, setSummary] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function generateSummary() {
+    setLoading(true);
+    setError("");
+
+    let accessToken: string | undefined;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token;
+      }
+    } catch { /* non-fatal */ }
+
+    if (!accessToken) {
+      setError("로그인이 필요합니다.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/summarize-company", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          companyName: company.name,
+          industry: company.industry,
+          productDescription: company.productDescription,
+          candidateReason: company.candidateReason,
+          applicationPriority: company.applicationPriority,
+          status: company.status,
+          greenFlags: company.signals.greenFlags.map((s) => s.label),
+          redFlags: company.signals.redFlags.map((s) => s.label),
+          riskFlags: company.riskFlags,
+          researchLogs: company.researchLogs.map((l) => ({
+            source: l.source,
+            positiveSignals: l.positiveSignals,
+            negativeSignals: l.negativeSignals,
+          })),
+        }),
+      });
+
+      const data = (await res.json()) as
+        | { ok: true; summary: string }
+        | { error: { message: string } };
+
+      if (!("ok" in data) || !data.ok) {
+        const msg = "error" in data ? data.error.message : "AI 요약 생성에 실패했습니다.";
+        setError(msg);
+        return;
+      }
+
+      setSummary(data.summary);
+    } catch {
+      setError("AI 요약 생성 요청에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <Sparkles className="h-4 w-4 text-sky-500" />
+          AI 회사 요약
+        </h3>
+        <Button
+          disabled={loading}
+          onClick={() => void generateSummary()}
+          size="sm"
+          variant="secondary"
+        >
+          {summary ? (
+            <RefreshCw className="h-3.5 w-3.5" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          {loading ? "생성 중..." : summary ? "재생성" : "AI 요약 생성"}
+        </Button>
+      </div>
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {!summary && !loading && !error ? (
+        <p className="text-xs text-slate-400">
+          회사 정보·신호·리서치 로그를 바탕으로 AI가 요약을 작성합니다.
+        </p>
+      ) : null}
+      {summary ? (
+        <div className="space-y-2 rounded-md border border-sky-100 bg-sky-50 p-3">
+          {summary.split("\n\n").map((para, i) => (
+            <p className="text-sm leading-relaxed text-slate-700" key={i}>
+              {para}
+            </p>
+          ))}
         </div>
       ) : null}
     </section>
