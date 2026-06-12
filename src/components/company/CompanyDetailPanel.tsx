@@ -115,6 +115,53 @@ export function CompanyDetailPanel({
     negativeSignals: "",
     questions: "",
   });
+  const [aiResearchLoading, setAiResearchLoading] = useState(false);
+  const [aiResearchError, setAiResearchError] = useState("");
+
+  async function generateAiResearchLog() {
+    setAiResearchLoading(true);
+    setAiResearchError("");
+    let accessToken: string | undefined;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token;
+      }
+    } catch { /* non-fatal */ }
+    try {
+      const res = await fetch("/api/research-company", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          companyName: company.name,
+          homepageUrl: company.homepageUrl,
+          industry: company.industry,
+        }),
+      });
+      const data = (await res.json()) as
+        | { ok: true; result: { source: string; link: string; positiveSignals: string; negativeSignals: string; questions: string } }
+        | { error: { message: string } };
+      if (!("ok" in data) || !data.ok) {
+        setAiResearchError("error" in data ? data.error.message : "AI 리서치 생성에 실패했습니다.");
+        return;
+      }
+      onPatch(company.id, {
+        researchLogs: [
+          { id: createId("log"), ...data.result, createdAt: today() },
+          ...company.researchLogs,
+        ],
+        lastResearchedAt: today(),
+      });
+    } catch {
+      setAiResearchError("AI 리서치 요청에 실패했습니다.");
+    } finally {
+      setAiResearchLoading(false);
+    }
+  }
 
   function addSignal() {
     if (!signalDraft.label.trim()) return;
@@ -587,10 +634,24 @@ export function CompanyDetailPanel({
         </section>
 
         <section className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <BookOpenText className="h-4 w-4" />
-            리서치 로그
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <BookOpenText className="h-4 w-4" />
+              리서치 로그
+            </h3>
+            <Button
+              disabled={aiResearchLoading}
+              onClick={() => void generateAiResearchLog()}
+              size="sm"
+              variant="secondary"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {aiResearchLoading ? "분석 중..." : "AI 리서치"}
+            </Button>
+          </div>
+          {aiResearchError && (
+            <p className="text-xs text-red-600">{aiResearchError}</p>
+          )}
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Input
               aria-label="리서치 출처"

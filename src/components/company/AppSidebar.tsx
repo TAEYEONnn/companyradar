@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  BrainCircuit,
   Building2,
   CalendarCheck,
   CalendarDays,
@@ -107,6 +108,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "inbox", icon: Inbox, label: "후보 검토", badgeKey: "inbox" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
   { id: "timeline", icon: CalendarDays, label: "타임라인" },
+  { id: "coach", icon: BrainCircuit, label: "AI 코치" },
   { id: "stats", icon: BarChart3, label: "통계" },
   { id: "settings", icon: Settings2, label: "설정" },
 ];

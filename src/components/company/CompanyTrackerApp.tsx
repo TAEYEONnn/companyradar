@@ -51,6 +51,7 @@ import { CompanyDrawer } from "./CompanyDrawer";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyTable } from "./CompanyTable";
 import { CriteriaSettingsPanel } from "./CriteriaSettingsPanel";
+import { CoachPanel } from "./CoachPanel";
 import { KanbanBoard } from "./KanbanBoard";
 import { MigrationDialog } from "./MigrationDialog";
 import {
@@ -745,6 +746,12 @@ export function CompanyTrackerApp() {
                   setDrawerOpen(true);
                 }}
               />
+            ) : viewMode === "coach" ? (
+              <CoachPanel
+                companies={companies}
+                onBack={() => setViewMode("dashboard")}
+                scoreMap={scoreMap}
+              />
             ) : viewMode === "compare" ? (
               <ComparePanel
                 companies={companies.filter((c) => compareIds.includes(c.id))}
@@ -846,7 +853,7 @@ export function CompanyTrackerApp() {
               <kbd className="rounded border border-slate-300 px-1">/</kbd> 검색 ·{" "}
               <kbd className="rounded border border-slate-300 px-1">S</kbd> 통계 ·{" "}
               <kbd className="rounded border border-slate-300 px-1">ESC</kbd> 닫기
-              {" · "}v3.0.0
+              {" · "}v4.0.0
             </footer>
           </div>
         </div>
@@ -905,23 +912,30 @@ export function CompanyTrackerApp() {
 function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
   const now = new Date().toISOString();
   const company = createEmptyCompany();
+  const parsed = candidate.parsedCompany;
   const inferredName =
-    candidate.parsedCompany?.name ||
+    parsed?.name ||
     getHostLabel(candidate.sourceUrl) ||
     "검토 후보";
 
   return {
     ...company,
     name: inferredName,
+    industry: parsed?.industry ?? company.industry,
+    productDescription: parsed?.productDescription ?? company.productDescription,
+    jobDeadline: parsed?.jobDeadline ?? company.jobDeadline,
+    candidateReason:
+      parsed?.candidateReason ||
+      candidate.firstImpressionNote ||
+      "Candidate Inbox에서 승격한 후보입니다.",
+    signals: parsed?.signals ?? company.signals,
     homepageUrl: candidate.sourceUrl,
     jobPostUrl: candidate.sourceUrl,
     sourceUrls: candidate.sourceUrl ? [candidate.sourceUrl] : [],
     discoveryReason: candidate.discoveryReason,
     firstImpressionNote: candidate.firstImpressionNote,
-    candidateReason:
-      candidate.firstImpressionNote || "Candidate Inbox에서 승격한 후보입니다.",
     memo: candidate.rawText,
-    evidenceLevel: 1,
+    evidenceLevel: parsed?.signals?.greenFlags?.length ? 2 : 1,
     sourceConfidence: 1,
     needsRefresh: true,
     createdAt: now,
