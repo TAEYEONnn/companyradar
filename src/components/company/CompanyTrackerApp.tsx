@@ -1,10 +1,15 @@
 "use client";
 
-import { BarChart3, Building2, Plus, Settings2 } from "lucide-react";
+import { BarChart3, Building2, Inbox, Plus, Settings2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  deleteCandidateInboxItem,
+  pullCandidateInboxItems,
+  upsertCandidateInboxItem,
+} from "@/lib/candidate-sync";
 import { exportBackup, mergeCompanies, parseBackupFile } from "@/lib/backup";
 import { createEmptyCompany } from "@/lib/company-factory";
 import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
@@ -30,12 +35,15 @@ import {
 import { getSupabaseClient } from "@/lib/supabase-client";
 import type {
   ApplicationStatus,
+  CandidateInboxItem,
   Company,
   CriteriaSettings,
+  DiscoveryReason,
   SortMode,
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { AuthGate } from "./AuthGate";
+import { CandidateInboxPanel } from "./CandidateInboxPanel";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyTable } from "./CompanyTable";
@@ -54,6 +62,7 @@ import {
 } from "./shared";
 import { StatsPanel } from "./StatsPanel";
 import { Toolbar } from "./Toolbar";
+import { createId } from "@/lib/utils";
 
 interface MigrationPromptState {
   localCompanies: Company[];
@@ -64,6 +73,7 @@ export function CompanyTrackerApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [candidates, setCandidates] = useState<CandidateInboxItem[]>([]);
   const [settings, setSettings] = useState<CriteriaSettings>(
     DEFAULT_CRITERIA_SETTINGS,
   );
@@ -108,6 +118,7 @@ export function CompanyTrackerApp() {
       setSession(nextSession);
       if (!nextSession) {
         setCompanies([]);
+        setCandidates([]);
         setSelectedId("");
         setEditingCompany(null);
         setViewMode("dashboard");
@@ -135,6 +146,14 @@ export function CompanyTrackerApp() {
       const loadedSettings = localStorageRepository.loadSettings(userId);
       const migrationCompletedAt = getMigrationCompletedAt(userId);
       setSettings(loadedSettings);
+
+      const remoteCandidates = await pullCandidateInboxItems(userId);
+      if (remoteCandidates === null) {
+        setCandidates([]);
+        showToast("Candidate Inbox 테이블을 불러오지 못했습니다. migration 적용을 확인하세요.");
+      } else {
+        setCandidates(remoteCandidates);
+      }
 
       let remoteCompanies: Company[] = [];
 
@@ -381,6 +400,64 @@ export function CompanyTrackerApp() {
     }
   }
 
+  function createCandidate(draft: {
+    sourceUrl: string;
+    rawText: string;
+    discoveryReason: DiscoveryReason;
+    firstImpressionNote: string;
+  }) {
+    if (!userId) return;
+    const now = new Date().toISOString();
+    const candidate: CandidateInboxItem = {
+      id: createId("candidate"),
+      sourceUrl: draft.sourceUrl.trim(),
+      rawText: draft.rawText.trim(),
+      discoveryReason: draft.discoveryReason,
+      firstImpressionNote: draft.firstImpressionNote.trim(),
+      parsedCompany: null,
+      parseStatus: "idle",
+      needsReview: true,
+      promotedCompanyId: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    setCandidates((current) => [candidate, ...current]);
+    void upsertCandidateInboxItem(candidate, userId).then((saved) => {
+      if (!saved) showToast("Candidate Inbox 저장에 실패했습니다.");
+    });
+  }
+
+  function removeCandidate(candidateId: string) {
+    if (!userId) return;
+    setCandidates((current) =>
+      current.filter((candidate) => candidate.id !== candidateId),
+    );
+    void deleteCandidateInboxItem(candidateId, userId).then((deleted) => {
+      if (!deleted) showToast("Candidate Inbox 삭제에 실패했습니다.");
+    });
+  }
+
+  function promoteCandidate(candidate: CandidateInboxItem) {
+    if (!userId || candidate.promotedCompanyId) return;
+    const company = createCompanyFromCandidate(candidate);
+    upsertCompany(company);
+    const updatedCandidate = {
+      ...candidate,
+      needsReview: false,
+      promotedCompanyId: company.id,
+      updatedAt: new Date().toISOString(),
+    };
+    setCandidates((current) =>
+      current.map((item) =>
+        item.id === candidate.id ? updatedCandidate : item,
+      ),
+    );
+    void upsertCandidateInboxItem(updatedCandidate, userId).then((saved) => {
+      if (!saved) showToast("승격 상태 저장에 실패했습니다.");
+    });
+    showToast(`${company.name} 후보를 회사 목록으로 승격했습니다.`);
+  }
+
   async function signOut() {
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut();
@@ -538,6 +615,14 @@ export function CompanyTrackerApp() {
               통계
             </Button>
             <Button
+              aria-label="Candidate Inbox 보기"
+              onClick={() => setViewMode("inbox")}
+              variant="secondary"
+            >
+              <Inbox className="h-4 w-4" />
+              후보 {candidates.filter((candidate) => candidate.needsReview).length}
+            </Button>
+            <Button
               aria-label="평가 기준 설정"
               onClick={() => setViewMode("settings")}
               variant="secondary"
@@ -599,6 +684,14 @@ export function CompanyTrackerApp() {
             onBack={() => setViewMode("dashboard")}
             onChange={setSettings}
             settings={settings}
+          />
+        ) : viewMode === "inbox" ? (
+          <CandidateInboxPanel
+            candidates={candidates}
+            onBack={() => setViewMode("dashboard")}
+            onCreate={createCandidate}
+            onDelete={removeCandidate}
+            onPromote={promoteCandidate}
           />
         ) : viewMode === "stats" ? (
           <StatsPanel
@@ -705,4 +798,39 @@ export function CompanyTrackerApp() {
       ) : null}
     </main>
   );
+}
+
+function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
+  const now = new Date().toISOString();
+  const company = createEmptyCompany();
+  const inferredName =
+    candidate.parsedCompany?.name ||
+    getHostLabel(candidate.sourceUrl) ||
+    "검토 후보";
+
+  return {
+    ...company,
+    name: inferredName,
+    homepageUrl: candidate.sourceUrl,
+    jobPostUrl: candidate.sourceUrl,
+    sourceUrls: candidate.sourceUrl ? [candidate.sourceUrl] : [],
+    discoveryReason: candidate.discoveryReason,
+    firstImpressionNote: candidate.firstImpressionNote,
+    candidateReason:
+      candidate.firstImpressionNote || "Candidate Inbox에서 승격한 후보입니다.",
+    memo: candidate.rawText,
+    evidenceLevel: 1,
+    sourceConfidence: 1,
+    needsRefresh: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function getHostLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }

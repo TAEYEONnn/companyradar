@@ -65,6 +65,7 @@ npm run dev
 예상 테이블:
 
 - `companies`
+- `candidate_inbox_items`
 - `company_scores`
 - `research_logs`
 - `risk_flags`
@@ -150,6 +151,7 @@ src/lib/
 src/app/api/parse-job/route.ts  # AI 공고 파싱
 supabase/schema.sql
 supabase/migrations/20260612_v031_auth_rls.sql
+supabase/migrations/20260612_v033_candidate_inbox.sql
 ```
 
 ---
@@ -260,4 +262,31 @@ curl -i "$SUPABASE_URL/rest/v1/companies" \
 curl -i -X DELETE "$SUPABASE_URL/rest/v1/companies?id=eq.rls_test_company" \
   -H "apikey: $SUPABASE_ANON_KEY" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+---
+
+## v0.3.3 Candidate Inbox
+
+Candidate Inbox는 검토 전 후보를 `companies`와 섞지 않기 위한 별도 저장소입니다.
+
+- 적용 전 Supabase SQL Editor에서 `supabase/migrations/20260612_v033_candidate_inbox.sql`을 실행합니다.
+- 후보는 `candidate_inbox_items`에 저장합니다.
+- `companies` 목록, 점수 계산, 상태 필터에는 검토 전 후보를 포함하지 않습니다.
+- 후보를 승인하면 새 `company` row를 만들고 candidate에는 `promotedCompanyId`를 저장합니다.
+- v0.3.3은 수동 후보 저장/승격까지만 포함합니다. URL fetch, raw text fallback, AI structured parsing은 v0.3.4/v0.3.5 범위입니다.
+
+Candidate Inbox RLS도 `companies`와 같은 방식으로 검증합니다.
+
+```bash
+curl -i "$SUPABASE_URL/rest/v1/candidate_inbox_items?select=id" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+
+curl -i "$SUPABASE_URL/rest/v1/candidate_inbox_items" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d "[{\"user_id\":\"$USER_ID\",\"id\":\"candidate_rls_test\",\"source_url\":\"https://example.com/jobs\",\"raw_text\":\"test\",\"discovery_reason\":\"manual\"}]"
 ```

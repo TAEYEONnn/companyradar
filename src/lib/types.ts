@@ -13,6 +13,14 @@ export type EvidenceLevel = 1 | 2 | 3 | 4 | 5;
 
 export type JobStatus = "open" | "closed" | "unknown";
 
+export type CandidateParseStatus =
+  | "idle"
+  | "fetching"
+  | "parsed"
+  | "partial"
+  | "failed"
+  | "needs_manual_input";
+
 export type DiscoveryReason =
   | "design-system"
   | "product-growth"
@@ -134,6 +142,20 @@ export interface FollowUpTask {
   completed: boolean;
   relatedRoundId?: string;
   createdAt: string;
+}
+
+export interface CandidateInboxItem {
+  id: string;
+  sourceUrl: string;
+  rawText: string;
+  discoveryReason: DiscoveryReason;
+  firstImpressionNote: string;
+  parsedCompany: Partial<Company> | null;
+  parseStatus: CandidateParseStatus;
+  needsReview: boolean;
+  promotedCompanyId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Company {
