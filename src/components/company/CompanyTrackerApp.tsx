@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, BarChart3, Building2, CalendarDays, CheckCircle2, CloudOff, Inbox, Loader2, Plus, RefreshCw, Settings2 } from "lucide-react";
+import { AlertCircle, BarChart3, Building2, CalendarCheck, CalendarDays, CheckCircle2, CloudOff, Inbox, Loader2, Plus, RefreshCw, Settings2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ import {
 import { ComparePanel } from "./ComparePanel";
 import { StatsPanel } from "./StatsPanel";
 import { TimelinePanel } from "./TimelinePanel";
+import { TodayPanel } from "./TodayPanel";
 import { Toolbar } from "./Toolbar";
 import { cn, createId } from "@/lib/utils";
 
@@ -642,6 +643,14 @@ export function CompanyTrackerApp() {
               통계
             </Button>
             <Button
+              aria-label="오늘 할 일 보기"
+              onClick={() => setViewMode("today")}
+              variant="secondary"
+            >
+              <CalendarCheck className="h-4 w-4" />
+              오늘
+            </Button>
+            <Button
               aria-label="면접 타임라인 보기"
               onClick={() => setViewMode("timeline")}
               variant="secondary"
@@ -736,6 +745,15 @@ export function CompanyTrackerApp() {
           />
         ) : viewMode === "timeline" ? (
           <TimelinePanel
+            companies={companies}
+            onBack={() => setViewMode("dashboard")}
+            onSelectCompany={(id) => {
+              setSelectedId(id);
+              setViewMode("dashboard");
+            }}
+          />
+        ) : viewMode === "today" ? (
+          <TodayPanel
             companies={companies}
             onBack={() => setViewMode("dashboard")}
             onSelectCompany={(id) => {
