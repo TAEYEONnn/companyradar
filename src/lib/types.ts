@@ -176,6 +176,12 @@ export interface CandidateInboxItem {
   updatedAt: string;
 }
 
+export interface StatusHistoryEntry {
+  status: ApplicationStatus;
+  date: string;
+  note: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -216,6 +222,7 @@ export interface Company {
   riskFlags: string[];
   interviewNotes: InterviewNote[];
   prepQuestions: PrepQuestion[];
+  statusHistory: StatusHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 }

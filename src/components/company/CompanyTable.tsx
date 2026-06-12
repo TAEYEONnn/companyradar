@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
+import type { ApplicationChecklist } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   COMPANY_SIZE_LABELS,
@@ -114,6 +115,7 @@ export function CompanyTable({
                     <div className="mt-0.5 text-xs text-slate-500">
                       {company.industry} · {COMPANY_SIZE_LABELS[company.size]}
                     </div>
+                    <ChecklistDots checklist={company.applicationChecklist} />
                   </td>
 
                   {/* 회사핏 + Evidence */}
@@ -260,6 +262,33 @@ export function CompanyTable({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const CHECKLIST_KEYS: (keyof ApplicationChecklist)[] = [
+  "resumeReady",
+  "portfolioReady",
+  "coverLetterReady",
+  "referralChecked",
+  "submitted",
+];
+
+function ChecklistDots({ checklist }: { checklist: ApplicationChecklist }) {
+  const done = CHECKLIST_KEYS.filter((k) => checklist[k]).length;
+  if (done === 0) return null;
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      {CHECKLIST_KEYS.map((k) => (
+        <div
+          key={k}
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            checklist[k] ? "bg-emerald-500" : "bg-slate-200",
+          )}
+        />
+      ))}
+      <span className="ml-0.5 text-xs text-slate-400">{done}/5</span>
     </div>
   );
 }

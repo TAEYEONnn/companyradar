@@ -8,9 +8,85 @@ import {
   Flag,
   Inbox,
   Settings2,
+  Target,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ViewMode } from "./shared";
+
+const GOAL_KEY = "career_tracker_monthly_goal";
+
+function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
+  const [goal, setGoal] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem(GOAL_KEY);
+    if (stored) setGoal(Number(stored));
+  }, []);
+
+  function saveGoal() {
+    const n = Math.max(0, Math.min(99, Number(draft) || 0));
+    setGoal(n);
+    localStorage.setItem(GOAL_KEY, String(n));
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Target className="h-3 w-3 shrink-0 text-slate-400" />
+        <input
+          autoFocus
+          className="w-10 rounded border border-slate-300 px-1 text-xs"
+          max={99}
+          min={0}
+          onBlur={saveGoal}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") saveGoal();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          type="number"
+          value={draft}
+        />
+        <span className="text-xs text-slate-400">개 목표</span>
+      </div>
+    );
+  }
+
+  const month = new Date().toLocaleDateString("ko-KR", { month: "long" });
+  const pct = goal > 0 ? Math.min(100, Math.round((appliedCount / goal) * 100)) : 0;
+
+  return (
+    <button
+      className="w-full text-left"
+      onClick={() => {
+        setDraft(String(goal || ""));
+        setEditing(true);
+      }}
+      title="클릭해서 목표 설정"
+      type="button"
+    >
+      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+        <Target className="h-3 w-3 shrink-0" />
+        <span>
+          {month} 지원 {appliedCount}
+          {goal > 0 ? `/${goal}` : ""}
+        </span>
+      </div>
+      {goal > 0 && (
+        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-1 rounded-full bg-emerald-500 transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </button>
+  );
+}
 
 export interface SidebarBadges {
   inbox: number;
@@ -39,6 +115,7 @@ interface AppSidebarProps {
   userEmail: string;
   viewMode: ViewMode;
   badges: SidebarBadges;
+  appliedCount: number;
   onNavigate: (mode: ViewMode) => void;
   onSignOut: () => void;
 }
@@ -47,6 +124,7 @@ export function AppSidebar({
   userEmail,
   viewMode,
   badges,
+  appliedCount,
   onNavigate,
   onSignOut,
 }: AppSidebarProps) {
@@ -132,11 +210,12 @@ export function AppSidebar({
         </div>
       )}
 
-      {/* User */}
-      <div className="border-t border-slate-100 p-3">
+      {/* Monthly goal + User */}
+      <div className="space-y-2 border-t border-slate-100 p-3">
+        <MonthlyGoalWidget appliedCount={appliedCount} />
         <p className="truncate text-xs text-slate-400">{userEmail}</p>
         <button
-          className="mt-1 text-xs text-slate-400 hover:text-slate-700"
+          className="text-xs text-slate-400 hover:text-slate-700"
           onClick={onSignOut}
           type="button"
         >

@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowLeft, GitCompareArrows } from "lucide-react";
+import { ArrowLeft, GitCompareArrows, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PRIORITY_LABELS, SCORE_CATEGORIES, STATUS_LABELS } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { Company, CompanyScoreResult } from "@/lib/types";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { getPriorityTone, STATUS_TONE } from "./shared";
 
 interface ComparePanelProps {
@@ -22,6 +24,58 @@ export function ComparePanel({
   onSelectCompany,
 }: ComparePanelProps) {
   const cols = companies.slice(0, 3);
+  const [aiComparison, setAiComparison] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
+  async function runAiCompare() {
+    setAiLoading(true);
+    setAiError("");
+    let accessToken: string | undefined;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token;
+      }
+    } catch { /* non-fatal */ }
+
+    try {
+      const res = await fetch("/api/compare-companies", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          companies: cols.map((c) => ({
+            name: c.name,
+            industry: c.industry,
+            productDescription: c.productDescription,
+            candidateReason: c.candidateReason,
+            applicationPriority: c.applicationPriority,
+            status: c.status,
+            fitScore: scoreMap.get(c.id)?.companyFitScore,
+            greenFlags: c.signals.greenFlags.map((s) => s.label),
+            redFlags: c.signals.redFlags.map((s) => s.label),
+            riskFlags: c.riskFlags,
+          })),
+        }),
+      });
+      const data = (await res.json()) as
+        | { ok: true; comparison: string }
+        | { error: { message: string } };
+      if (!("ok" in data) || !data.ok) {
+        setAiError("error" in data ? data.error.message : "AI 비교 생성에 실패했습니다.");
+        return;
+      }
+      setAiComparison(data.comparison);
+    } catch {
+      setAiError("AI 비교 요청에 실패했습니다.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
@@ -35,11 +89,36 @@ export function ComparePanel({
             {cols.length}개 회사를 나란히 비교합니다.
           </p>
         </div>
-        <Button onClick={onBack} variant="secondary">
-          <ArrowLeft className="h-4 w-4" />
-          대시보드
-        </Button>
+        <div className="flex gap-2">
+          <Button disabled={aiLoading} onClick={() => void runAiCompare()} variant="secondary">
+            <Sparkles className="h-4 w-4" />
+            {aiLoading ? "분석 중..." : "AI 비교 분석"}
+          </Button>
+          <Button onClick={onBack} variant="secondary">
+            <ArrowLeft className="h-4 w-4" />
+            대시보드
+          </Button>
+        </div>
       </div>
+
+      {aiError && (
+        <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {aiError}
+        </div>
+      )}
+      {aiComparison && (
+        <div className="space-y-2 border-b border-sky-100 bg-sky-50 p-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+            <Sparkles className="h-3.5 w-3.5" />
+            AI 비교 분석
+          </p>
+          {aiComparison.split("\n\n").map((para, i) => (
+            <p className="text-sm leading-relaxed text-slate-700" key={i}>
+              {para}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">

@@ -49,6 +49,7 @@ import type {
   PrepCategory,
   PrepQuestion,
   ResearchSignal,
+  StatusHistoryEntry,
 } from "@/lib/types";
 import {
   decryptNote,
@@ -282,6 +283,14 @@ export function CompanyDetailPanel({
             <Pencil className="h-4 w-4" />
           </Button>
           <Button
+            aria-label="인쇄/PDF"
+            onClick={() => window.print()}
+            size="icon"
+            variant="ghost"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button
             aria-label="삭제"
             onClick={() => onDelete(company.id)}
             size="icon"
@@ -380,6 +389,8 @@ export function CompanyDetailPanel({
             ) : null}
           </div>
         </section>
+
+        <StatusHistorySection statusHistory={company.statusHistory ?? []} />
 
         <CompanySummarySection company={company} userId={userId} />
 
@@ -1295,6 +1306,11 @@ function PrepQuestionSection({
     items: (company.prepQuestions ?? []).filter((q) => q.category === cat),
   })).filter((g) => g.items.length > 0);
 
+  const total = (company.prepQuestions ?? []).length;
+  const answered = encKey
+    ? null
+    : (company.prepQuestions ?? []).filter((q) => Boolean(q.answer.trim())).length;
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -1302,6 +1318,11 @@ function PrepQuestionSection({
           <BookOpenText className="h-4 w-4" />
           면접 준비 Q&A
           <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
+          {total > 0 && (
+            <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${answered === total ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+              {answered !== null ? `${answered}/${total}` : total}
+            </span>
+          )}
         </h3>
         <Button
           disabled={genLoading}
@@ -1541,6 +1562,27 @@ function DraftEmailSection({ company }: { company: Company }) {
           </button>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function StatusHistorySection({ statusHistory }: { statusHistory: StatusHistoryEntry[] }) {
+  if (statusHistory.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">상태 변경 이력</h3>
+      <ol className="relative border-l border-slate-200 pl-4 text-xs text-slate-600">
+        {statusHistory.map((entry, i) => (
+          <li className="mb-3 last:mb-0" key={i}>
+            <div className="absolute -left-1.5 mt-0.5 h-3 w-3 rounded-full border-2 border-white bg-slate-400" />
+            <time className="text-slate-400">{entry.date}</time>
+            <p className="mt-0.5 font-medium text-slate-800">
+              {STATUS_LABELS[entry.status]}
+            </p>
+            {entry.note ? <p className="text-slate-500">{entry.note}</p> : null}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

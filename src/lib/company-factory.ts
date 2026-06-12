@@ -71,6 +71,7 @@ export function createEmptyCompany(): Company {
     riskFlags: [],
     interviewNotes: [],
     prepQuestions: [],
+    statusHistory: [],
     createdAt: now,
     updatedAt: now,
   };

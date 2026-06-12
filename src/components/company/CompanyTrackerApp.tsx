@@ -409,11 +409,17 @@ export function CompanyTrackerApp() {
 
   function patchCompany(companyId: string, patch: Partial<Company>) {
     setCompanies((current) =>
-      current.map((company) =>
-        company.id === companyId
-          ? { ...company, ...patch, updatedAt: new Date().toISOString() }
-          : company,
-      ),
+      current.map((company) => {
+        if (company.id !== companyId) return company;
+        const next = { ...company, ...patch, updatedAt: new Date().toISOString() };
+        if (patch.status && patch.status !== company.status) {
+          next.statusHistory = [
+            { status: patch.status, date: new Date().toISOString().slice(0, 10), note: "" },
+            ...(company.statusHistory ?? []),
+          ];
+        }
+        return next;
+      }),
     );
   }
 
@@ -641,6 +647,9 @@ export function CompanyTrackerApp() {
     <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-950">
       {/* ─── Sidebar ─── */}
       <AppSidebar
+        appliedCount={
+          companies.filter((c) => c.status === "applied").length
+        }
         badges={sidebarBadges}
         onNavigate={(mode) => {
           setViewMode(mode);

@@ -1,9 +1,26 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { Company, CompanyScoreResult } from "@/lib/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
+
+function DeadlineAlert({ company }: { company: Company }) {
+  if (!company.jobDeadline || company.jobStatus !== "open") return null;
+  const daysLeft = Math.ceil(
+    (Date.parse(company.jobDeadline) - Date.now()) / 86_400_000,
+  );
+  if (daysLeft < 0 || daysLeft > 3) return null;
+  return (
+    <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
+      {daysLeft === 0
+        ? "오늘 마감입니다!"
+        : `공고 마감 D-${daysLeft} (${company.jobDeadline})`}
+    </div>
+  );
+}
 
 interface CompanyDrawerProps {
   open: boolean;
@@ -56,9 +73,11 @@ export function CompanyDrawer({
         )}
       >
         {company && score ? (
-          <CompanyDetailPanel
-            company={company}
-            onBack={onClose}
+          <>
+            <DeadlineAlert company={company} />
+            <CompanyDetailPanel
+              company={company}
+              onBack={onClose}
             onDelete={(id) => {
               onDelete(id);
               onClose();
@@ -68,6 +87,7 @@ export function CompanyDrawer({
             score={score}
             userId={userId}
           />
+          </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
             회사를 선택하세요

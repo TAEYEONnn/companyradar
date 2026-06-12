@@ -143,6 +143,7 @@ function company(input: {
     riskFlags: [],
     interviewNotes: [],
     prepQuestions: [],
+    statusHistory: [],
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
   };
