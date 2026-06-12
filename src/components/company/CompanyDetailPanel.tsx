@@ -769,7 +769,7 @@ export function CompanyDetailPanel({
             <Flag className="h-4 w-4" />
             다음 할일
           </h3>
-          <div className="grid grid-cols-[1fr_128px_64px] gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="grid grid-cols-[1fr_128px_64px] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Input
               aria-label="할일"
               onChange={(event) =>
@@ -842,7 +842,7 @@ export function CompanyDetailPanel({
             면접 메모
             <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
           </h3>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Input
               aria-label="면접 메모"
               onChange={(event) => setNoteDraft(event.target.value)}
