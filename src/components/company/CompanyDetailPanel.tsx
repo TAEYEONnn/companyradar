@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -1190,6 +1191,69 @@ function PrepQuestionSection({
   const [category, setCategory] = useState<PrepCategory>("behavioral");
   const [question, setQuestion] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState("");
+
+  async function generateAiQuestions() {
+    setGenLoading(true);
+    setGenError("");
+    let accessToken: string | undefined;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token;
+      }
+    } catch { /* non-fatal */ }
+
+    try {
+      const res = await fetch("/api/gen-prep-questions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          companyName: company.name,
+          industry: company.industry,
+          productDescription: company.productDescription,
+          candidateReason: company.candidateReason,
+          greenFlags: company.signals.greenFlags.map((s) => s.label),
+          redFlags: company.signals.redFlags.map((s) => s.label),
+        }),
+      });
+      const data = (await res.json()) as
+        | { ok: true; questions: { category: string; question: string }[] }
+        | { error: { message: string } };
+
+      if (!("ok" in data) || !data.ok) {
+        const msg = "error" in data ? data.error.message : "AI 질문 생성에 실패했습니다.";
+        setGenError(msg);
+        return;
+      }
+
+      const validCategories: PrepCategory[] = ["behavioral", "technical", "culture", "situational"];
+      const newQuestions = data.questions
+        .filter((q): q is { category: PrepCategory; question: string } =>
+          validCategories.includes(q.category as PrepCategory),
+        )
+        .map((q) => ({
+          id: createId("prep"),
+          category: q.category,
+          question: q.question,
+          answer: "",
+          createdAt: today(),
+        }));
+
+      onPatch(company.id, {
+        prepQuestions: [...newQuestions, ...(company.prepQuestions ?? [])],
+      });
+    } catch {
+      setGenError("AI 질문 생성 요청에 실패했습니다.");
+    } finally {
+      setGenLoading(false);
+    }
+  }
 
   async function addQuestion() {
     if (!question.trim()) return;
@@ -1231,11 +1295,23 @@ function PrepQuestionSection({
 
   return (
     <section className="space-y-3">
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        <BookOpenText className="h-4 w-4" />
-        면접 준비 Q&A
-        <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <BookOpenText className="h-4 w-4" />
+          면접 준비 Q&A
+          <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
+        </h3>
+        <Button
+          disabled={genLoading}
+          onClick={() => void generateAiQuestions()}
+          size="sm"
+          variant="secondary"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          {genLoading ? "생성 중..." : "AI 질문 생성"}
+        </Button>
+      </div>
+      {genError ? <p className="text-xs text-red-600">{genError}</p> : null}
       <div className="flex gap-2">
         <Select
           aria-label="카테고리"
