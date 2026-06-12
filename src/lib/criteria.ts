@@ -102,6 +102,43 @@ export const DISCOVERY_REASON_OPTIONS = Object.entries(
   label,
 }));
 
+export const INTERVIEW_ROUND_TYPE_LABELS: Record<
+  import("@/lib/types").InterviewRoundType,
+  string
+> = {
+  screening: "서류/스크리닝",
+  assignment: "과제",
+  first: "1차 면접",
+  second: "2차 면접",
+  culture: "컬처핏",
+  offer: "오퍼/처우 협의",
+};
+
+export const INTERVIEW_ROUND_TYPE_OPTIONS = Object.entries(
+  INTERVIEW_ROUND_TYPE_LABELS,
+).map(([value, label]) => ({
+  value: value as import("@/lib/types").InterviewRoundType,
+  label,
+}));
+
+export const ROUND_RESULT_LABELS: Record<
+  import("@/lib/types").InterviewRound["result"],
+  string
+> = {
+  scheduled: "예정",
+  pending: "결과 대기",
+  passed: "통과",
+  rejected: "탈락",
+  canceled: "취소",
+};
+
+export const ROUND_RESULT_OPTIONS = Object.entries(ROUND_RESULT_LABELS).map(
+  ([value, label]) => ({
+    value: value as import("@/lib/types").InterviewRound["result"],
+    label,
+  }),
+);
+
 export const DESIGNER_FIT_LABELS = {
   hasDesignSystemOpportunity: "디자인 시스템 개선 기회",
   hasDesignOpsOpportunity: "디자인 운영/프로세스 개선 기회",
