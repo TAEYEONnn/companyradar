@@ -1,0 +1,79 @@
+"use client";
+
+import { useEffect } from "react";
+import { cn } from "@/lib/utils";
+import type { Company, CompanyScoreResult } from "@/lib/types";
+import { CompanyDetailPanel } from "./CompanyDetailPanel";
+
+interface CompanyDrawerProps {
+  open: boolean;
+  company: Company | null;
+  score: CompanyScoreResult | null;
+  userId: string;
+  onClose: () => void;
+  onDelete: (id: string) => void;
+  onEdit: (company: Company) => void;
+  onPatch: (id: string, patch: Partial<Company>) => void;
+}
+
+export function CompanyDrawer({
+  open,
+  company,
+  score,
+  userId,
+  onClose,
+  onDelete,
+  onEdit,
+  onPatch,
+}: CompanyDrawerProps) {
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <aside
+        aria-label="회사 상세"
+        className={cn(
+          "fixed right-0 top-0 z-50 flex h-full w-[520px] flex-col bg-white shadow-2xl transition-transform duration-200 ease-in-out",
+          open ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        {company && score ? (
+          <CompanyDetailPanel
+            company={company}
+            onBack={onClose}
+            onDelete={(id) => {
+              onDelete(id);
+              onClose();
+            }}
+            onEdit={onEdit}
+            onPatch={onPatch}
+            score={score}
+            userId={userId}
+          />
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
+            회사를 선택하세요
+          </div>
+        )}
+      </aside>
+    </>
+  );
+}

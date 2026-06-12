@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, BarChart3, Building2, CalendarCheck, CalendarDays, CheckCircle2, CloudOff, Inbox, Loader2, Plus, RefreshCw, Settings2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -44,13 +44,13 @@ import type {
   SortMode,
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
+import { AppSidebar, type SidebarBadges } from "./AppSidebar";
 import { AuthGate } from "./AuthGate";
 import { CandidateInboxPanel } from "./CandidateInboxPanel";
-import { CompanyDetailPanel } from "./CompanyDetailPanel";
+import { CompanyDrawer } from "./CompanyDrawer";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyTable } from "./CompanyTable";
 import { CriteriaSettingsPanel } from "./CriteriaSettingsPanel";
-import { DashboardSection } from "./DashboardSection";
 import { KanbanBoard } from "./KanbanBoard";
 import { MigrationDialog } from "./MigrationDialog";
 import {
@@ -58,7 +58,6 @@ import {
   getPriorityRank,
   isDeadlineSoon,
   isDueOrOverdue,
-  Metric,
   type ListMode,
   type ViewMode,
 } from "./shared";
@@ -92,6 +91,7 @@ export function CompanyTrackerApp() {
   const [listMode, setListMode] = useState<ListMode>("table");
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
@@ -353,6 +353,20 @@ export function CompanyTrackerApp() {
     return { deadlineSoon, waitingResponse, followUpNeeded, lackingInfo };
   }, [companies, scoreMap]);
 
+  const sidebarBadges = useMemo<SidebarBadges>(
+    () => ({
+      inbox: candidates.filter((c) => c.needsReview).length,
+      followUp: companies.filter((c) =>
+        c.followUpTasks.some((t) => !t.completed && isDueOrOverdue(t.dueDate)),
+      ).length,
+      deadline: companies.filter(isDeadlineSoon).length,
+      waiting: companies.filter((c) =>
+        ["applied", "interviewing"].includes(c.status),
+      ).length,
+    }),
+    [companies, candidates],
+  );
+
   function upsertCompany(company: Company) {
     const nextCompany = {
       ...company,
@@ -370,6 +384,7 @@ export function CompanyTrackerApp() {
     });
     setSelectedId(nextCompany.id);
     setViewMode("dashboard");
+    setDrawerOpen(true);
     setEditingCompany(null);
   }
 
@@ -510,7 +525,9 @@ export function CompanyTrackerApp() {
       if (viewMode === "dashboard") startCreate();
     },
     onEscape: () => {
-      if (viewMode !== "dashboard") {
+      if (drawerOpen) {
+        setDrawerOpen(false);
+      } else if (viewMode !== "dashboard") {
         setEditingCompany(null);
         setViewMode("dashboard");
       }
@@ -617,271 +634,228 @@ export function CompanyTrackerApp() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-5 sm:px-5">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <Building2 className="h-4 w-4" />
-              Career Company Tracker
-              {isRemoteSyncEnabled() ? (
-                <SyncStatusBadge
-                  onRetry={() =>
-                    void pushRemoteCompanies(companies, userId).then((ok) =>
-                      setSyncStatus({ state: ok ? "ok" : "error", lastAt: new Date().toISOString() }),
-                    )
-                  }
-                  status={syncStatus}
-                />
-              ) : null}
-            </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
-              좋은 회사 후보를 평가하고 추적
-            </h1>
-            <div className="mt-1 text-xs text-slate-500">
-              {userEmail} · 사용자별 Supabase row로 저장
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              aria-label="지원 통계 보기"
-              onClick={() => setViewMode("stats")}
-              variant="secondary"
-            >
-              <BarChart3 className="h-4 w-4" />
-              통계
-            </Button>
-            <Button
-              aria-label="오늘 할 일 보기"
-              onClick={() => setViewMode("today")}
-              variant="secondary"
-            >
-              <CalendarCheck className="h-4 w-4" />
-              오늘
-            </Button>
-            <Button
-              aria-label="면접 타임라인 보기"
-              onClick={() => setViewMode("timeline")}
-              variant="secondary"
-            >
-              <CalendarDays className="h-4 w-4" />
-              타임라인
-            </Button>
-            <Button
-              aria-label="Candidate Inbox 보기"
-              onClick={() => setViewMode("inbox")}
-              variant="secondary"
-            >
-              <Inbox className="h-4 w-4" />
-              후보 {candidates.filter((candidate) => candidate.needsReview).length}
-            </Button>
-            <Button
-              aria-label="평가 기준 설정"
-              onClick={() => setViewMode("settings")}
-              variant="secondary"
-            >
-              <Settings2 className="h-4 w-4" />
-              기준 설정
-            </Button>
-            <Button onClick={startCreate}>
-              <Plus className="h-4 w-4" />
-              회사 추가
-            </Button>
-            <Button onClick={signOut} variant="ghost">
-              로그아웃
-            </Button>
-          </div>
+    <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-950">
+      {/* ─── Sidebar ─── */}
+      <AppSidebar
+        badges={sidebarBadges}
+        onNavigate={(mode) => {
+          setViewMode(mode);
+          setEditingCompany(null);
+        }}
+        onSignOut={() => void signOut()}
+        userEmail={userEmail}
+        viewMode={viewMode}
+      />
+
+      {/* ─── Main column ─── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Top header */}
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5">
+          <span className="text-sm font-semibold text-slate-700">
+            Career Company Tracker
+          </span>
+          {isRemoteSyncEnabled() ? (
+            <SyncStatusBadge
+              onRetry={() =>
+                void pushRemoteCompanies(companies, userId).then((ok) =>
+                  setSyncStatus({
+                    state: ok ? "ok" : "error",
+                    lastAt: new Date().toISOString(),
+                  }),
+                )
+              }
+              status={syncStatus}
+            />
+          ) : null}
+          <div className="flex-1" />
+          <Button onClick={startCreate}>
+            <Plus className="h-4 w-4" />
+            회사 추가
+          </Button>
         </header>
 
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Metric label="전체 회사" value={`${companies.length}`} />
-          <Metric label="진행 중" value={`${summary.active}`} />
-          <Metric label="평균 회사핏" value={formatScore(summary.average)} />
-          <Metric label="우선순위 높음" value={`${summary.highPriority}`} />
-          <Metric
-            label="리스크 높음"
-            tone={summary.highRisk > 0 ? "red" : "green"}
-            value={`${summary.highRisk}`}
-          />
-        </section>
+        {/* Summary bar */}
+        <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-2 text-sm text-slate-500">
+          <span className="font-medium text-slate-800">{companies.length}개 회사</span>
+          <span>·</span>
+          <span>진행중 {summary.active}</span>
+          <span>·</span>
+          <span>평균핏 {formatScore(summary.average)}</span>
+          <span>·</span>
+          <span>우선순위 높음 {summary.highPriority}</span>
+          <span>·</span>
+          <span className={summary.highRisk > 0 ? "font-medium text-red-600" : ""}>
+            리스크 {summary.highRisk}
+          </span>
+        </div>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <DashboardSection
-            companies={dashboardSections.deadlineSoon}
-            label="마감 임박"
-            onSelect={setSelectedId}
-            tone="amber"
-          />
-          <DashboardSection
-            companies={dashboardSections.waitingResponse}
-            label="회신 대기"
-            onSelect={setSelectedId}
-            tone="blue"
-          />
-          <DashboardSection
-            companies={dashboardSections.followUpNeeded}
-            label="팔로업 필요"
-            onSelect={setSelectedId}
-            tone="red"
-          />
-          <DashboardSection
-            companies={dashboardSections.lackingInfo}
-            label="정보 부족 후보"
-            onSelect={setSelectedId}
-            tone="slate"
-          />
-        </section>
-
-        {viewMode === "settings" ? (
-          <CriteriaSettingsPanel
-            onBack={() => setViewMode("dashboard")}
-            onChange={setSettings}
-            settings={settings}
-          />
-        ) : viewMode === "inbox" ? (
-          <CandidateInboxPanel
-            candidates={candidates}
-            onBack={() => setViewMode("dashboard")}
-            onCreate={createCandidate}
-            onDelete={removeCandidate}
-            onPromote={promoteCandidate}
-          />
-        ) : viewMode === "stats" ? (
-          <StatsPanel
-            companies={companies}
-            onBack={() => setViewMode("dashboard")}
-            scoreMap={scoreMap}
-          />
-        ) : viewMode === "timeline" ? (
-          <TimelinePanel
-            companies={companies}
-            onBack={() => setViewMode("dashboard")}
-            onSelectCompany={(id) => {
-              setSelectedId(id);
-              setViewMode("dashboard");
-            }}
-          />
-        ) : viewMode === "today" ? (
-          <TodayPanel
-            companies={companies}
-            onBack={() => setViewMode("dashboard")}
-            onSelectCompany={(id) => {
-              setSelectedId(id);
-              setViewMode("dashboard");
-            }}
-          />
-        ) : viewMode === "compare" ? (
-          <ComparePanel
-            companies={companies.filter((c) => compareIds.includes(c.id))}
-            onBack={() => setViewMode("dashboard")}
-            onSelectCompany={(id) => {
-              setSelectedId(id);
-              setViewMode("dashboard");
-            }}
-            scoreMap={scoreMap}
-          />
-        ) : viewMode === "form" && editingCompany ? (
-          <CompanyForm
-            company={editingCompany}
-            onCancel={() => {
-              setEditingCompany(null);
-              setViewMode("dashboard");
-            }}
-            onSubmit={upsertCompany}
-          />
-        ) : (
-          <section className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className={cn("rounded-lg border border-slate-200 bg-white", selectedCompany ? "hidden xl:block" : "block")}>
-              <Toolbar
-                advancedFilter={advancedFilter}
-                listMode={listMode}
-                onAdvancedFilterChange={setAdvancedFilter}
-                onExport={() => void exportBackup(companies, settings, userId)}
-                onImportFile={handleImportFile}
-                onListModeChange={setListMode}
-                onQueryChange={setQuery}
-                onReset={resetSampleData}
-                onSortModeChange={setSortMode}
-                onStatusFilterChange={setStatusFilter}
-                query={query}
-                sortMode={sortMode}
-                statusFilter={statusFilter}
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-auto">
+          <div className="p-4">
+            {viewMode === "settings" ? (
+              <CriteriaSettingsPanel
+                onBack={() => setViewMode("dashboard")}
+                onChange={setSettings}
+                settings={settings}
               />
-              {compareIds.length >= 2 && (
-                <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
-                  <span className="text-sky-700 font-medium">
-                    {compareIds.length}개 선택됨
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
-                      onClick={() => setCompareIds([])}
-                      type="button"
-                    >
-                      선택 해제
-                    </button>
-                    <Button onClick={() => setViewMode("compare")} size="sm">
-                      비교 보기 →
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {listMode === "kanban" ? (
-                <KanbanBoard
-                  companies={filteredCompanies}
-                  onSelect={setSelectedId}
-                  onStatusChange={(companyId, status) =>
-                    patchCompany(companyId, { status })
-                  }
-                  scoreMap={scoreMap}
-                  selectedId={selectedCompany?.id ?? ""}
-                />
-              ) : (
-                <CompanyTable
-                  compareIds={compareIds}
-                  companies={filteredCompanies}
-                  onEdit={startEdit}
-                  onSelect={setSelectedId}
-                  onToggleCompare={(id) =>
-                    setCompareIds((prev) =>
-                      prev.includes(id)
-                        ? prev.filter((x) => x !== id)
-                        : prev.length < 3
-                          ? [...prev, id]
-                          : prev,
-                    )
-                  }
-                  scoreMap={scoreMap}
-                  selectedId={selectedCompany?.id ?? ""}
-                />
-              )}
-            </div>
-            {selectedCompany && selectedScore ? (
-              <CompanyDetailPanel
-                company={selectedCompany}
-                onBack={() => setSelectedId("")}
-                onDelete={(companyId) => setPendingDeleteId(companyId)}
-                onEdit={startEdit}
-                onPatch={patchCompany}
-                score={selectedScore}
-                userId={userId}
+            ) : viewMode === "inbox" ? (
+              <CandidateInboxPanel
+                candidates={candidates}
+                onBack={() => setViewMode("dashboard")}
+                onCreate={createCandidate}
+                onDelete={removeCandidate}
+                onPromote={promoteCandidate}
+              />
+            ) : viewMode === "stats" ? (
+              <StatsPanel
+                companies={companies}
+                onBack={() => setViewMode("dashboard")}
+                scoreMap={scoreMap}
+              />
+            ) : viewMode === "timeline" ? (
+              <TimelinePanel
+                companies={companies}
+                onBack={() => setViewMode("dashboard")}
+                onSelectCompany={(id) => {
+                  setSelectedId(id);
+                  setViewMode("dashboard");
+                  setDrawerOpen(true);
+                }}
+              />
+            ) : viewMode === "today" ? (
+              <TodayPanel
+                companies={companies}
+                onBack={() => setViewMode("dashboard")}
+                onSelectCompany={(id) => {
+                  setSelectedId(id);
+                  setViewMode("dashboard");
+                  setDrawerOpen(true);
+                }}
+              />
+            ) : viewMode === "compare" ? (
+              <ComparePanel
+                companies={companies.filter((c) => compareIds.includes(c.id))}
+                onBack={() => setViewMode("dashboard")}
+                onSelectCompany={(id) => {
+                  setSelectedId(id);
+                  setViewMode("dashboard");
+                  setDrawerOpen(true);
+                }}
+                scoreMap={scoreMap}
+              />
+            ) : viewMode === "form" && editingCompany ? (
+              <CompanyForm
+                company={editingCompany}
+                onCancel={() => {
+                  setEditingCompany(null);
+                  setViewMode("dashboard");
+                }}
+                onSubmit={upsertCompany}
               />
             ) : (
-              <div className="hidden items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 xl:flex">
-                선택된 회사가 없습니다.
+              /* ─── Companies (table / kanban) ─── */
+              <div className="rounded-lg border border-slate-200 bg-white">
+                <Toolbar
+                  advancedFilter={advancedFilter}
+                  listMode={listMode}
+                  onAdvancedFilterChange={setAdvancedFilter}
+                  onExport={() => void exportBackup(companies, settings, userId)}
+                  onImportFile={handleImportFile}
+                  onListModeChange={setListMode}
+                  onQueryChange={setQuery}
+                  onReset={resetSampleData}
+                  onSortModeChange={setSortMode}
+                  onStatusFilterChange={setStatusFilter}
+                  query={query}
+                  sortMode={sortMode}
+                  statusFilter={statusFilter}
+                />
+                {compareIds.length >= 2 && (
+                  <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
+                    <span className="font-medium text-sky-700">
+                      {compareIds.length}개 선택됨
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
+                        onClick={() => setCompareIds([])}
+                        type="button"
+                      >
+                        선택 해제
+                      </button>
+                      <Button onClick={() => setViewMode("compare")} size="sm">
+                        비교 보기 →
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {listMode === "kanban" ? (
+                  <KanbanBoard
+                    companies={filteredCompanies}
+                    onSelect={(id) => {
+                      setSelectedId(id);
+                      setDrawerOpen(true);
+                    }}
+                    onStatusChange={(companyId, status) =>
+                      patchCompany(companyId, { status })
+                    }
+                    scoreMap={scoreMap}
+                    selectedId={selectedCompany?.id ?? ""}
+                  />
+                ) : (
+                  <CompanyTable
+                    compareIds={compareIds}
+                    companies={filteredCompanies}
+                    onEdit={startEdit}
+                    onSelect={(id) => {
+                      setSelectedId(id);
+                      setDrawerOpen(true);
+                    }}
+                    onToggleCompare={(id) =>
+                      setCompareIds((prev) =>
+                        prev.includes(id)
+                          ? prev.filter((x) => x !== id)
+                          : prev.length < 3
+                            ? [...prev, id]
+                            : prev,
+                      )
+                    }
+                    scoreMap={scoreMap}
+                    selectedId={selectedCompany?.id ?? ""}
+                  />
+                )}
               </div>
             )}
-          </section>
-        )}
 
-        <footer className="pb-2 text-center text-xs text-slate-400">
-          단축키: <kbd className="rounded border border-slate-300 px-1">N</kbd> 회사
-          추가 · <kbd className="rounded border border-slate-300 px-1">/</kbd> 검색 ·{" "}
-          <kbd className="rounded border border-slate-300 px-1">S</kbd> 통계 ·{" "}
-          <kbd className="rounded border border-slate-300 px-1">ESC</kbd> 돌아가기
-          {" · "}v2.0.0
-        </footer>
+            <footer className="mt-6 pb-2 text-center text-xs text-slate-400">
+              단축키:{" "}
+              <kbd className="rounded border border-slate-300 px-1">N</kbd> 추가 ·{" "}
+              <kbd className="rounded border border-slate-300 px-1">/</kbd> 검색 ·{" "}
+              <kbd className="rounded border border-slate-300 px-1">S</kbd> 통계 ·{" "}
+              <kbd className="rounded border border-slate-300 px-1">ESC</kbd> 닫기
+              {" · "}v3.0.0
+            </footer>
+          </div>
+        </div>
       </div>
+
+      {/* ─── Company Drawer ─── */}
+      <CompanyDrawer
+        company={selectedCompany ?? null}
+        onClose={() => setDrawerOpen(false)}
+        onDelete={(id) => {
+          setPendingDeleteId(id);
+          setDrawerOpen(false);
+        }}
+        onEdit={(company) => {
+          startEdit(company);
+          setDrawerOpen(false);
+        }}
+        onPatch={patchCompany}
+        open={drawerOpen}
+        score={selectedScore ?? null}
+        userId={userId}
+      />
 
       <ConfirmDialog
         description={
@@ -911,7 +885,7 @@ export function CompanyTrackerApp() {
           remoteCompanies={migrationPrompt.remoteCompanies}
         />
       ) : null}
-    </main>
+    </div>
   );
 }
 
