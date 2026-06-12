@@ -21,20 +21,22 @@ interface CompanyTableProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
   selectedId: string;
-  compareIds?: string[];
+  selectedIds?: string[];
   onEdit: (company: Company) => void;
   onSelect: (id: string) => void;
-  onToggleCompare?: (id: string) => void;
+  onSetSelectedIds?: (ids: string[]) => void;
+  onToggleSelected?: (id: string) => void;
 }
 
 export function CompanyTable({
   companies,
   scoreMap,
   selectedId,
-  compareIds = [],
+  selectedIds = [],
   onEdit,
   onSelect,
-  onToggleCompare,
+  onSetSelectedIds,
+  onToggleSelected,
 }: CompanyTableProps) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
@@ -44,6 +46,9 @@ export function CompanyTable({
   const start = safePage * pageSize;
   const end = start + pageSize;
   const pageCompanies = companies.slice(start, end);
+  const allCompanyIds = companies.map((company) => company.id);
+  const allSelected =
+    allCompanyIds.length > 0 && allCompanyIds.every((id) => selectedIds.includes(id));
 
   return (
     <div>
@@ -55,7 +60,20 @@ export function CompanyTable({
         >
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
             <tr>
-              {onToggleCompare && <th className="w-8 px-2 py-3" scope="col" />}
+              {onToggleSelected && (
+                <th className="w-8 px-2 py-3" scope="col">
+                  <input
+                    aria-label="현재 목록 전체 선택"
+                    checked={allSelected}
+                    className="h-4 w-4 cursor-pointer accent-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={allCompanyIds.length === 0}
+                    onChange={() =>
+                      onSetSelectedIds?.(allSelected ? [] : allCompanyIds)
+                    }
+                    type="checkbox"
+                  />
+                </th>
+              )}
               <th className="px-4 py-3" scope="col">회사</th>
               <th className="px-4 py-3" scope="col">회사핏</th>
               <th className="px-4 py-3" scope="col">상태</th>
@@ -66,15 +84,14 @@ export function CompanyTable({
             {pageCompanies.map((company) => {
               const score = scoreMap.get(company.id);
               const isSelected = selectedId === company.id;
-              const isComparing = compareIds.includes(company.id);
-              const canAddCompare = !isComparing && compareIds.length < 3;
+              const isChecked = selectedIds.includes(company.id);
               return (
                 <tr
                   aria-selected={isSelected}
                   className={cn(
                     "cursor-pointer border-t border-slate-100 hover:bg-slate-50",
                     isSelected && "bg-slate-50",
-                    isComparing && "ring-1 ring-inset ring-sky-300",
+                    isChecked && "bg-sky-50 ring-1 ring-inset ring-sky-200",
                   )}
                   key={company.id}
                   onClick={() => onSelect(company.id)}
@@ -87,14 +104,13 @@ export function CompanyTable({
                   role="row"
                   tabIndex={0}
                 >
-                  {onToggleCompare && (
+                  {onToggleSelected && (
                     <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                       <input
-                        aria-label={`${company.name} 비교 선택`}
-                        checked={isComparing}
-                        className="h-4 w-4 cursor-pointer accent-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
-                        disabled={!canAddCompare && !isComparing}
-                        onChange={() => onToggleCompare(company.id)}
+                        aria-label={`${company.name} 선택`}
+                        checked={isChecked}
+                        className="h-4 w-4 cursor-pointer accent-sky-600"
+                        onChange={() => onToggleSelected(company.id)}
                         type="checkbox"
                       />
                     </td>

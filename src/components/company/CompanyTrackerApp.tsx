@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -89,7 +89,7 @@ export function CompanyTrackerApp() {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("today");
   const [listMode, setListMode] = useState<ListMode>("table");
-  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
@@ -99,6 +99,7 @@ export function CompanyTrackerApp() {
   const [migrationPrompt, setMigrationPrompt] =
     useState<MigrationPromptState | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: "idle",
@@ -397,6 +398,22 @@ export function CompanyTrackerApp() {
     setPendingDeleteId(null);
   }
 
+  function confirmSelectedDeleteCompanies() {
+    if (selectedCompanyIds.length === 0 || !userId) return;
+    const ids = new Set(selectedCompanyIds);
+    setCompanies((current) => current.filter((company) => !ids.has(company.id)));
+    if (ids.has(selectedId)) {
+      setSelectedId(companies.find((company) => !ids.has(company.id))?.id ?? "");
+      setDrawerOpen(false);
+    }
+    for (const id of selectedCompanyIds) {
+      void deleteRemoteCompany(id, userId);
+    }
+    setSelectedCompanyIds([]);
+    setSelectedDeleteOpen(false);
+    showToast(`${ids.size}개 회사를 삭제했습니다.`);
+  }
+
   function patchCompany(companyId: string, patch: Partial<Company>) {
     setCompanies((current) =>
       current.map((company) => {
@@ -430,6 +447,7 @@ export function CompanyTrackerApp() {
     setCompanies(ownedSeed);
     setSettings(DEFAULT_CRITERIA_SETTINGS);
     setSelectedId(ownedSeed[0]?.id ?? "");
+    setSelectedCompanyIds([]);
     setRemotePushEnabled(true);
     if (isRemoteSyncEnabled()) {
       void pushRemoteCompanies(ownedSeed, userId);
@@ -721,7 +739,6 @@ export function CompanyTrackerApp() {
                 onBack={() => setViewMode("dashboard")}
                 onSelectCompany={(id) => {
                   setSelectedId(id);
-                  setViewMode("dashboard");
                   setDrawerOpen(true);
                 }}
               />
@@ -737,15 +754,11 @@ export function CompanyTrackerApp() {
               <CoachPanel
                 companies={companies}
                 onBack={() => setViewMode("dashboard")}
-                onSelectCompany={(id) => {
-                  setSelectedId(id);
-                  setDrawerOpen(true);
-                }}
                 scoreMap={scoreMap}
               />
             ) : viewMode === "compare" ? (
               <ComparePanel
-                companies={companies.filter((c) => compareIds.includes(c.id))}
+                companies={companies.filter((c) => selectedCompanyIds.includes(c.id))}
                 onBack={() => setViewMode("dashboard")}
                 onSelectCompany={(id) => {
                   setSelectedId(id);
@@ -781,21 +794,36 @@ export function CompanyTrackerApp() {
                   sortMode={sortMode}
                   statusFilter={statusFilter}
                 />
-                {compareIds.length >= 2 && (
+                {selectedCompanyIds.length > 0 && (
                   <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
-                    <span className="font-medium text-sky-700">
-                      {compareIds.length}개 선택됨
-                    </span>
+                    <div>
+                      <span className="font-medium text-sky-700">
+                        {selectedCompanyIds.length}개 선택됨
+                      </span>
+                      <span className="ml-2 text-xs text-sky-600">
+                        삭제 가능 · 비교는 2-3개 선택 시 가능
+                      </span>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
-                        onClick={() => setCompareIds([])}
+                        onClick={() => setSelectedCompanyIds([])}
                         type="button"
                       >
                         선택 해제
                       </button>
-                      <Button onClick={() => setViewMode("compare")} size="sm">
-                        비교 보기 →
+                      {selectedCompanyIds.length >= 2 && selectedCompanyIds.length <= 3 && (
+                        <Button onClick={() => setViewMode("compare")} size="sm">
+                          비교 보기 →
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => setSelectedDeleteOpen(true)}
+                        size="sm"
+                        variant="danger"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        선택 삭제
                       </Button>
                     </div>
                   </div>
@@ -815,23 +843,22 @@ export function CompanyTrackerApp() {
                   />
                 ) : (
                   <CompanyTable
-                    compareIds={compareIds}
                     companies={filteredCompanies}
                     onEdit={startEdit}
                     onSelect={(id) => {
                       setSelectedId(id);
                       setDrawerOpen(true);
                     }}
-                    onToggleCompare={(id) =>
-                      setCompareIds((prev) =>
+                    onSetSelectedIds={setSelectedCompanyIds}
+                    onToggleSelected={(id) =>
+                      setSelectedCompanyIds((prev) =>
                         prev.includes(id)
                           ? prev.filter((x) => x !== id)
-                          : prev.length < 3
-                            ? [...prev, id]
-                            : prev,
+                          : [...prev, id],
                       )
                     }
                     scoreMap={scoreMap}
+                    selectedIds={selectedCompanyIds}
                     selectedId={selectedCompany?.id ?? ""}
                   />
                 )}
@@ -878,6 +905,15 @@ export function CompanyTrackerApp() {
         onConfirm={confirmDeleteCompany}
         open={pendingDeleteId !== null}
         title="회사를 삭제할까요?"
+      />
+
+      <ConfirmDialog
+        confirmLabel="선택 삭제"
+        description={`${selectedCompanyIds.length}개 회사의 평가, 리서치 로그, 면접 기록이 모두 삭제됩니다.`}
+        onCancel={() => setSelectedDeleteOpen(false)}
+        onConfirm={confirmSelectedDeleteCompanies}
+        open={selectedDeleteOpen}
+        title="선택한 회사를 삭제할까요?"
       />
 
       {toast ? (

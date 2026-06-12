@@ -1,148 +1,28 @@
 "use client";
 
 import { ArrowLeft, BrainCircuit, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import { INTERVIEW_ROUND_TYPE_LABELS, STATUS_LABELS } from "@/lib/criteria";
 import type { Company, CompanyScoreResult } from "@/lib/types";
-import { parseLocalDate } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
-import { STATUS_TONE } from "./shared";
 
 interface CoachPanelProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
   onBack: () => void;
-  onSelectCompany?: (id: string) => void;
 }
 
-type ActionUrgency = "urgent" | "normal" | "low";
-
-interface ActionRec {
-  action: string;
-  urgency: ActionUrgency;
-  context?: string;
-}
-
-function daysSince(dateStr: string, nowMs: number): number {
-  return Math.floor((nowMs - parseLocalDate(dateStr).getTime()) / 86_400_000);
-}
-
-function daysUntil(dateStr: string, nowMs: number): number {
-  return Math.ceil((parseLocalDate(dateStr).getTime() - nowMs) / 86_400_000);
-}
-
-function getActionRec(company: Company, today: string, todayMs: number): ActionRec {
-  const { status } = company;
-
-  const lastHistory = (company.statusHistory ?? [])
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  const daysSinceChange = lastHistory
-    ? daysSince(lastHistory.date.slice(0, 10), todayMs)
-    : null;
-
-  const upcomingInterview = company.interviewRounds
-    .filter((r) => r.result === "scheduled" && r.scheduledAt >= today)
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0];
-
-  const hasPending = company.interviewRounds.some((r) => r.result === "pending");
-
-  if (status === "offer") {
-    return { action: "오퍼 조건 검토 및 협상 진행", urgency: "urgent" };
-  }
-
-  if (status === "interviewing") {
-    if (upcomingInterview) {
-      const days = daysUntil(upcomingInterview.scheduledAt, todayMs);
-      const label =
-        INTERVIEW_ROUND_TYPE_LABELS[upcomingInterview.type] ?? upcomingInterview.type;
-      return {
-        action: `${label} 면접 준비`,
-        urgency: days <= 3 ? "urgent" : "normal",
-        context: `${upcomingInterview.scheduledAt} · ${days}일 후`,
-      };
-    }
-    if (hasPending) {
-      return { action: "면접 결과 입력 필요", urgency: "normal" };
-    }
-    return { action: "결과 대기 중", urgency: "low" };
-  }
-
-  if (status === "applied") {
-    if (daysSinceChange !== null && daysSinceChange >= 14) {
-      return {
-        action: "팔로업 메일 발송",
-        urgency: "urgent",
-        context: `지원 후 ${daysSinceChange}일 경과 — 담당자에게 연락`,
-      };
-    }
-    if (daysSinceChange !== null && daysSinceChange >= 7) {
-      return {
-        action: "팔로업 메일 발송 고려",
-        urgency: "normal",
-        context: `지원 후 ${daysSinceChange}일 경과`,
-      };
-    }
-    return {
-      action: "응답 대기 중",
-      urgency: "low",
-      context: daysSinceChange !== null ? `지원 후 ${daysSinceChange}일` : undefined,
-    };
-  }
-
-  if (status === "planned") {
-    if (company.jobDeadline) {
-      const days = daysUntil(company.jobDeadline, todayMs);
-      if (days >= 0 && days <= 7) {
-        return {
-          action: "마감 임박 — 지원서 제출",
-          urgency: "urgent",
-          context: `마감 ${company.jobDeadline} · ${days}일 남음`,
-        };
-      }
-    }
-    return { action: "지원서 준비 및 제출", urgency: "normal" };
-  }
-
-  if (status === "interested") {
-    return { action: "회사 리서치 및 공고 확인", urgency: "low" };
-  }
-
-  return { action: "상태 업데이트 필요", urgency: "low" };
-}
-
-const URGENCY_DOT: Record<ActionUrgency, string> = {
-  urgent: "bg-red-500",
-  normal: "bg-amber-400",
-  low: "bg-slate-300",
-};
-
-const URGENCY_ORDER: Record<ActionUrgency, number> = {
-  urgent: 0,
-  normal: 1,
-  low: 2,
-};
-
-export function CoachPanel({ companies, scoreMap, onBack, onSelectCompany }: CoachPanelProps) {
+export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
   const [strategy, setStrategy] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [strategyOpen, setStrategyOpen] = useState(false);
+  const [strategyOpen, setStrategyOpen] = useState(true);
 
   const today = useCurrentDate();
-  const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
-
-  const recs = companies
-    .filter((c) => !["rejected", "on_hold"].includes(c.status))
-    .map((c) => ({ company: c, rec: getActionRec(c, today, todayMs) }))
-    .sort(
-      (a, b) =>
-        URGENCY_ORDER[a.rec.urgency] - URGENCY_ORDER[b.rec.urgency] ||
-        a.company.name.localeCompare(b.company.name),
-    );
+  const activeCompanies = companies.filter(
+    (company) => !["rejected", "on_hold"].includes(company.status),
+  );
 
   async function generate() {
     setLoading(true);
@@ -205,7 +85,7 @@ export function CoachPanel({ companies, scoreMap, onBack, onSelectCompany }: Coa
             AI 커리어 코치
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            회사별 다음 행동 추천 · {recs.filter((r) => r.rec.urgency === "urgent").length}건 즉시 행동 필요
+            오늘 할 일과 중복 없는 포트폴리오 전략 · 진행 중 {activeCompanies.length}개
           </p>
         </div>
         <Button onClick={onBack} variant="secondary">
@@ -213,44 +93,6 @@ export function CoachPanel({ companies, scoreMap, onBack, onSelectCompany }: Coa
           대시보드
         </Button>
       </div>
-
-      {/* 회사별 다음 행동 */}
-      {recs.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">
-          진행 중인 회사가 없습니다.
-        </p>
-      ) : (
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-          {recs.map(({ company, rec }) => (
-            <li key={company.id} className="flex items-start gap-3 px-4 py-3">
-              <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${URGENCY_DOT[rec.urgency]}`} />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    className="hover:underline"
-                    disabled={!onSelectCompany}
-                    onClick={() => onSelectCompany?.(company.id)}
-                    type="button"
-                  >
-                    <Badge tone={STATUS_TONE[company.status]}>
-                      {company.name}
-                    </Badge>
-                  </button>
-                  <span className="text-xs text-slate-400">
-                    {STATUS_LABELS[company.status]}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-sm font-medium text-slate-800">
-                  {rec.action}
-                </p>
-                {rec.context && (
-                  <p className="mt-0.5 text-xs text-slate-400">{rec.context}</p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
 
       {/* AI 주간 전략 (접기/펼치기) */}
       <div className="rounded-lg border border-slate-200">

@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Inbox,
+  Pencil,
   Settings2,
   Target,
 } from "lucide-react";
@@ -33,11 +34,15 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1">
-        <Target className="h-3 w-3 shrink-0 text-slate-400" />
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-700">
+          <Target className="h-3.5 w-3.5 shrink-0" />
+          월 지원 목표
+        </div>
         <input
           autoFocus
-          className="w-10 rounded border border-slate-300 px-1 text-xs"
+          aria-label="월 지원 목표"
+          className="h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm"
           max={99}
           min={0}
           onBlur={saveGoal}
@@ -49,7 +54,7 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
           type="number"
           value={draft}
         />
-        <span className="text-xs text-slate-400">개 목표</span>
+        <p className="mt-1 text-xs text-slate-400">Enter 저장 · Esc 취소</p>
       </div>
     );
   }
@@ -59,7 +64,7 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
 
   return (
     <button
-      className="w-full text-left"
+      className="w-full rounded-md border border-slate-200 bg-white p-2 text-left shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
       onClick={() => {
         setDraft(String(goal || ""));
         setEditing(true);
@@ -67,17 +72,23 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
       title="클릭해서 목표 설정"
       type="button"
     >
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-        <Target className="h-3 w-3 shrink-0" />
-        <span>
-          {month} 지원 {appliedCount}
-          {goal > 0 ? `/${goal}` : ""}
-        </span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Target className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+          <span className="truncate text-xs font-medium text-slate-700">
+            {month} 목표
+          </span>
+        </div>
+        <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-950">
+        지원 {appliedCount}
+        {goal > 0 ? ` / ${goal}` : " · 목표 설정"}
       </div>
       {goal > 0 && (
-        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-200">
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
           <div
-            className="h-1 rounded-full bg-emerald-500 transition-all"
+            className="h-1.5 rounded-full bg-emerald-500 transition-all"
             style={{ width: `${pct}%` }}
           />
         </div>

@@ -2,6 +2,7 @@
 
 import { CalendarCheck, CheckCircle2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import type { Company } from "@/lib/types";
 import { INTERVIEW_ROUND_TYPE_LABELS } from "@/lib/criteria";
 import { addDays, cn, parseLocalDate, today as formatToday } from "@/lib/utils";
@@ -204,8 +205,8 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
     return list;
   }, [companies, today, todayMs, weekEnd]);
 
-  const remaining = items.filter((item) => !checked.has(item.id)).length;
-  const doneCount = checked.size;
+  const doneCount = items.filter((item) => checked.has(item.id)).length;
+  const remaining = items.length - doneCount;
 
   function toggle(id: string) {
     setCheckedState((prev) => {
@@ -223,21 +224,39 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
     try { sessionStorage.removeItem("today_checked_v1"); } catch { /* ignore */ }
   }
 
+  function checkAll() {
+    const next = new Set(items.map((item) => item.id));
+    setCheckedState({ date: today, ids: next });
+    saveChecked(today, next);
+  }
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <CalendarCheck className="h-5 w-5 text-sky-600" />
-          오늘 할 일
-        </h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          {today} ·{" "}
-          {items.length === 0
-            ? "할 일 없음"
-            : remaining > 0
-              ? `${remaining}개 남음${doneCount > 0 ? ` · ${doneCount}개 완료` : ""}`
-              : "모두 완료!"}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <CalendarCheck className="h-5 w-5 text-sky-600" />
+            오늘 할 일
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {today} ·{" "}
+            {items.length === 0
+              ? "할 일 없음"
+              : remaining > 0
+                ? `${remaining}개 남음${doneCount > 0 ? ` · ${doneCount}개 완료` : ""}`
+                : "모두 완료!"}
+          </p>
+        </div>
+        {items.length > 0 && (
+          <Button
+            onClick={remaining > 0 ? checkAll : resetChecked}
+            size="sm"
+            variant={remaining > 0 ? "primary" : "secondary"}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {remaining > 0 ? "전체 완료" : "전체 해제"}
+          </Button>
+        )}
       </div>
 
       {items.length === 0 ? (
