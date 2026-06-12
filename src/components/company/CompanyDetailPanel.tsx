@@ -853,7 +853,14 @@ function SignalGroup({
                 </button>
               </div>
             </div>
-            <p className="mt-1 text-sm text-slate-700">{signal.description}</p>
+            <p className="mt-1 text-sm text-slate-700">
+              {signal.reason ?? signal.description}
+            </p>
+            {signal.evidenceText ? (
+              <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 text-xs italic text-slate-500">
+                {signal.evidenceText}
+              </blockquote>
+            ) : null}
             {signal.sourceUrl ? (
               <a
                 className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"

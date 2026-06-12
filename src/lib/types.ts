@@ -71,7 +71,14 @@ export type ScoreEvidenceValues = Record<
 export interface ResearchSignal {
   id: string;
   label: string;
+  /** Legacy free-text description (manual entry). Prefer reason + evidenceText for AI-extracted signals. */
   description: string;
+  /** Why this is a signal (AI-extracted) */
+  reason?: string;
+  /** Short verbatim excerpt from the job posting that supports this signal */
+  evidenceText?: string;
+  /** Signal polarity — set automatically when grouped, stored for convenience */
+  type?: "green" | "red" | "unknown";
   sourceUrl: string;
   confidence: EvidenceLevel;
   createdAt: string;

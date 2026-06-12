@@ -18,12 +18,26 @@ type ErrorCode =
   | "ai_parse_failed"
   | "config_missing";
 
+interface ParsedSignal {
+  label: string;
+  reason: string;
+  evidenceText: string;
+  confidence: 1 | 2 | 3;
+}
+
+interface ParsedSignals {
+  greenFlags: ParsedSignal[];
+  redFlags: ParsedSignal[];
+  unknowns: ParsedSignal[];
+}
+
 interface ParsedJobPost {
   name?: string;
   industry?: string;
   productDescription?: string;
   jobDeadline?: string;
   candidateReason?: string;
+  signals?: ParsedSignals;
 }
 
 export async function POST(request: Request) {
@@ -176,9 +190,33 @@ export async function POST(request: Request) {
           },
           {
             role: "user",
-            content: `다음은 채용공고 페이지의 텍스트입니다. 아래 JSON 형식으로만 응답하세요. 마크다운 백틱이나 다른 설명 없이 JSON 객체만 출력합니다. 알 수 없는 필드는 빈 문자열로 두세요.
+            content: `다음은 채용공고 페이지의 텍스트입니다. 아래 JSON 형식으로만 응답하세요. 마크다운 백틱이나 설명 없이 JSON 객체만 출력합니다.
 
-{"name": "회사명", "industry": "산업군 (예: B2B SaaS, Fintech)", "productDescription": "제품/서비스 한두 문장 요약", "jobDeadline": "마감일 YYYY-MM-DD 형식 (상시채용이면 빈 문자열)", "candidateReason": "이 공고에서 디자이너에게 매력적인 포인트 한 문장"}
+규칙:
+- signals: 원문에 근거가 있을 때만 greenFlags/redFlags에 추가. 원문에 없는 추론은 unknowns에 넣을 것.
+- evidenceText: 판단 근거가 된 원문 발췌 (20~80자). 근거 없으면 빈 문자열.
+- confidence: 명확한 근거 3, 암시적 2, 불분명 1.
+- 각 그룹 최대 4개. 신호가 없으면 빈 배열.
+- 알 수 없는 필드는 빈 문자열.
+
+{
+  "name": "회사명",
+  "industry": "산업군 (예: B2B SaaS, Fintech)",
+  "productDescription": "제품/서비스 한두 문장 요약",
+  "jobDeadline": "마감일 YYYY-MM-DD (상시채용이면 빈 문자열)",
+  "candidateReason": "이 공고에서 프로덕트 디자이너에게 매력적인 포인트 한 문장",
+  "signals": {
+    "greenFlags": [
+      {"label": "신호 라벨", "reason": "왜 긍정적인지 한 문장", "evidenceText": "원문 발췌", "confidence": 2}
+    ],
+    "redFlags": [
+      {"label": "신호 라벨", "reason": "왜 부정적인지 한 문장", "evidenceText": "원문 발췌", "confidence": 2}
+    ],
+    "unknowns": [
+      {"label": "확인 필요 항목", "reason": "왜 불분명한지 한 문장", "evidenceText": "", "confidence": 1}
+    ]
+  }
+}
 
 --- 공고 텍스트 ---
 ${pageText}`,

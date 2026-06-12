@@ -24,7 +24,16 @@ import type {
   Company,
   EvidenceLevel,
   JobStatus,
+  ResearchSignal,
 } from "@/lib/types";
+import { createId } from "@/lib/utils";
+
+interface ParsedSignal {
+  label: string;
+  reason: string;
+  evidenceText: string;
+  confidence: 1 | 2 | 3;
+}
 
 interface ParsedJobPost {
   name?: string;
@@ -32,6 +41,11 @@ interface ParsedJobPost {
   productDescription?: string;
   jobDeadline?: string;
   candidateReason?: string;
+  signals?: {
+    greenFlags?: ParsedSignal[];
+    redFlags?: ParsedSignal[];
+    unknowns?: ParsedSignal[];
+  };
 }
 
 interface CompanyFormProps {
@@ -147,6 +161,31 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
       }
 
       const parsed = data.result;
+      const now = new Date().toISOString();
+
+      // Convert AI-parsed signals to ResearchSignal, prepended to existing ones
+      function toSignals(
+        items: ParsedSignal[] | undefined,
+        type: ResearchSignal["type"],
+      ): ResearchSignal[] {
+        if (!items?.length) return [];
+        return items.map((s) => ({
+          id: createId("signal"),
+          label: s.label,
+          description: s.reason,
+          reason: s.reason,
+          evidenceText: s.evidenceText,
+          type,
+          sourceUrl: draft.jobPostUrl || "",
+          confidence: s.confidence as EvidenceLevel,
+          createdAt: now,
+        }));
+      }
+
+      const aiGreen = toSignals(parsed.signals?.greenFlags, "green");
+      const aiRed = toSignals(parsed.signals?.redFlags, "red");
+      const aiUnknown = toSignals(parsed.signals?.unknowns, "unknown");
+
       setDraft((current) => ({
         ...current,
         name: current.name || parsed.name || current.name,
@@ -161,7 +200,13 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
           parsed.candidateReason ||
           current.candidateReason,
         evidenceLevel: Math.max(current.evidenceLevel, 2) as EvidenceLevel,
-        lastCheckedAt: new Date().toISOString().slice(0, 10),
+        needsRefresh: true,
+        lastCheckedAt: now.slice(0, 10),
+        signals: {
+          greenFlags: [...aiGreen, ...current.signals.greenFlags],
+          redFlags: [...aiRed, ...current.signals.redFlags],
+          unknowns: [...aiUnknown, ...current.signals.unknowns],
+        },
       }));
     } catch {
       setParseError("자동 채우기 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
