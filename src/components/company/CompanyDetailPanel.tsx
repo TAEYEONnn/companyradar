@@ -43,6 +43,8 @@ import type {
   EvidenceLevel,
   InterviewRound,
   InterviewRoundType,
+  PrepCategory,
+  PrepQuestion,
   ResearchSignal,
 } from "@/lib/types";
 import {
@@ -862,6 +864,12 @@ export function CompanyDetailPanel({
             />
           ))}
         </section>
+
+        <PrepQuestionSection
+          company={company}
+          encKey={panelKeyRef.current}
+          onPatch={onPatch}
+        />
       </div>
     </aside>
   );
@@ -1147,6 +1155,195 @@ function InterviewNoteItem({
       <p className="mt-2 text-sm text-slate-700">
         {plaintext ?? <span className="animate-pulse text-slate-400">복호화 중…</span>}
       </p>
+    </div>
+  );
+}
+
+const PREP_CATEGORY_LABELS: Record<PrepCategory, string> = {
+  behavioral: "행동 기반",
+  technical: "기술",
+  culture: "컬처핏",
+  situational: "상황 판단",
+};
+
+const PREP_CATEGORY_OPTIONS: PrepCategory[] = [
+  "behavioral",
+  "technical",
+  "culture",
+  "situational",
+];
+
+function PrepQuestionSection({
+  company,
+  encKey,
+  onPatch,
+}: {
+  company: Company;
+  encKey: CryptoKey | null;
+  onPatch: (companyId: string, patch: Partial<Company>) => void;
+}) {
+  const [category, setCategory] = useState<PrepCategory>("behavioral");
+  const [question, setQuestion] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  async function addQuestion() {
+    if (!question.trim()) return;
+    const answer = encKey ? await encryptNote(encKey, "") : "";
+    onPatch(company.id, {
+      prepQuestions: [
+        {
+          id: createId("prep"),
+          category,
+          question,
+          answer,
+          createdAt: today(),
+        },
+        ...(company.prepQuestions ?? []),
+      ],
+    });
+    setQuestion("");
+  }
+
+  function removeQuestion(id: string) {
+    onPatch(company.id, {
+      prepQuestions: (company.prepQuestions ?? []).filter((q) => q.id !== id),
+    });
+  }
+
+  async function patchAnswer(id: string, text: string) {
+    const answer = encKey ? await encryptNote(encKey, text) : text;
+    onPatch(company.id, {
+      prepQuestions: (company.prepQuestions ?? []).map((q) =>
+        q.id === id ? { ...q, answer } : q,
+      ),
+    });
+  }
+
+  const grouped = PREP_CATEGORY_OPTIONS.map((cat) => ({
+    cat,
+    items: (company.prepQuestions ?? []).filter((q) => q.category === cat),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <section className="space-y-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <BookOpenText className="h-4 w-4" />
+        면접 준비 Q&A
+        <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
+      </h3>
+      <div className="flex gap-2">
+        <Select
+          aria-label="카테고리"
+          className="w-32 shrink-0"
+          onChange={(e) => setCategory(e.target.value as PrepCategory)}
+          value={category}
+        >
+          {PREP_CATEGORY_OPTIONS.map((cat) => (
+            <option key={cat} value={cat}>
+              {PREP_CATEGORY_LABELS[cat]}
+            </option>
+          ))}
+        </Select>
+        <Input
+          aria-label="예상 질문"
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void addQuestion();
+          }}
+          placeholder="예상 질문 입력"
+          value={question}
+        />
+        <Button onClick={() => void addQuestion()} size="sm">
+          추가
+        </Button>
+      </div>
+
+      {grouped.length === 0 ? (
+        <p className="text-xs text-slate-400">아직 준비된 질문이 없습니다.</p>
+      ) : (
+        grouped.map(({ cat, items }) => (
+          <div key={cat}>
+            <div className="mb-1 text-xs font-semibold text-slate-500">
+              {PREP_CATEGORY_LABELS[cat]}
+            </div>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <PrepQuestionCard
+                  encKey={encKey}
+                  isOpen={activeId === item.id}
+                  item={item}
+                  key={item.id}
+                  onAnswerChange={(text) => void patchAnswer(item.id, text)}
+                  onRemove={() => removeQuestion(item.id)}
+                  onToggle={() =>
+                    setActiveId(activeId === item.id ? null : item.id)
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
+function PrepQuestionCard({
+  item,
+  encKey,
+  isOpen,
+  onToggle,
+  onRemove,
+  onAnswerChange,
+}: {
+  item: PrepQuestion;
+  encKey: CryptoKey | null;
+  isOpen: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+  onAnswerChange: (text: string) => void;
+}) {
+  const [decrypted, setDecrypted] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!encKey) { setDecrypted(item.answer); return; }
+    decryptNote(encKey, item.answer).then(setDecrypted);
+  }, [isOpen, encKey, item.answer]);
+
+  return (
+    <div className="rounded-md border border-slate-200">
+      <div className="flex items-center justify-between px-3 py-2">
+        <button
+          className="flex-1 text-left text-sm font-medium text-slate-800 hover:text-slate-950"
+          onClick={onToggle}
+          type="button"
+        >
+          {item.question}
+        </button>
+        <button
+          aria-label="질문 삭제"
+          className="ml-2 text-slate-400 hover:text-red-600"
+          onClick={onRemove}
+          type="button"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {isOpen ? (
+        <div className="border-t border-slate-100 p-3">
+          <Textarea
+            aria-label="답변"
+            onChange={(e) => {
+              setDecrypted(e.target.value);
+              onAnswerChange(e.target.value);
+            }}
+            placeholder="답변 준비 (STAR 형식 권장: Situation / Task / Action / Result)"
+            rows={5}
+            value={decrypted}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -107,6 +107,17 @@ export interface InterviewNote {
   createdAt: string;
 }
 
+export type PrepCategory = "behavioral" | "technical" | "culture" | "situational";
+
+export interface PrepQuestion {
+  id: string;
+  category: PrepCategory;
+  question: string;
+  /** AES-GCM ciphertext (v1: prefix) — same key as privateSensitiveNote */
+  answer: string;
+  createdAt: string;
+}
+
 export interface DesignerFitChecklist {
   hasDesignSystemOpportunity: boolean;
   hasDesignOpsOpportunity: boolean;
@@ -204,6 +215,7 @@ export interface Company {
   researchLogs: ResearchLog[];
   riskFlags: string[];
   interviewNotes: InterviewNote[];
+  prepQuestions: PrepQuestion[];
   createdAt: string;
   updatedAt: string;
 }

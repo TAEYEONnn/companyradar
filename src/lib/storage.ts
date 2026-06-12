@@ -98,6 +98,8 @@ export function normalizeCompany(company: Company): Company {
       company.applicationChecklist ?? makeDefaultApplicationChecklist(),
     interviewRounds: company.interviewRounds ?? [],
     followUpTasks: company.followUpTasks ?? [],
+    interviewNotes: company.interviewNotes ?? [],
+    prepQuestions: company.prepQuestions ?? [],
     createdAt: company.createdAt ?? now,
     updatedAt: company.updatedAt ?? now,
   };

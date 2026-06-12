@@ -142,6 +142,7 @@ function company(input: {
     researchLogs: [],
     riskFlags: [],
     interviewNotes: [],
+    prepQuestions: [],
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
   };

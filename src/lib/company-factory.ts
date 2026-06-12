@@ -70,6 +70,7 @@ export function createEmptyCompany(): Company {
     researchLogs: [],
     riskFlags: [],
     interviewNotes: [],
+    prepQuestions: [],
     createdAt: now,
     updatedAt: now,
   };
