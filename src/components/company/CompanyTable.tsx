@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { ApplicationChecklist } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -39,13 +39,9 @@ export function CompanyTable({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
 
-  // Reset to first page when data changes
-  useEffect(() => {
-    setPage(0);
-  }, [companies.length, pageSize]);
-
   const totalPages = Math.ceil(companies.length / pageSize);
-  const start = page * pageSize;
+  const safePage = Math.min(page, Math.max(totalPages - 1, 0));
+  const start = safePage * pageSize;
   const end = start + pageSize;
   const pageCompanies = companies.slice(start, end);
 
@@ -164,7 +160,10 @@ export function CompanyTable({
             <select
               aria-label="페이지 크기"
               className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
-              onChange={(e) => setPageSize(Number(e.target.value) as PageSizeOption)}
+              onChange={(e) => {
+                setPage(0);
+                setPageSize(Number(e.target.value) as PageSizeOption);
+              }}
               value={pageSize}
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
@@ -179,7 +178,7 @@ export function CompanyTable({
               <button
                 aria-label="이전 페이지"
                 className="flex h-7 w-7 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                disabled={page === 0}
+                disabled={safePage === 0}
                 onClick={() => setPage((p) => p - 1)}
                 type="button"
               >
@@ -187,13 +186,13 @@ export function CompanyTable({
               </button>
 
               {Array.from({ length: totalPages }, (_, i) => i)
-                .filter((i) => Math.abs(i - page) <= 2)
+                .filter((i) => Math.abs(i - safePage) <= 2)
                 .map((i) => (
                   <button
                     aria-label={`${i + 1} 페이지`}
                     className={cn(
                       "flex h-7 min-w-[28px] items-center justify-center rounded border px-1.5 text-xs",
-                      i === page
+                      i === safePage
                         ? "border-slate-900 bg-slate-900 text-white"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50",
                     )}
@@ -208,7 +207,7 @@ export function CompanyTable({
               <button
                 aria-label="다음 페이지"
                 className="flex h-7 w-7 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                disabled={page >= totalPages - 1}
+                disabled={safePage >= totalPages - 1}
                 onClick={() => setPage((p) => p + 1)}
                 type="button"
               >

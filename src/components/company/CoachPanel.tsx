@@ -1,18 +1,21 @@
 "use client";
 
-import { BrainCircuit, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, BrainCircuit, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { INTERVIEW_ROUND_TYPE_LABELS, STATUS_LABELS } from "@/lib/criteria";
 import type { Company, CompanyScoreResult } from "@/lib/types";
+import { parseLocalDate } from "@/lib/utils";
+import { useCurrentDate } from "@/lib/use-current-date";
 import { STATUS_TONE } from "./shared";
 
 interface CoachPanelProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
   onBack: () => void;
+  onSelectCompany?: (id: string) => void;
 }
 
 type ActionUrgency = "urgent" | "normal" | "low";
@@ -23,22 +26,22 @@ interface ActionRec {
   context?: string;
 }
 
-function daysSince(dateStr: string): number {
-  return Math.floor((Date.now() - Date.parse(dateStr)) / 86_400_000);
+function daysSince(dateStr: string, nowMs: number): number {
+  return Math.floor((nowMs - parseLocalDate(dateStr).getTime()) / 86_400_000);
 }
 
-function daysUntil(dateStr: string): number {
-  return Math.ceil((Date.parse(dateStr) - Date.now()) / 86_400_000);
+function daysUntil(dateStr: string, nowMs: number): number {
+  return Math.ceil((parseLocalDate(dateStr).getTime() - nowMs) / 86_400_000);
 }
 
-function getActionRec(company: Company, today: string): ActionRec {
+function getActionRec(company: Company, today: string, todayMs: number): ActionRec {
   const { status } = company;
 
   const lastHistory = (company.statusHistory ?? [])
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   const daysSinceChange = lastHistory
-    ? daysSince(lastHistory.date.slice(0, 10))
+    ? daysSince(lastHistory.date.slice(0, 10), todayMs)
     : null;
 
   const upcomingInterview = company.interviewRounds
@@ -53,7 +56,7 @@ function getActionRec(company: Company, today: string): ActionRec {
 
   if (status === "interviewing") {
     if (upcomingInterview) {
-      const days = daysUntil(upcomingInterview.scheduledAt);
+      const days = daysUntil(upcomingInterview.scheduledAt, todayMs);
       const label =
         INTERVIEW_ROUND_TYPE_LABELS[upcomingInterview.type] ?? upcomingInterview.type;
       return {
@@ -92,7 +95,7 @@ function getActionRec(company: Company, today: string): ActionRec {
 
   if (status === "planned") {
     if (company.jobDeadline) {
-      const days = daysUntil(company.jobDeadline);
+      const days = daysUntil(company.jobDeadline, todayMs);
       if (days >= 0 && days <= 7) {
         return {
           action: "마감 임박 — 지원서 제출",
@@ -123,17 +126,18 @@ const URGENCY_ORDER: Record<ActionUrgency, number> = {
   low: 2,
 };
 
-export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
+export function CoachPanel({ companies, scoreMap, onBack, onSelectCompany }: CoachPanelProps) {
   const [strategy, setStrategy] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [strategyOpen, setStrategyOpen] = useState(false);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = useCurrentDate();
+  const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
 
   const recs = companies
     .filter((c) => !["rejected", "on_hold"].includes(c.status))
-    .map((c) => ({ company: c, rec: getActionRec(c, today) }))
+    .map((c) => ({ company: c, rec: getActionRec(c, today, todayMs) }))
     .sort(
       (a, b) =>
         URGENCY_ORDER[a.rec.urgency] - URGENCY_ORDER[b.rec.urgency] ||
@@ -205,7 +209,8 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
           </p>
         </div>
         <Button onClick={onBack} variant="secondary">
-          ← 대시보드
+          <ArrowLeft className="h-4 w-4" />
+          대시보드
         </Button>
       </div>
 
@@ -221,9 +226,16 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
               <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${URGENCY_DOT[rec.urgency]}`} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge tone={STATUS_TONE[company.status]}>
-                    {company.name}
-                  </Badge>
+                  <button
+                    className="hover:underline"
+                    disabled={!onSelectCompany}
+                    onClick={() => onSelectCompany?.(company.id)}
+                    type="button"
+                  >
+                    <Badge tone={STATUS_TONE[company.status]}>
+                      {company.name}
+                    </Badge>
+                  </button>
                   <span className="text-xs text-slate-400">
                     {STATUS_LABELS[company.status]}
                   </span>

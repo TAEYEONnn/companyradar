@@ -4,7 +4,8 @@ import { CalendarCheck, CheckCircle2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Company } from "@/lib/types";
 import { INTERVIEW_ROUND_TYPE_LABELS } from "@/lib/criteria";
-import { cn } from "@/lib/utils";
+import { addDays, cn, parseLocalDate, today as formatToday } from "@/lib/utils";
+import { useCurrentDate } from "@/lib/use-current-date";
 
 type Urgency = "overdue" | "high" | "medium" | "low";
 
@@ -17,17 +18,14 @@ type ActionItem = {
   meta?: string;
 };
 
-function daysSince(dateStr: string): number {
-  return Math.floor((Date.now() - Date.parse(dateStr)) / 86_400_000);
+function daysSince(dateStr: string, nowMs: number): number {
+  const local = parseLocalDate(dateStr);
+  return Math.floor((nowMs - local.getTime()) / 86_400_000);
 }
 
-function daysUntil(dateStr: string): number {
-  return Math.ceil((Date.parse(dateStr) - Date.now()) / 86_400_000);
-}
-
-interface TodayPanelProps {
-  companies: Company[];
-  onSelectCompany: (id: string) => void;
+function daysUntil(dateStr: string, nowMs: number): number {
+  const local = parseLocalDate(dateStr);
+  return Math.ceil((local.getTime() - nowMs) / 86_400_000);
 }
 
 const URGENCY_ORDER: Record<Urgency, number> = {
@@ -44,11 +42,45 @@ const URGENCY_CONFIG: Record<Urgency, { dot: string; label: string; meta: string
   low: { dot: "bg-slate-300", label: "text-slate-600", meta: "text-slate-400" },
 };
 
-export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+function loadChecked(today: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem("today_checked_v1");
+    if (!raw) return new Set();
+    const { date, ids } = JSON.parse(raw) as { date: string; ids: string[] };
+    return date === today ? new Set(ids) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
-  const today = new Date().toISOString().slice(0, 10);
-  const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+function saveChecked(today: string, ids: Set<string>) {
+  try {
+    sessionStorage.setItem(
+      "today_checked_v1",
+      JSON.stringify({ date: today, ids: Array.from(ids) }),
+    );
+  } catch { /* ignore */ }
+}
+
+interface TodayPanelProps {
+  companies: Company[];
+  onSelectCompany: (id: string) => void;
+}
+
+export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
+  const today = useCurrentDate();
+  const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
+  const weekEnd = useMemo(
+    () => formatToday(addDays(parseLocalDate(today), 7)),
+    [today],
+  );
+
+  const [checkedState, setCheckedState] = useState(() => ({
+    date: today,
+    ids: loadChecked(today),
+  }));
+  const checked = checkedState.date === today ? checkedState.ids : new Set<string>();
 
   const items = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
@@ -78,7 +110,7 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
           round.scheduledAt >= today &&
           round.scheduledAt <= weekEnd
         ) {
-          const days = daysUntil(round.scheduledAt);
+          const days = daysUntil(round.scheduledAt, todayMs);
           const roundLabel = INTERVIEW_ROUND_TYPE_LABELS[round.type] ?? round.type;
           list.push({
             id: `interview-${round.id}`,
@@ -97,7 +129,7 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         company.jobStatus === "open" &&
         ["interested", "planned"].includes(company.status)
       ) {
-        const days = daysUntil(company.jobDeadline);
+        const days = daysUntil(company.jobDeadline, todayMs);
         if (days >= 0 && days <= 7) {
           list.push({
             id: `deadline-${company.id}`,
@@ -116,7 +148,7 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
           .slice()
           .sort((a, b) => b.date.localeCompare(a.date))[0];
         const sinceApplied = lastHistory
-          ? daysSince(lastHistory.date.slice(0, 10))
+          ? daysSince(lastHistory.date.slice(0, 10), todayMs)
           : null;
         const hasUpcoming = company.interviewRounds.some(
           (r) => r.result === "scheduled" && r.scheduledAt >= today,
@@ -166,50 +198,29 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
           });
         }
       }
-
-      // 7. 회사 리서치 (interested, 리서치 없음)
-      if (
-        company.status === "interested" &&
-        (company.researchLogs ?? []).length === 0
-      ) {
-        list.push({
-          id: `research-${company.id}`,
-          companyId: company.id,
-          companyName: company.name,
-          action: "회사 리서치",
-          urgency: "low",
-        });
-      }
-
-      // 8. 공고 상태 확인
-      if (
-        company.jobStatus === "unknown" &&
-        ["interested", "planned"].includes(company.status)
-      ) {
-        list.push({
-          id: `verify-${company.id}`,
-          companyId: company.id,
-          companyName: company.name,
-          action: "공고 상태 확인",
-          urgency: "low",
-        });
-      }
     }
 
     list.sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
     return list;
-  }, [companies, today, weekEnd]);
+  }, [companies, today, todayMs, weekEnd]);
 
   const remaining = items.filter((item) => !checked.has(item.id)).length;
   const doneCount = checked.size;
 
   function toggle(id: string) {
-    setChecked((prev) => {
-      const next = new Set(prev);
+    setCheckedState((prev) => {
+      const current = prev.date === today ? prev.ids : new Set<string>();
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
+      saveChecked(today, next);
+      return { date: today, ids: next };
     });
+  }
+
+  function resetChecked() {
+    setCheckedState({ date: today, ids: new Set() });
+    try { sessionStorage.removeItem("today_checked_v1"); } catch { /* ignore */ }
   }
 
   return (
@@ -315,7 +326,7 @@ export function TodayPanel({ companies, onSelectCompany }: TodayPanelProps) {
         <div className="border-t border-slate-100 px-4 py-2">
           <button
             className="text-xs text-slate-400 hover:text-slate-600"
-            onClick={() => setChecked(new Set())}
+            onClick={resetChecked}
             type="button"
           >
             완료 초기화

@@ -58,7 +58,6 @@ import {
   getDeadlineRank,
   getPriorityRank,
   isDeadlineSoon,
-  isDueOrOverdue,
   type ListMode,
   type ViewMode,
 } from "./shared";
@@ -341,7 +340,7 @@ export function CompanyTrackerApp() {
     );
     const followUpNeeded = companies.filter((company) =>
       company.followUpTasks.some(
-        (task) => !task.completed && isDueOrOverdue(task.dueDate),
+        (task) => !task.completed && task.dueDate && Date.parse(task.dueDate) <= Date.now(),
       ),
     );
     const lackingInfo = companies.filter(
@@ -357,19 +356,7 @@ export function CompanyTrackerApp() {
   const sidebarBadges = useMemo<SidebarBadges>(
     () => ({
       inbox: candidates.filter((c) => c.needsReview).length,
-      // 팔로업: 완료되지 않은 할일 중 기한이 지났거나 7일 이내 마감될 예정인 항목이 있는 회사 수를 계산합니다.
-      followUp: companies.filter((c) =>
-        c.followUpTasks.some((t) => {
-          if (t.completed || !t.dueDate) return false;
-          const dueMs = Date.parse(t.dueDate) - Date.now();
-          // overdue or due within 7 days
-          return dueMs <= 0 || dueMs <= 7 * 86_400_000;
-        }),
-      ).length,
       deadline: companies.filter(isDeadlineSoon).length,
-      waiting: companies.filter((c) =>
-        ["applied", "interviewing"].includes(c.status),
-      ).length,
     }),
     [companies, candidates],
   );
@@ -750,6 +737,10 @@ export function CompanyTrackerApp() {
               <CoachPanel
                 companies={companies}
                 onBack={() => setViewMode("dashboard")}
+                onSelectCompany={(id) => {
+                  setSelectedId(id);
+                  setDrawerOpen(true);
+                }}
                 scoreMap={scoreMap}
               />
             ) : viewMode === "compare" ? (

@@ -2,14 +2,17 @@
 
 import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate } from "@/lib/utils";
+import { useCurrentDate } from "@/lib/use-current-date";
 import type { Company, CompanyScoreResult } from "@/lib/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 
 function DeadlineAlert({ company }: { company: Company }) {
+  const today = useCurrentDate();
   if (!company.jobDeadline || company.jobStatus !== "open") return null;
   const daysLeft = Math.ceil(
-    (Date.parse(company.jobDeadline) - Date.now()) / 86_400_000,
+    (parseLocalDate(company.jobDeadline).getTime() - parseLocalDate(today).getTime()) /
+      86_400_000,
   );
   if (daysLeft < 0 || daysLeft > 3) return null;
   return (

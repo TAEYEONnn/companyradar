@@ -82,13 +82,21 @@ export function CompanyDetailPanel({
   onEdit,
   onPatch,
 }: CompanyDetailPanelProps) {
-  const panelKeyRef = useRef<CryptoKey | null>(null);
+  const [panelKey, setPanelKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
     if (!userId) return;
-    getEncryptionKey(userId).then((key) => {
-      panelKeyRef.current = key;
-    });
+    let canceled = false;
+    getEncryptionKey(userId)
+      .then((key) => {
+        if (!canceled) setPanelKey(key);
+      })
+      .catch(() => {
+        if (!canceled) setPanelKey(null);
+      });
+    return () => {
+      canceled = true;
+    };
   }, [userId]);
 
   const [signalKind, setSignalKind] =
@@ -252,8 +260,8 @@ export function CompanyDetailPanel({
 
   async function addInterviewNote() {
     if (!noteDraft.trim()) return;
-    const content = panelKeyRef.current
-      ? await encryptNote(panelKeyRef.current, noteDraft)
+    const content = panelKey
+      ? await encryptNote(panelKey, noteDraft)
       : noteDraft;
     onPatch(company.id, {
       interviewNotes: [
@@ -935,7 +943,7 @@ export function CompanyDetailPanel({
           </div>
           {company.interviewNotes.map((note) => (
             <InterviewNoteItem
-              encKey={panelKeyRef.current}
+              encKey={panelKey}
               key={note.id}
               note={note}
               onRemove={removeInterviewNote}
@@ -945,7 +953,7 @@ export function CompanyDetailPanel({
 
         <PrepQuestionSection
           company={company}
-          encKey={panelKeyRef.current}
+          encKey={panelKey}
           onPatch={onPatch}
         />
 
@@ -1209,11 +1217,16 @@ function InterviewNoteItem({
   const [plaintext, setPlaintext] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!encKey) {
-      setPlaintext(note.content);
-      return;
-    }
-    decryptNote(encKey, note.content).then(setPlaintext);
+    let canceled = false;
+    const text = encKey
+      ? decryptNote(encKey, note.content)
+      : Promise.resolve(note.content);
+    text.then((value) => {
+      if (!canceled) setPlaintext(value);
+    });
+    return () => {
+      canceled = true;
+    };
   }, [encKey, note.content]);
 
   return (
@@ -1472,8 +1485,16 @@ function PrepQuestionCard({
 
   useEffect(() => {
     if (!isOpen) return;
-    if (!encKey) { setDecrypted(item.answer); return; }
-    decryptNote(encKey, item.answer).then(setDecrypted);
+    let canceled = false;
+    const text = encKey
+      ? decryptNote(encKey, item.answer)
+      : Promise.resolve(item.answer);
+    text.then((value) => {
+      if (!canceled) setDecrypted(value);
+    });
+    return () => {
+      canceled = true;
+    };
   }, [isOpen, encKey, item.answer]);
 
   return (

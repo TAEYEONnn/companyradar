@@ -1,8 +1,11 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
+import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { addDays, parseLocalDate, today as formatToday } from "@/lib/utils";
+import { useCurrentDate } from "@/lib/use-current-date";
 import {
   INTERVIEW_ROUND_TYPE_LABELS,
   ROUND_RESULT_LABELS,
@@ -43,10 +46,17 @@ interface TimelinePanelProps {
 
 export function TimelinePanel({
   companies,
+  onBack,
   onSelectCompany,
 }: TimelinePanelProps) {
+  const today = useCurrentDate();
+  const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
+  const twoWeeksOut = useMemo(
+    () => formatToday(addDays(parseLocalDate(today), 14)),
+    [today],
+  );
+
   const { past, upcoming } = useMemo(() => {
-    const now = new Date().toISOString().slice(0, 10);
     const events: UnifiedEvent[] = [];
 
     for (const company of companies) {
@@ -95,9 +105,6 @@ export function TimelinePanel({
       }
 
       // 할일 기한 (미완료, 앞으로 14일 이내 + 이미 지난 것)
-      const twoWeeksOut = new Date(Date.now() + 14 * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
       for (const task of company.followUpTasks) {
         if (!task.dueDate || task.completed) continue;
         if (task.dueDate > twoWeeksOut) continue;
@@ -109,15 +116,15 @@ export function TimelinePanel({
           date: task.dueDate,
           kind: "task",
           title: task.title,
-          subtitle: task.dueDate < now ? "기한 초과" : "할일 기한",
-          dotColor: task.dueDate < now ? "bg-red-400" : "bg-blue-400",
+          subtitle: task.dueDate < today ? "기한 초과" : "할일 기한",
+          dotColor: task.dueDate < today ? "bg-red-400" : "bg-blue-400",
         });
       }
 
       // 공고 마감
       if (company.jobDeadline && company.jobStatus === "open") {
         const days = Math.ceil(
-          (Date.parse(company.jobDeadline) - Date.now()) / 86_400_000,
+          (parseLocalDate(company.jobDeadline).getTime() - todayMs) / 86_400_000,
         );
         if (days >= -7 && days <= 30) {
           events.push({
@@ -138,10 +145,10 @@ export function TimelinePanel({
     events.sort((a, b) => a.date.localeCompare(b.date));
 
     return {
-      past: events.filter((e) => e.date <= now),
-      upcoming: events.filter((e) => e.date > now),
+      past: events.filter((e) => e.date <= today),
+      upcoming: events.filter((e) => e.date > today),
     };
-  }, [companies]);
+  }, [companies, today, todayMs, twoWeeksOut]);
 
   // Group events by date
   function groupByDate(events: UnifiedEvent[]): [string, UnifiedEvent[]][] {
@@ -159,14 +166,20 @@ export function TimelinePanel({
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <CalendarDays className="h-5 w-5 text-violet-600" />
-          지원 타임라인
-        </h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          전체 상태 변경 · 면접 · 할일 · 마감 이력
-        </p>
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <CalendarDays className="h-5 w-5 text-violet-600" />
+            지원 타임라인
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            전체 상태 변경 · 면접 · 할일 · 마감 이력
+          </p>
+        </div>
+        <Button onClick={onBack} variant="secondary">
+          <ArrowLeft className="h-4 w-4" />
+          대시보드
+        </Button>
       </div>
 
       <div className="divide-y divide-slate-100 p-4 space-y-8">

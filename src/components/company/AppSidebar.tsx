@@ -6,26 +6,23 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
-  Flag,
   Inbox,
   Settings2,
   Target,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ViewMode } from "./shared";
 
 const GOAL_KEY = "career_tracker_monthly_goal";
 
 function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
-  const [goal, setGoal] = useState(0);
+  const [goal, setGoal] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    return Number(localStorage.getItem(GOAL_KEY)) || 0;
+  });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-
-  useEffect(() => {
-    const stored = localStorage.getItem(GOAL_KEY);
-    if (stored) setGoal(Number(stored));
-  }, []);
 
   function saveGoal() {
     const n = Math.max(0, Math.min(99, Number(draft) || 0));
@@ -91,9 +88,7 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
 
 export interface SidebarBadges {
   inbox: number;
-  followUp: number;
   deadline: number;
-  waiting: number;
 }
 
 interface NavItem {
@@ -144,7 +139,7 @@ export function AppSidebar({
           const count = badgeKey ? (badges[badgeKey] ?? 0) : 0;
           const isActive =
             viewMode === id ||
-            (id === "dashboard" && viewMode === "compare");
+            (id === "dashboard" && (viewMode === "compare" || viewMode === "form"));
           return (
             <button
               key={id}
@@ -176,39 +171,17 @@ export function AppSidebar({
         })}
       </nav>
 
-      {/* Alert badges */}
-      {(badges.followUp > 0 || badges.deadline > 0 || badges.waiting > 0) && (
+      {/* Alert badges — 마감 임박만 표시 */}
+      {badges.deadline > 0 && (
         <div className="space-y-1 border-t border-slate-100 p-3">
-          {badges.followUp > 0 && (
-            <button
-              className="flex w-full items-center gap-2 rounded-md bg-red-50 px-2 py-1.5 text-left text-xs text-red-700 hover:bg-red-100"
-              onClick={() => onNavigate("today")}
-              type="button"
-            >
-              <Flag className="h-3 w-3 shrink-0" />
-              팔로업 {badges.followUp}개
-            </button>
-          )}
-          {badges.deadline > 0 && (
-            <button
-              className="flex w-full items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-left text-xs text-amber-700 hover:bg-amber-100"
-              onClick={() => onNavigate("today")}
-              type="button"
-            >
-              <CalendarCheck className="h-3 w-3 shrink-0" />
-              마감 임박 {badges.deadline}개
-            </button>
-          )}
-          {badges.waiting > 0 && (
-            <button
-              className="flex w-full items-center gap-2 rounded-md bg-sky-50 px-2 py-1.5 text-left text-xs text-sky-700 hover:bg-sky-100"
-              onClick={() => onNavigate("dashboard")}
-              type="button"
-            >
-              <Inbox className="h-3 w-3 shrink-0" />
-              회신 대기 {badges.waiting}개
-            </button>
-          )}
+          <button
+            className="flex w-full items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-left text-xs text-amber-700 hover:bg-amber-100"
+            onClick={() => onNavigate("today")}
+            type="button"
+          >
+            <CalendarCheck className="h-3 w-3 shrink-0" />
+            마감 임박 {badges.deadline}개
+          </button>
         </div>
       )}
 
