@@ -1,3 +1,4 @@
+import { exportEncryptionKey, getEncryptionKey } from "@/lib/crypto";
 import { normalizeCompany } from "@/lib/storage";
 import type { Company, CriteriaSettings } from "@/lib/types";
 
@@ -7,15 +8,33 @@ export interface BackupPayload {
   exportedAt: string;
   companies: Company[];
   settings: CriteriaSettings;
+  /** b64 JWK of the AES-GCM encryption key. Present only when exported with userId. */
+  encryptionKey?: string;
 }
 
-export function exportBackup(companies: Company[], settings: CriteriaSettings) {
+export async function exportBackup(
+  companies: Company[],
+  settings: CriteriaSettings,
+  userId?: string,
+) {
+  let encryptionKey: string | undefined;
+  if (userId) {
+    try {
+      const key = await getEncryptionKey(userId);
+      encryptionKey = await exportEncryptionKey(key);
+    } catch {
+      // no Web Crypto or no key — skip silently
+    }
+  }
+
+  const exportedAt = new Date().toISOString();
   const payload: BackupPayload = {
     app: "company-career-tracker",
     version: 1,
-    exportedAt: new Date().toISOString(),
+    exportedAt,
     companies,
     settings,
+    ...(encryptionKey ? { encryptionKey } : {}),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -23,18 +42,19 @@ export function exportBackup(companies: Company[], settings: CriteriaSettings) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `career-tracker-backup-${payload.exportedAt.slice(0, 10)}.json`;
+  anchor.download = `career-tracker-backup-${exportedAt.slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-export async function parseBackupFile(
-  file: File,
-): Promise<{ companies: Company[]; settings: CriteriaSettings | null }> {
+export async function parseBackupFile(file: File): Promise<{
+  companies: Company[];
+  settings: CriteriaSettings | null;
+  encryptionKey?: string;
+}> {
   const text = await file.text();
   const raw = JSON.parse(text) as Partial<BackupPayload> | Company[];
 
-  // 배열만 들어와도 (companies만 추출한 백업) 허용
   if (Array.isArray(raw)) {
     return { companies: raw.map(normalizeCompany), settings: null };
   }
@@ -46,6 +66,7 @@ export async function parseBackupFile(
   return {
     companies: raw.companies.map(normalizeCompany),
     settings: raw.settings ?? null,
+    encryptionKey: typeof raw.encryptionKey === "string" ? raw.encryptionKey : undefined,
   };
 }
 

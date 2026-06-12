@@ -11,6 +11,7 @@ import {
   upsertCandidateInboxItem,
 } from "@/lib/candidate-sync";
 import { exportBackup, mergeCompanies, parseBackupFile } from "@/lib/backup";
+import { importAndSaveEncryptionKey } from "@/lib/crypto";
 import { createEmptyCompany } from "@/lib/company-factory";
 import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
 import { planCompanyMigration } from "@/lib/migration";
@@ -465,11 +466,18 @@ export function CompanyTrackerApp() {
 
   async function handleImportFile(file: File) {
     try {
-      const { companies: incoming, settings: importedSettings } =
-        await parseBackupFile(file);
+      const {
+        companies: incoming,
+        settings: importedSettings,
+        encryptionKey,
+      } = await parseBackupFile(file);
       setCompanies((current) => mergeCompanies(current, incoming));
       if (importedSettings) setSettings(importedSettings);
-      showToast(`${incoming.length}개 회사를 가져왔습니다.`);
+      if (encryptionKey && userId) {
+        await importAndSaveEncryptionKey(userId, encryptionKey);
+      }
+      const keyMsg = encryptionKey ? " (암호화 키 복원 완료)" : "";
+      showToast(`${incoming.length}개 회사를 가져왔습니다.${keyMsg}`);
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "가져오기에 실패했습니다.",
@@ -713,7 +721,7 @@ export function CompanyTrackerApp() {
             <div className="rounded-lg border border-slate-200 bg-white">
               <Toolbar
                 listMode={listMode}
-                onExport={() => exportBackup(companies, settings)}
+                onExport={() => void exportBackup(companies, settings, userId)}
                 onImportFile={handleImportFile}
                 onListModeChange={setListMode}
                 onQueryChange={setQuery}
