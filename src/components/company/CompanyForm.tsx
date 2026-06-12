@@ -58,6 +58,7 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
   const [draft, setDraft] = useState<Company>(company);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
+  const [parseSuccess, setParseSuccess] = useState("");
   const [rawTextMode, setRawTextMode] = useState(false);
   const [rawText, setRawText] = useState("");
 
@@ -109,6 +110,7 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
 
   async function autoFillFromJobPost() {
     const hasUrl = draft.jobPostUrl.trim().length > 0;
+    const hasHomepage = draft.homepageUrl.trim().length > 0;
     const hasRaw = rawText.trim().length >= 50;
 
     if (!hasUrl && !hasRaw) {
@@ -118,8 +120,8 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
 
     setParsing(true);
     setParseError("");
+    setParseSuccess("");
 
-    // Attach session token so the API can verify the caller is logged in
     let accessToken: string | undefined;
     try {
       const supabase = getSupabaseClient();
@@ -128,45 +130,44 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
         accessToken = data.session?.access_token;
       }
     } catch {
-      // non-fatal — API will return 401 if token is missing
+      // non-fatal
+    }
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    };
+
+    function doFetch(body: object): Promise<ParsedJobPost> {
+      return fetch("/api/parse-job", { method: "POST", headers, body: JSON.stringify(body) })
+        .then((r) => r.json() as Promise<{ ok: true; result: ParsedJobPost } | { ok: false; error: string; errorCode?: string }>)
+        .then((d) => {
+          if (!d.ok) {
+            const err = new Error(d.error) as Error & { errorCode?: string };
+            err.errorCode = d.errorCode;
+            throw err;
+          }
+          return d.result;
+        });
+    }
+
+    // Build ordered source list (rawText-only or URL pair)
+    const sources: Array<{ promise: Promise<ParsedJobPost>; sourceUrl: string; label: string }> = [];
+    if (hasRaw) {
+      sources.push({ promise: doFetch({ rawText: rawText.trim() }), sourceUrl: "", label: "텍스트" });
+    } else {
+      if (hasUrl) sources.push({ promise: doFetch({ url: draft.jobPostUrl }), sourceUrl: draft.jobPostUrl, label: "채용공고" });
+      if (hasHomepage) sources.push({ promise: doFetch({ url: draft.homepageUrl }), sourceUrl: draft.homepageUrl, label: "홈페이지" });
     }
 
     try {
-      const response = await fetch("/api/parse-job", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          url: hasUrl ? draft.jobPostUrl : undefined,
-          rawText: rawText.trim() || undefined,
-        }),
-      });
-      const data = (await response.json()) as
-        | { ok: true; result: ParsedJobPost }
-        | { ok: false; error: string; errorCode?: string };
-
-      if (!data.ok) {
-        // Suggest raw text fallback when URL fetch fails
-        const fetchFailed =
-          data.errorCode === "fetch_failed" ||
-          data.errorCode === "text_extraction_failed";
-        setParseError(
-          fetchFailed && !rawTextMode
-            ? `${data.error} → 아래 "텍스트 직접 붙여넣기"를 눌러주세요.`
-            : data.error,
-        );
-        return;
-      }
-
-      const parsed = data.result;
+      const settled = await Promise.allSettled(sources.map((s) => s.promise));
       const now = new Date().toISOString();
 
-      // Convert AI-parsed signals to ResearchSignal, prepended to existing ones
       function toSignals(
         items: ParsedSignal[] | undefined,
         type: ResearchSignal["type"],
+        sourceUrl: string,
       ): ResearchSignal[] {
         if (!items?.length) return [];
         return items.map((s) => ({
@@ -176,38 +177,80 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
           reason: s.reason,
           evidenceText: s.evidenceText,
           type,
-          sourceUrl: draft.jobPostUrl || "",
+          sourceUrl,
           confidence: s.confidence as EvidenceLevel,
           createdAt: now,
         }));
       }
 
-      const aiGreen = toSignals(parsed.signals?.greenFlags, "green");
-      const aiRed = toSignals(parsed.signals?.redFlags, "red");
-      const aiUnknown = toSignals(parsed.signals?.unknowns, "unknown");
+      const successes: Array<{ result: ParsedJobPost; sourceUrl: string }> = [];
+      const errors: Array<{ label: string; message: string; errorCode?: string }> = [];
+
+      settled.forEach((outcome, i) => {
+        if (outcome.status === "fulfilled") {
+          successes.push({ result: outcome.value, sourceUrl: sources[i].sourceUrl });
+        } else {
+          const err = outcome.reason as Error & { errorCode?: string };
+          errors.push({ label: sources[i].label, message: err.message ?? "파싱 실패", errorCode: err.errorCode });
+        }
+      });
+
+      if (successes.length === 0) {
+        const first = errors[0];
+        const fetchFailed = first?.errorCode === "fetch_failed" || first?.errorCode === "text_extraction_failed";
+        setParseError(
+          fetchFailed && !rawTextMode
+            ? `${first.message} → 아래 "텍스트 직접 붙여넣기"를 눌러주세요.`
+            : (first?.message ?? "자동 채우기 요청에 실패했습니다."),
+        );
+        return;
+      }
+
+      // First successful result fills scalar fields; later ones only fill still-empty fields
+      const merged: ParsedJobPost = {};
+      for (const { result } of successes) {
+        if (!merged.name) merged.name = result.name;
+        if (!merged.industry) merged.industry = result.industry;
+        if (!merged.productDescription) merged.productDescription = result.productDescription;
+        if (!merged.jobDeadline) merged.jobDeadline = result.jobDeadline;
+        if (!merged.candidateReason) merged.candidateReason = result.candidateReason;
+      }
+
+      const allGreen: ResearchSignal[] = [];
+      const allRed: ResearchSignal[] = [];
+      const allUnknown: ResearchSignal[] = [];
+      for (const { result, sourceUrl } of successes) {
+        allGreen.push(...toSignals(result.signals?.greenFlags, "green", sourceUrl));
+        allRed.push(...toSignals(result.signals?.redFlags, "red", sourceUrl));
+        allUnknown.push(...toSignals(result.signals?.unknowns, "unknown", sourceUrl));
+      }
 
       setDraft((current) => ({
         ...current,
-        name: current.name || parsed.name || current.name,
-        industry: current.industry || parsed.industry || current.industry,
-        productDescription:
-          current.productDescription ||
-          parsed.productDescription ||
-          current.productDescription,
-        jobDeadline: current.jobDeadline || parsed.jobDeadline || current.jobDeadline,
-        candidateReason:
-          current.candidateReason ||
-          parsed.candidateReason ||
-          current.candidateReason,
+        name: current.name || merged.name || current.name,
+        industry: current.industry || merged.industry || current.industry,
+        productDescription: current.productDescription || merged.productDescription || current.productDescription,
+        jobDeadline: current.jobDeadline || merged.jobDeadline || current.jobDeadline,
+        candidateReason: current.candidateReason || merged.candidateReason || current.candidateReason,
         evidenceLevel: Math.max(current.evidenceLevel, 2) as EvidenceLevel,
         needsRefresh: true,
         lastCheckedAt: now.slice(0, 10),
         signals: {
-          greenFlags: [...aiGreen, ...current.signals.greenFlags],
-          redFlags: [...aiRed, ...current.signals.redFlags],
-          unknowns: [...aiUnknown, ...current.signals.unknowns],
+          greenFlags: [...allGreen, ...current.signals.greenFlags],
+          redFlags: [...allRed, ...current.signals.redFlags],
+          unknowns: [...allUnknown, ...current.signals.unknowns],
         },
       }));
+
+      if (errors.length > 0) {
+        setParseError(`일부 소스 파싱 실패 (${errors.map((e) => e.label).join(", ")})`);
+      } else {
+        setParseSuccess(
+          successes.length >= 2
+            ? `${successes.length}개 소스 분석 완료 (${successes.map((_, i) => sources[i].label).join(" + ")})`
+            : "분석 완료",
+        );
+      }
     } catch {
       setParseError("자동 채우기 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
@@ -283,13 +326,16 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
                   ? "공고 분석 중..."
                   : rawTextMode
                     ? "텍스트로 자동 채우기 (AI)"
-                    : "공고 URL에서 자동 채우기 (AI)"}
+                    : draft.homepageUrl.trim() && draft.jobPostUrl.trim()
+                      ? "공고+홈페이지 분석 (AI)"
+                      : "공고 URL에서 자동 채우기 (AI)"}
               </Button>
               <button
                 className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
                 onClick={() => {
                   setRawTextMode((v) => !v);
                   setParseError("");
+                  setParseSuccess("");
                 }}
                 type="button"
               >
@@ -298,6 +344,9 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
             </div>
             {parseError ? (
               <p className="text-xs text-red-600">{parseError}</p>
+            ) : null}
+            {parseSuccess && !parseError ? (
+              <p className="text-xs text-emerald-600">{parseSuccess}</p>
             ) : null}
           </div>
           <div className="grid grid-cols-2 gap-3">
