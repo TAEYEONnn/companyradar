@@ -108,10 +108,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
 **2. 공고 URL AI 자동 채우기**
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+# 선택
+OPENAI_MODEL=gpt-4o-mini
 ```
 - 회사 추가 폼에서 채용공고 URL 입력 → "자동 채우기" 버튼
-- 회사명/산업군/제품 설명/마감일을 Claude가 추출
+- 회사명/산업군/제품 설명/마감일을 OpenAI API가 추출
 - 로그인이 필요하거나 JS 렌더링되는 공고 페이지는 실패할 수 있음
 
 ### 구조 변경
