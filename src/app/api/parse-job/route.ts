@@ -85,10 +85,7 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return apiError(
-      "OPENAI_API_KEY가 설정되지 않았습니다. Vercel 환경변수에 추가해주세요.",
-      "config_missing",
-    );
+    return apiError("AI 분석 중 서버 오류가 발생했습니다.", "config_missing");
   }
 
   // 3. Resolve page text — URL fetch or raw text fallback
@@ -226,10 +223,16 @@ ${pageText}`,
     });
 
     if (!aiResponse.ok) {
-      return apiError(
-        `AI 분석 요청 실패 (HTTP ${aiResponse.status})`,
-        "ai_failed",
-      );
+      if (aiResponse.status === 401) {
+        return apiError("OpenAI API 키가 없거나 유효하지 않습니다.", "ai_failed");
+      }
+      if (aiResponse.status === 429) {
+        return apiError(
+          "OpenAI API 사용량 또는 요청 제한에 걸렸습니다. 잠시 후 다시 시도하거나 수동 입력을 사용하세요.",
+          "ai_failed",
+        );
+      }
+      return apiError("AI 분석 중 서버 오류가 발생했습니다.", "ai_failed");
     }
 
     const data = (await aiResponse.json()) as {

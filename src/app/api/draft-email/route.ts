@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
   // --- AI ---
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return apiError(500, "config_missing", "OPENAI_API_KEY가 설정되지 않았습니다.");
+  if (!apiKey) return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
 
   const typeInstructions: Record<EmailType, string> = {
     apply: "지원 이메일(지원동기 + 핵심 역량 강조, 150~200단어 이내 한국어)",
@@ -95,7 +95,11 @@ export async function POST(request: Request) {
       }),
     });
 
-    if (!aiRes.ok) return apiError(502, "ai_failed", `OpenAI 오류: ${aiRes.status}`);
+    if (!aiRes.ok) {
+      if (aiRes.status === 401) return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
+      if (aiRes.status === 429) return apiError(502, "ai_failed", "OpenAI API 사용량 또는 요청 제한에 걸렸습니다. 잠시 후 다시 시도하거나 수동 입력을 사용하세요.");
+      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
+    }
 
     const aiJson = (await aiRes.json()) as {
       choices?: { message?: { content?: string } }[];
