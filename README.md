@@ -186,6 +186,21 @@ OPENAI_MODEL=gpt-4o-mini
   - `https://company-career-tracker.vercel.app/**`
   - Vercel preview URL 패턴, 예: `https://company-career-tracker-*.vercel.app/**`
 
+### 개발 테스트용 Email + Password 로그인
+
+Magic Link가 Supabase email rate limit에 걸리면 개발 테스트가 막힙니다. 로그인 화면의
+**Email + Password** 탭으로 비밀번호 로그인이 가능합니다 (Magic Link도 그대로 유지).
+앱에 회원가입 기능은 없으므로 테스트 계정은 Dashboard에서 직접 만듭니다.
+
+1. Supabase Dashboard > **Authentication > Users > Add user**
+2. 테스트 이메일 입력
+3. **Auto Confirm User** 체크 (이메일 인증 절차 없이 바로 로그인 가능)
+4. Password 설정
+5. 앱 로그인 화면 > **Email + Password** 탭 > 위 이메일/비밀번호로 로그인
+
+> `signInWithPassword`는 anon key만 사용하며 RLS를 우회하지 않습니다. service_role key는
+> 클라이언트에서 사용하지 않습니다. 비밀번호는 코드에 하드코딩하지 않습니다.
+
 ### Seed ownership
 
 - 기존 원격 sample rows는 migration에서 삭제합니다.
