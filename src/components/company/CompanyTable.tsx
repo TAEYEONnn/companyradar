@@ -31,30 +31,44 @@ export function CompanyTable({
 }: CompanyTableProps) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+      <table
+        aria-label="회사 목록"
+        className="w-full min-w-[980px] border-collapse text-left text-sm"
+        role="grid"
+      >
         <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
           <tr>
-            <th className="px-4 py-3">회사</th>
-            <th className="px-4 py-3">상태</th>
-            <th className="px-4 py-3">회사핏</th>
-            <th className="px-4 py-3">지원 우선순위</th>
-            <th className="px-4 py-3">근거</th>
-            <th className="px-4 py-3">공고</th>
-            <th className="px-4 py-3">리스크</th>
-            <th className="px-4 py-3">수정</th>
+            <th className="px-4 py-3" scope="col">회사</th>
+            <th className="px-4 py-3" scope="col">상태</th>
+            <th className="px-4 py-3" scope="col">회사핏</th>
+            <th className="px-4 py-3" scope="col">지원 우선순위</th>
+            <th className="px-4 py-3" scope="col">근거</th>
+            <th className="px-4 py-3" scope="col">공고</th>
+            <th className="px-4 py-3" scope="col">리스크</th>
+            <th className="px-4 py-3" scope="col">수정</th>
           </tr>
         </thead>
         <tbody>
           {companies.map((company) => {
             const score = scoreMap.get(company.id);
+            const isSelected = selectedId === company.id;
             return (
               <tr
+                aria-selected={isSelected}
                 className={cn(
                   "cursor-pointer border-t border-slate-100 hover:bg-slate-50",
-                  selectedId === company.id && "bg-slate-50",
+                  isSelected && "bg-slate-50",
                 )}
                 key={company.id}
                 onClick={() => onSelect(company.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(company.id);
+                  }
+                }}
+                role="row"
+                tabIndex={0}
               >
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-950">{company.name}</div>
