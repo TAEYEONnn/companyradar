@@ -6,11 +6,13 @@ import {
   CalendarClock,
   ClipboardCheck,
   Clock,
+  Copy,
   Download,
   ExternalLink,
   FileText,
   Flag,
   Lock,
+  Mail,
   Pencil,
   Plus,
   RefreshCw,
@@ -55,6 +57,7 @@ import {
   getKeyFingerprint,
   importAndSaveEncryptionKey,
 } from "@/lib/crypto";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { createId, today } from "@/lib/utils";
 import { InfoRow, Metric, STATUS_TONE } from "./shared";
 
@@ -870,6 +873,8 @@ export function CompanyDetailPanel({
           encKey={panelKeyRef.current}
           onPatch={onPatch}
         />
+
+        <DraftEmailSection company={company} />
       </div>
     </aside>
   );
@@ -1345,5 +1350,119 @@ function PrepQuestionCard({
         </div>
       ) : null}
     </div>
+  );
+}
+
+type EmailType = "apply" | "followup" | "thank_you";
+
+const EMAIL_TYPE_LABELS: Record<EmailType, string> = {
+  apply: "지원 이메일",
+  followup: "후속 문의",
+  thank_you: "면접 감사",
+};
+
+function DraftEmailSection({ company }: { company: Company }) {
+  const [emailType, setEmailType] = useState<EmailType>("apply");
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function generate() {
+    setLoading(true);
+    setDraft("");
+    try {
+      const supabase = getSupabaseClient();
+      const token = supabase
+        ? (await supabase.auth.getSession()).data.session?.access_token
+        : undefined;
+
+      const signalsSummary = [
+        ...company.signals.greenFlags.map((s) => `✓ ${s.reason ?? s.description}`),
+        ...company.signals.redFlags.map((s) => `✗ ${s.reason ?? s.description}`),
+      ]
+        .slice(0, 6)
+        .join(", ");
+
+      const res = await fetch("/api/draft-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          emailType,
+          companyName: company.name,
+          jobTitle: company.industry,
+          productDescription: company.productDescription,
+          candidateReason: company.candidateReason,
+          signalsSummary,
+        }),
+      });
+
+      const json = (await res.json()) as { draft?: string; error?: { message: string } };
+      if (!res.ok || !json.draft) {
+        setDraft(`오류: ${json.error?.message ?? "초안 생성 실패"}`);
+      } else {
+        setDraft(json.draft);
+      }
+    } catch {
+      setDraft("네트워크 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyToClipboard() {
+    await navigator.clipboard.writeText(draft);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <section className="space-y-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <Mail className="h-4 w-4" />
+        AI 이메일 초안
+      </h3>
+      <div className="flex gap-2">
+        <Select
+          aria-label="이메일 유형"
+          className="w-36 shrink-0"
+          onChange={(e) => setEmailType(e.target.value as EmailType)}
+          value={emailType}
+        >
+          {(Object.keys(EMAIL_TYPE_LABELS) as EmailType[]).map((t) => (
+            <option key={t} value={t}>
+              {EMAIL_TYPE_LABELS[t]}
+            </option>
+          ))}
+        </Select>
+        <Button disabled={loading} onClick={() => void generate()} size="sm">
+          {loading ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
+          {loading ? "생성 중…" : "초안 생성"}
+        </Button>
+      </div>
+      {draft ? (
+        <div className="relative">
+          <Textarea
+            aria-label="이메일 초안"
+            onChange={(e) => setDraft(e.target.value)}
+            rows={10}
+            value={draft}
+          />
+          <button
+            aria-label="클립보드 복사"
+            className="absolute right-2 top-2 rounded-md bg-white p-1.5 text-slate-500 shadow-sm hover:text-slate-900"
+            onClick={() => void copyToClipboard()}
+            type="button"
+          >
+            <Copy className="h-4 w-4" />
+            {copied ? (
+              <span className="ml-1 text-xs text-emerald-600">복사됨</span>
+            ) : null}
+          </button>
+        </div>
+      ) : null}
+    </section>
   );
 }
