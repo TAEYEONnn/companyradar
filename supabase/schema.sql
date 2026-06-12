@@ -1,37 +1,34 @@
--- Career Company Tracker: Supabase 스키마
--- Supabase Dashboard > SQL Editor 에서 실행하세요.
+-- Career Company Tracker: current Supabase schema
+-- Supabase Dashboard > SQL Editor에서 새 프로젝트에 실행하세요.
+-- 기존 프로젝트는 supabase/migrations/20260612_v031_auth_rls.sql을 먼저 적용하세요.
 
 create table if not exists public.companies (
-  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null,
   data jsonb not null,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint companies_pkey primary key (user_id, id)
 );
 
--- 개인용 앱 기준의 단순 정책입니다.
--- anon key로 읽기/쓰기를 허용하므로, 키가 노출되면 누구나 접근할 수 있습니다.
--- 공개 배포 시에는 Supabase Auth를 붙이고 정책을 user_id 기반으로 좁히세요.
 alter table public.companies enable row level security;
 
-drop policy if exists "anon read companies" on public.companies;
-create policy "anon read companies"
+create policy "Users can select own companies"
   on public.companies for select
-  to anon
-  using (true);
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
-drop policy if exists "anon upsert companies" on public.companies;
-create policy "anon upsert companies"
+create policy "Users can insert own companies"
   on public.companies for insert
-  to anon
-  with check (true);
+  to authenticated
+  with check ((select auth.uid()) = user_id);
 
-drop policy if exists "anon update companies" on public.companies;
-create policy "anon update companies"
+create policy "Users can update own companies"
   on public.companies for update
-  to anon
-  using (true);
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
-drop policy if exists "anon delete companies" on public.companies;
-create policy "anon delete companies"
+create policy "Users can delete own companies"
   on public.companies for delete
-  to anon
-  using (true);
+  to authenticated
+  using ((select auth.uid()) = user_id);

@@ -14,43 +14,43 @@ const COMPANIES_KEY = "career-company-tracker:companies";
 const SETTINGS_KEY = "career-company-tracker:criteria-settings";
 
 export interface CompanyRepository {
-  loadCompanies(): Company[];
-  saveCompanies(companies: Company[]): void;
-  loadSettings(): CriteriaSettings;
-  saveSettings(settings: CriteriaSettings): void;
-  reset(): void;
+  loadCompanies(userId?: string): Company[];
+  saveCompanies(companies: Company[], userId?: string): void;
+  loadSettings(userId?: string): CriteriaSettings;
+  saveSettings(settings: CriteriaSettings, userId?: string): void;
+  reset(userId?: string): void;
 }
 
 export const localStorageRepository: CompanyRepository = {
-  loadCompanies() {
-    if (typeof window === "undefined") return SAMPLE_COMPANIES;
+  loadCompanies(userId) {
+    if (typeof window === "undefined") return [];
 
-    const raw = window.localStorage.getItem(COMPANIES_KEY);
-    if (!raw) {
-      window.localStorage.setItem(COMPANIES_KEY, JSON.stringify(SAMPLE_COMPANIES));
-      return SAMPLE_COMPANIES;
-    }
+    const raw =
+      window.localStorage.getItem(getCompaniesKey(userId)) ??
+      window.localStorage.getItem(COMPANIES_KEY);
+    if (!raw) return [];
 
     try {
       const parsedCompanies = JSON.parse(raw) as Company[];
       if (isLegacySampleSet(parsedCompanies)) {
-        window.localStorage.setItem(COMPANIES_KEY, JSON.stringify(SAMPLE_COMPANIES));
-        return SAMPLE_COMPANIES;
+        return [];
       }
       return parsedCompanies.map(normalizeCompany);
     } catch {
-      return SAMPLE_COMPANIES;
+      return [];
     }
   },
 
-  saveCompanies(companies) {
-    window.localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
+  saveCompanies(companies, userId) {
+    window.localStorage.setItem(getCompaniesKey(userId), JSON.stringify(companies));
   },
 
-  loadSettings() {
+  loadSettings(userId) {
     if (typeof window === "undefined") return DEFAULT_CRITERIA_SETTINGS;
 
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    const raw =
+      window.localStorage.getItem(getSettingsKey(userId)) ??
+      window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_CRITERIA_SETTINGS;
 
     try {
@@ -63,13 +63,13 @@ export const localStorageRepository: CompanyRepository = {
     }
   },
 
-  saveSettings(settings) {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  saveSettings(settings, userId) {
+    window.localStorage.setItem(getSettingsKey(userId), JSON.stringify(settings));
   },
 
-  reset() {
-    window.localStorage.removeItem(COMPANIES_KEY);
-    window.localStorage.removeItem(SETTINGS_KEY);
+  reset(userId) {
+    window.localStorage.removeItem(getCompaniesKey(userId));
+    window.localStorage.removeItem(getSettingsKey(userId));
   },
 };
 
@@ -170,5 +170,28 @@ function isLegacySampleSet(companies: Company[]): boolean {
     (company) =>
       legacyIds.has(company.id) ||
       company.homepageUrl?.startsWith("https://example.com/"),
+  );
+}
+
+function getCompaniesKey(userId?: string): string {
+  return userId ? `${COMPANIES_KEY}:${userId}` : COMPANIES_KEY;
+}
+
+function getSettingsKey(userId?: string): string {
+  return userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY;
+}
+
+export function hasUserCompanies(companies: Company[]): boolean {
+  return companies.some((company) => !company.isSampleData);
+}
+
+export function cloneSampleCompaniesForUser(): Company[] {
+  const now = new Date().toISOString();
+  return SAMPLE_COMPANIES.map((company) =>
+    normalizeCompany({
+      ...company,
+      createdAt: now,
+      updatedAt: now,
+    }),
   );
 }

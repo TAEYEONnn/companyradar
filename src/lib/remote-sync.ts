@@ -1,55 +1,46 @@
 import { normalizeCompany } from "@/lib/storage";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase-client";
 import type { Company } from "@/lib/types";
 
 /**
- * Supabase 원격 동기화 (선택 기능)
+ * Supabase 원격 동기화
  *
  * localStorage를 즉시 반응하는 1차 저장소로 유지하고,
- * 환경변수가 설정된 경우에만 Supabase에 백그라운드로 동기화합니다.
+ * 로그인 사용자의 Supabase row에 백그라운드로 동기화합니다.
  *
  * 설정 방법:
- * 1. Supabase 프로젝트 생성 후 supabase/schema.sql 실행
+ * 1. Supabase 프로젝트 생성 후 supabase/schema.sql 또는 migrations 실행
  * 2. .env.local 에 아래 두 값 추가
  *    NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
  *    NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
- *
- * 별도 SDK 없이 Supabase의 PostgREST API를 직접 호출하므로
- * 번들 크기에 영향이 없습니다.
  */
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const TABLE = "companies";
 
 export function isRemoteSyncEnabled(): boolean {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-}
-
-function headers(): HeadersInit {
-  return {
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    "Content-Type": "application/json",
-  };
+  return isSupabaseConfigured();
 }
 
 interface CompanyRow {
   id: string;
+  user_id: string;
   data: Company;
   updated_at: string;
 }
 
 /** 원격의 모든 회사 데이터를 가져옵니다. 실패 시 null을 반환합니다. */
-export async function pullRemoteCompanies(): Promise<Company[] | null> {
+export async function pullRemoteCompanies(userId: string): Promise<Company[] | null> {
   if (!isRemoteSyncEnabled()) return null;
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/${TABLE}?select=id,data,updated_at`,
-      { headers: headers() },
-    );
-    if (!response.ok) return null;
-    const rows = (await response.json()) as CompanyRow[];
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("id,user_id,data,updated_at")
+      .eq("user_id", userId);
+    if (error || !data) return null;
+    const rows = data as CompanyRow[];
     return rows.map((row) => normalizeCompany(row.data));
   } catch {
     return null;
@@ -57,37 +48,46 @@ export async function pullRemoteCompanies(): Promise<Company[] | null> {
 }
 
 /** 전체 회사 목록을 원격에 upsert 합니다. */
-export async function pushRemoteCompanies(companies: Company[]): Promise<boolean> {
+export async function pushRemoteCompanies(
+  companies: Company[],
+  userId: string,
+): Promise<boolean> {
   if (!isRemoteSyncEnabled()) return false;
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+
   try {
     const rows: CompanyRow[] = companies.map((company) => ({
       id: company.id,
+      user_id: userId,
       data: company,
       updated_at: company.updatedAt,
     }));
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`, {
-      method: "POST",
-      headers: {
-        ...headers(),
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify(rows),
-    });
-    return response.ok;
+    const { error } = await supabase
+      .from(TABLE)
+      .upsert(rows, { onConflict: "user_id,id", ignoreDuplicates: false });
+    return !error;
   } catch {
     return false;
   }
 }
 
 /** 원격에서 회사 하나를 삭제합니다. */
-export async function deleteRemoteCompany(companyId: string): Promise<boolean> {
+export async function deleteRemoteCompany(
+  companyId: string,
+  userId: string,
+): Promise<boolean> {
   if (!isRemoteSyncEnabled()) return false;
+  const supabase = getSupabaseClient();
+  if (!supabase) return false;
+
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(companyId)}`,
-      { method: "DELETE", headers: headers() },
-    );
-    return response.ok;
+    const { error } = await supabase
+      .from(TABLE)
+      .delete()
+      .eq("id", companyId)
+      .eq("user_id", userId);
+    return !error;
   } catch {
     return false;
   }
@@ -108,11 +108,11 @@ export function mergeByUpdatedAt(local: Company[], remote: Company[]): Company[]
 /** 디바운스된 push 헬퍼 */
 export function createDebouncedPush(delayMs = 1500) {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  return (companies: Company[]) => {
+  return (companies: Company[], userId: string) => {
     if (!isRemoteSyncEnabled()) return;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
-      void pushRemoteCompanies(companies);
+      void pushRemoteCompanies(companies, userId);
     }, delayMs);
   };
 }

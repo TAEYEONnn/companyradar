@@ -2,6 +2,15 @@
 
 좋은 회사를 단순 규모가 아니라 커리어 성장 가능성, 조직 안정성, 제품 품질, 구성원 후기, 포지션 적합도, 디자인 조직 성숙도 기준으로 평가하고 추적하는 개인용 웹앱입니다.
 
+## Security Precondition
+
+v0.3.1부터 사용자 데이터는 Supabase Auth session + RLS 정책으로만 접근합니다.
+
+- 노출된 `service_role` key는 RLS를 우회할 수 있으므로 폐기해야 합니다.
+- 프로젝트 재생성 또는 JWT/API key rotation이 어렵다면, 현재 프로젝트에는 민감한 면접 메모, 연봉/처우, 사람 이름, 내부 정보를 저장하지 마세요.
+- `service_role` key는 클라이언트 코드, 서버 API route, Vercel 환경변수, README 예시에 절대 넣지 않습니다.
+- 앱에는 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OPENAI_API_KEY`만 사용합니다.
+
 ## 실행
 
 ```bash
@@ -17,10 +26,13 @@ npm run dev
 - TypeScript
 - Tailwind CSS
 - shadcn/ui 스타일의 로컬 UI 컴포넌트
-- localStorage 저장
+- Supabase Auth + RLS
+- localStorage 보조 저장
 
 ## 주요 기능
 
+- Magic Link 로그인
+- 사용자별 Supabase row 소유권
 - 회사 등록/수정
 - 상태 관리: 관심, 지원 예정, 지원 완료, 면접 중, 탈락, 오퍼, 보류
 - 회사 평가 점수(`companyFitScore`)와 실제 지원 우선순위(`applicationPriority`) 분리
@@ -48,7 +60,7 @@ npm run dev
 
 ## Supabase 확장 포인트
 
-`src/lib/storage.ts`의 `CompanyRepository` 인터페이스를 유지한 채 Supabase 구현체를 추가하면 UI 변경 없이 저장소를 교체할 수 있습니다.
+`src/lib/storage.ts`의 `CompanyRepository` 인터페이스를 유지한 채 저장소를 교체할 수 있습니다. v0.3.1에서는 localStorage를 보조 저장소로 유지하고, Supabase Auth session이 있는 경우 사용자별 row에 동기화합니다.
 
 예상 테이블:
 
@@ -101,10 +113,10 @@ Don't:
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
-- `supabase/schema.sql`을 Supabase SQL Editor에서 실행
-- 설정 시 헤더에 "Supabase 동기화" 뱃지 표시
-- localStorage가 1차 저장소, Supabase는 백그라운드 동기화 (오프라인에도 동작)
-- ⚠️ anon key 정책이라 키가 노출되면 누구나 접근 가능 — 개인용 전제. 공개 배포 시 Auth 추가 필요
+- 기존 프로젝트는 `supabase/migrations/20260612_v031_auth_rls.sql` 실행
+- 새 프로젝트는 `supabase/schema.sql` 실행
+- 설정 시 Magic Link 로그인 후 헤더에 "Supabase 동기화" 뱃지 표시
+- localStorage는 사용자별 보조 저장소, Supabase는 Auth/RLS 기반 원격 저장소
 
 **2. 공고 URL AI 자동 채우기**
 ```
@@ -132,8 +144,104 @@ src/components/company/
 src/lib/
   backup.ts               # JSON 내보내기/가져오기
   company-factory.ts      # 빈 회사 객체 생성
-  remote-sync.ts          # Supabase 동기화 (SDK 없이 PostgREST)
+  remote-sync.ts          # Supabase Auth/RLS 동기화
+  supabase-client.ts      # Supabase client/session 유틸
   use-keyboard-shortcuts.ts
 src/app/api/parse-job/route.ts  # AI 공고 파싱
 supabase/schema.sql
+supabase/migrations/20260612_v031_auth_rls.sql
+```
+
+---
+
+## v0.3.1 Auth/RLS Hardening
+
+### Supabase 설정
+
+1. Supabase SQL Editor에서 기존 프로젝트는 migration을 실행합니다.
+
+```sql
+-- 파일 내용 실행
+supabase/migrations/20260612_v031_auth_rls.sql
+```
+
+새 프로젝트는 `supabase/schema.sql`을 실행합니다.
+
+2. Vercel 환경변수를 설정합니다.
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+3. Supabase Dashboard > Authentication > URL Configuration을 설정합니다.
+
+- Site URL: `https://company-career-tracker.vercel.app`
+- Redirect URLs:
+  - `http://localhost:3000/**`
+  - `https://company-career-tracker.vercel.app/**`
+  - Vercel preview URL 패턴, 예: `https://company-career-tracker-*.vercel.app/**`
+
+### Seed ownership
+
+- 기존 원격 sample rows는 migration에서 삭제합니다.
+- 로그인한 사용자의 `companies` row가 없고 localStorage에도 사용자 데이터가 없을 때만 sample seed를 사용자 소유 row로 생성합니다.
+- 여러 사용자가 같은 sample company id를 가질 수 있도록 DB primary key는 `(user_id, id)`입니다.
+
+### RLS REST 검증
+
+아래 예시는 `service_role` key를 사용하지 않습니다.
+
+```bash
+export SUPABASE_URL="https://xxxx.supabase.co"
+export SUPABASE_ANON_KEY="eyJ..."
+export ACCESS_TOKEN="로그인한 사용자의 Supabase access token"
+export USER_ID="로그인한 사용자의 uuid"
+```
+
+Anon key만으로 select가 차단되는지 확인합니다.
+
+```bash
+curl -i "$SUPABASE_URL/rest/v1/companies?select=id" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+```
+
+기대 결과: `200`이어도 `[]`만 반환되거나 RLS로 사용자 row가 노출되지 않아야 합니다.
+
+로그인 access token으로 자기 row insert/select가 되는지 확인합니다.
+
+```bash
+curl -i "$SUPABASE_URL/rest/v1/companies" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d "[{\"user_id\":\"$USER_ID\",\"id\":\"rls_test_company\",\"data\":{\"id\":\"rls_test_company\",\"name\":\"RLS Test\"},\"updated_at\":\"2026-06-12T00:00:00Z\"}]"
+
+curl -i "$SUPABASE_URL/rest/v1/companies?select=id,user_id&id=eq.rls_test_company" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+다른 `user_id`로 insert/update가 차단되는지 확인합니다.
+
+```bash
+curl -i "$SUPABASE_URL/rest/v1/companies" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "[{\"user_id\":\"00000000-0000-0000-0000-000000000000\",\"id\":\"rls_forbidden\",\"data\":{\"id\":\"rls_forbidden\"}}]"
+```
+
+기대 결과: RLS `with check` 위반으로 실패합니다.
+
+검증 후 테스트 row를 삭제합니다.
+
+```bash
+curl -i -X DELETE "$SUPABASE_URL/rest/v1/companies?id=eq.rls_test_company" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```

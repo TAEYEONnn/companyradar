@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart3, Building2, Plus, Settings2 } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -13,10 +14,15 @@ import {
   isRemoteSyncEnabled,
   mergeByUpdatedAt,
   pullRemoteCompanies,
+  pushRemoteCompanies,
 } from "@/lib/remote-sync";
 import { evaluateCompany, formatScore } from "@/lib/scoring";
-import { SAMPLE_COMPANIES } from "@/lib/sample-data";
-import { localStorageRepository } from "@/lib/storage";
+import {
+  cloneSampleCompaniesForUser,
+  hasUserCompanies,
+  localStorageRepository,
+} from "@/lib/storage";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import type {
   ApplicationStatus,
   Company,
@@ -24,6 +30,7 @@ import type {
   SortMode,
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
+import { AuthGate } from "./AuthGate";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyTable } from "./CompanyTable";
@@ -43,11 +50,13 @@ import { StatsPanel } from "./StatsPanel";
 import { Toolbar } from "./Toolbar";
 
 export function CompanyTrackerApp() {
-  const [companies, setCompanies] = useState<Company[]>(SAMPLE_COMPANIES);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [settings, setSettings] = useState<CriteriaSettings>(
     DEFAULT_CRITERIA_SETTINGS,
   );
-  const [selectedId, setSelectedId] = useState(SAMPLE_COMPANIES[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState("");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">(
     "all",
   );
@@ -57,44 +66,107 @@ export function CompanyTrackerApp() {
   const [listMode, setListMode] = useState<ListMode>("table");
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [remotePushEnabled, setRemotePushEnabled] = useState(true);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
   const debouncedPushRef = useRef(createDebouncedPush());
+  const userId = session?.user.id ?? "";
+  const userEmail = session?.user.email ?? "";
 
-  // 초기 로드: localStorage → (설정된 경우) Supabase 병합
   useEffect(() => {
-    queueMicrotask(async () => {
-      const loadedCompanies = localStorageRepository.loadCompanies();
-      setCompanies(loadedCompanies);
-      setSettings(localStorageRepository.loadSettings());
-      setSelectedId(loadedCompanies[0]?.id ?? "");
-      setIsReady(true);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      queueMicrotask(() => setIsAuthLoading(false));
+      return;
+    }
 
-      if (isRemoteSyncEnabled()) {
-        const remote = await pullRemoteCompanies();
-        if (remote && remote.length > 0) {
-          setCompanies((current) => {
-            const merged = mergeByUpdatedAt(current, remote);
-            return merged;
-          });
-          showToast("Supabase에서 데이터를 동기화했습니다.");
-        }
+    let mounted = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+      setIsAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      if (!nextSession) {
+        setCompanies([]);
+        setSelectedId("");
+        setEditingCompany(null);
+        setViewMode("dashboard");
+        setIsReady(false);
       }
     });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // 초기 로드: 사용자별 localStorage → Supabase user-owned rows → user-owned seed
+  useEffect(() => {
+    if (!userId) return;
+    queueMicrotask(async () => {
+      setIsReady(false);
+      setRemotePushEnabled(true);
+
+      const loadedCompanies = localStorageRepository.loadCompanies(userId);
+      setSettings(localStorageRepository.loadSettings(userId));
+
+      if (isRemoteSyncEnabled()) {
+        const remote = await pullRemoteCompanies(userId);
+        if (remote === null) {
+          setCompanies(loadedCompanies);
+          setSelectedId(loadedCompanies[0]?.id ?? "");
+          setRemotePushEnabled(false);
+          setIsReady(true);
+          showToast("Supabase 데이터를 불러오지 못해 로컬 데이터만 표시합니다.");
+          return;
+        }
+        if (remote && remote.length > 0) {
+          const merged = mergeByUpdatedAt([], remote);
+          setCompanies(merged);
+          setSelectedId(merged[0]?.id ?? "");
+          setIsReady(true);
+          showToast("Supabase에서 데이터를 동기화했습니다.");
+          return;
+        }
+      }
+
+      if (hasUserCompanies(loadedCompanies)) {
+        setCompanies(loadedCompanies);
+        setSelectedId(loadedCompanies[0]?.id ?? "");
+        setRemotePushEnabled(false);
+        setIsReady(true);
+        showToast("로컬 사용자 데이터가 감지됐습니다. v0.3.2 마이그레이션 전까지 로컬에만 저장됩니다.");
+        return;
+      }
+
+      const ownedSeed = cloneSampleCompaniesForUser();
+      setCompanies(ownedSeed);
+      setSelectedId(ownedSeed[0]?.id ?? "");
+      setIsReady(true);
+      if (isRemoteSyncEnabled()) {
+        void pushRemoteCompanies(ownedSeed, userId);
+      }
+    });
+  }, [userId]);
 
   // 저장: localStorage 즉시 + Supabase 디바운스 push
   useEffect(() => {
-    if (!isReady) return;
-    localStorageRepository.saveCompanies(companies);
-    debouncedPushRef.current(companies);
-  }, [companies, isReady]);
+    if (!isReady || !userId) return;
+    localStorageRepository.saveCompanies(companies, userId);
+    if (remotePushEnabled) debouncedPushRef.current(companies, userId);
+  }, [companies, isReady, remotePushEnabled, userId]);
 
   useEffect(() => {
-    if (!isReady) return;
-    localStorageRepository.saveSettings(settings);
-  }, [settings, isReady]);
+    if (!isReady || !userId) return;
+    localStorageRepository.saveSettings(settings, userId);
+  }, [settings, isReady, userId]);
 
   function showToast(message: string) {
     setToast(message);
@@ -213,7 +285,7 @@ export function CompanyTrackerApp() {
   }
 
   function confirmDeleteCompany() {
-    if (!pendingDeleteId) return;
+    if (!pendingDeleteId || !userId) return;
     const companyId = pendingDeleteId;
     setCompanies((current) =>
       current.filter((company) => company.id !== companyId),
@@ -223,7 +295,7 @@ export function CompanyTrackerApp() {
         companies.find((company) => company.id !== companyId)?.id ?? "",
       );
     }
-    void deleteRemoteCompany(companyId);
+    void deleteRemoteCompany(companyId, userId);
     setPendingDeleteId(null);
   }
 
@@ -248,10 +320,21 @@ export function CompanyTrackerApp() {
   }
 
   function resetSampleData() {
-    localStorageRepository.reset();
-    setCompanies(SAMPLE_COMPANIES);
+    if (!userId) return;
+    const ownedSeed = cloneSampleCompaniesForUser();
+    localStorageRepository.reset(userId);
+    setCompanies(ownedSeed);
     setSettings(DEFAULT_CRITERIA_SETTINGS);
-    setSelectedId(SAMPLE_COMPANIES[0]?.id ?? "");
+    setSelectedId(ownedSeed[0]?.id ?? "");
+    setRemotePushEnabled(true);
+    if (isRemoteSyncEnabled()) {
+      void pushRemoteCompanies(ownedSeed, userId);
+    }
+  }
+
+  async function signOut() {
+    const supabase = getSupabaseClient();
+    await supabase?.auth.signOut();
   }
 
   async function handleImportFile(file: File) {
@@ -293,6 +376,18 @@ export function CompanyTrackerApp() {
     ? companies.find((company) => company.id === pendingDeleteId)
     : null;
 
+  if (isAuthLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
+        로그인 상태를 확인하는 중...
+      </main>
+    );
+  }
+
+  if (!session) {
+    return <AuthGate />;
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-5 sm:px-5">
@@ -310,6 +405,9 @@ export function CompanyTrackerApp() {
             <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
               좋은 회사 후보를 평가하고 추적
             </h1>
+            <div className="mt-1 text-xs text-slate-500">
+              {userEmail} · 사용자별 Supabase row로 저장
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -331,6 +429,9 @@ export function CompanyTrackerApp() {
             <Button onClick={startCreate}>
               <Plus className="h-4 w-4" />
               회사 추가
+            </Button>
+            <Button onClick={signOut} variant="ghost">
+              로그아웃
             </Button>
           </div>
         </header>
