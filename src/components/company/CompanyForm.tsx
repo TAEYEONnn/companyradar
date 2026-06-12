@@ -152,16 +152,24 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
     }
 
     // Build ordered source list (rawText-only or URL pair)
-    const sources: Array<{ promise: Promise<ParsedJobPost>; sourceUrl: string; label: string }> = [];
+    const sources: Array<{ body: object; sourceUrl: string; label: string }> = [];
     if (hasRaw) {
-      sources.push({ promise: doFetch({ rawText: rawText.trim() }), sourceUrl: "", label: "텍스트" });
+      sources.push({ body: { rawText: rawText.trim() }, sourceUrl: "", label: "텍스트" });
     } else {
-      if (hasUrl) sources.push({ promise: doFetch({ url: draft.jobPostUrl }), sourceUrl: draft.jobPostUrl, label: "채용공고" });
-      if (hasHomepage) sources.push({ promise: doFetch({ url: draft.homepageUrl }), sourceUrl: draft.homepageUrl, label: "홈페이지" });
+      if (hasUrl) sources.push({ body: { url: draft.jobPostUrl }, sourceUrl: draft.jobPostUrl, label: "채용공고" });
+      if (hasHomepage) sources.push({ body: { url: draft.homepageUrl }, sourceUrl: draft.homepageUrl, label: "홈페이지" });
     }
 
     try {
-      const settled = await Promise.allSettled(sources.map((s) => s.promise));
+      // Sequential — avoids hitting OpenAI RPM limits when two URLs are present
+      const settled: PromiseSettledResult<ParsedJobPost>[] = [];
+      for (const source of sources) {
+        try {
+          settled.push({ status: "fulfilled", value: await doFetch(source.body) });
+        } catch (reason) {
+          settled.push({ status: "rejected", reason });
+        }
+      }
       const now = new Date().toISOString();
 
       function toSignals(
