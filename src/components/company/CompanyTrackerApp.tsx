@@ -66,7 +66,7 @@ import { ComparePanel } from "./ComparePanel";
 import { StatsPanel } from "./StatsPanel";
 import { TimelinePanel } from "./TimelinePanel";
 import { TodayPanel } from "./TodayPanel";
-import { Toolbar } from "./Toolbar";
+import { type AdvancedFilter, EMPTY_ADVANCED_FILTER, Toolbar } from "./Toolbar";
 import { cn, createId } from "@/lib/utils";
 
 interface MigrationPromptState {
@@ -91,6 +91,7 @@ export function CompanyTrackerApp() {
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [listMode, setListMode] = useState<ListMode>("table");
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
@@ -270,7 +271,15 @@ export function CompanyTrackerApp() {
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery);
-      return matchesStatus && matchesQuery;
+
+      const score = scoreMap.get(company.id)?.companyFitScore ?? 0;
+      const matchesMinScore = advancedFilter.minScore === 0 || score >= advancedFilter.minScore;
+      const matchesGreen = !advancedFilter.hasGreenFlag || company.signals.greenFlags.length > 0;
+      const matchesRed = !advancedFilter.hasRedFlag || company.signals.redFlags.length > 0;
+      const matchesRisk = !advancedFilter.hasRisk || (scoreMap.get(company.id)?.riskCount ?? 0) > 0;
+      const matchesInterviews = !advancedFilter.hasInterviews || company.interviewRounds.length > 0;
+
+      return matchesStatus && matchesQuery && matchesMinScore && matchesGreen && matchesRed && matchesRisk && matchesInterviews;
     });
 
     return rows.sort((a, b) => {
@@ -291,7 +300,7 @@ export function CompanyTrackerApp() {
         (scoreMap.get(a.id)?.companyFitScore ?? 0)
       );
     });
-  }, [companies, query, scoreMap, sortMode, statusFilter]);
+  }, [companies, query, scoreMap, sortMode, statusFilter, advancedFilter]);
 
   const selectedCompany =
     companies.find((company) => company.id === selectedId) ??
@@ -784,7 +793,9 @@ export function CompanyTrackerApp() {
           <section className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div className={cn("rounded-lg border border-slate-200 bg-white", selectedCompany ? "hidden xl:block" : "block")}>
               <Toolbar
+                advancedFilter={advancedFilter}
                 listMode={listMode}
+                onAdvancedFilterChange={setAdvancedFilter}
                 onExport={() => void exportBackup(companies, settings, userId)}
                 onImportFile={handleImportFile}
                 onListModeChange={setListMode}
