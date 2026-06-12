@@ -27,12 +27,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", icon: Building2, label: "Companies" },
-  { id: "inbox", icon: Inbox, label: "Candidate Inbox", badgeKey: "inbox" },
-  { id: "today", icon: CalendarCheck, label: "Today" },
-  { id: "timeline", icon: CalendarDays, label: "Timeline" },
-  { id: "stats", icon: BarChart3, label: "Analytics" },
-  { id: "settings", icon: Settings2, label: "Settings" },
+  { id: "dashboard", icon: Building2, label: "회사 목록" },
+  { id: "inbox", icon: Inbox, label: "후보 검토", badgeKey: "inbox" },
+  { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
+  { id: "timeline", icon: CalendarDays, label: "타임라인" },
+  { id: "stats", icon: BarChart3, label: "통계" },
+  { id: "settings", icon: Settings2, label: "설정" },
 ];
 
 interface AppSidebarProps {

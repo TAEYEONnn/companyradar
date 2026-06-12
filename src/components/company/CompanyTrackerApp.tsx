@@ -356,8 +356,12 @@ export function CompanyTrackerApp() {
   const sidebarBadges = useMemo<SidebarBadges>(
     () => ({
       inbox: candidates.filter((c) => c.needsReview).length,
-      followUp: companies.filter((c) =>
-        c.followUpTasks.some((t) => !t.completed && isDueOrOverdue(t.dueDate)),
+      followUp: companies.filter(
+        (c) =>
+          Boolean(c.jobDeadline) &&
+          c.followUpTasks.some(
+            (t) => !t.completed && Boolean(t.dueDate) && isDueOrOverdue(t.dueDate),
+          ),
       ).length,
       deadline: companies.filter(isDeadlineSoon).length,
       waiting: companies.filter((c) =>

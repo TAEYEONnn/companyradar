@@ -72,9 +72,9 @@ export const EVIDENCE_LEVEL_OPTIONS = Object.entries(EVIDENCE_LEVEL_LABELS).map(
 );
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
-  open: "진행 중",
+  open: "공개 중",
   closed: "마감",
-  unknown: "확인 필요",
+  unknown: "미확인",
 };
 
 export const JOB_STATUS_OPTIONS = Object.entries(JOB_STATUS_LABELS).map(
