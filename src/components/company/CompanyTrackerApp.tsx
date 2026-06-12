@@ -64,7 +64,7 @@ import {
 } from "./shared";
 import { StatsPanel } from "./StatsPanel";
 import { Toolbar } from "./Toolbar";
-import { createId } from "@/lib/utils";
+import { cn, createId } from "@/lib/utils";
 
 interface MigrationPromptState {
   localCompanies: Company[];
@@ -589,8 +589,12 @@ export function CompanyTrackerApp() {
 
   if (isAuthLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
-        로그인 상태를 확인하는 중...
+      <main className="min-h-screen bg-slate-100 p-5">
+        <div className="mx-auto max-w-[1480px] space-y-4">
+          <div className="h-8 w-64 animate-pulse rounded-lg bg-slate-200" />
+          <div className="h-5 w-48 animate-pulse rounded bg-slate-200" />
+          <div className="h-[480px] animate-pulse rounded-xl bg-slate-200" />
+        </div>
       </main>
     );
   }
@@ -730,7 +734,7 @@ export function CompanyTrackerApp() {
           />
         ) : (
           <section className="grid min-h-[680px] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="rounded-lg border border-slate-200 bg-white">
+            <div className={cn("rounded-lg border border-slate-200 bg-white", selectedCompany ? "hidden xl:block" : "block")}>
               <Toolbar
                 listMode={listMode}
                 onExport={() => void exportBackup(companies, settings, userId)}
@@ -767,6 +771,7 @@ export function CompanyTrackerApp() {
             {selectedCompany && selectedScore ? (
               <CompanyDetailPanel
                 company={selectedCompany}
+                onBack={() => setSelectedId("")}
                 onDelete={(companyId) => setPendingDeleteId(companyId)}
                 onEdit={startEdit}
                 onPatch={patchCompany}
@@ -774,7 +779,7 @@ export function CompanyTrackerApp() {
                 userId={userId}
               />
             ) : (
-              <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+              <div className="hidden items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 xl:flex">
                 선택된 회사가 없습니다.
               </div>
             )}

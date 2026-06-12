@@ -60,6 +60,7 @@ interface CompanyDetailPanelProps {
   company: Company;
   score: CompanyScoreResult;
   userId: string;
+  onBack?: () => void;
   onDelete: (companyId: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
@@ -69,6 +70,7 @@ export function CompanyDetailPanel({
   company,
   score,
   userId,
+  onBack,
   onDelete,
   onEdit,
   onPatch,
@@ -246,7 +248,16 @@ export function CompanyDetailPanel({
   return (
     <aside className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
-        <div>
+        <div className="min-w-0 flex-1">
+          {onBack ? (
+            <button
+              className="mb-2 flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 xl:hidden"
+              onClick={onBack}
+              type="button"
+            >
+              ← 목록으로
+            </button>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold">{company.name}</h2>
             {score.highRisk ? (
