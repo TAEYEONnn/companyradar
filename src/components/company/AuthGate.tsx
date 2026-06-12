@@ -170,10 +170,6 @@ export function AuthGate() {
             <Button className="w-full" disabled={loading} type="submit">
               {loading ? "로그인 중..." : "로그인"}
             </Button>
-            <p className="text-xs leading-5 text-slate-500">
-              개발 테스트용입니다. 계정은 Supabase Dashboard &gt; Authentication &gt;
-              Users에서 직접 추가하세요. (앱에 회원가입 기능은 없습니다.)
-            </p>
           </form>
         )}
 
@@ -187,10 +183,6 @@ export function AuthGate() {
             {error}
           </p>
         ) : null}
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          노출된 service role key는 RLS를 우회할 수 있습니다. 현재 프로젝트에서는
-          민감한 면접 메모, 연봉/처우, 사람 이름 같은 정보 저장을 권장하지 않습니다.
-        </p>
       </section>
     </main>
   );

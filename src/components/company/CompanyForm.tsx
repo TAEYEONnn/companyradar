@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { ScoreSlider } from "@/components/ui/score-slider";
 import {
   COMPANY_SIZE_OPTIONS,
@@ -43,6 +44,8 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
   const [draft, setDraft] = useState<Company>(company);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
+  const [rawTextMode, setRawTextMode] = useState(false);
+  const [rawText, setRawText] = useState("");
 
   function update<K extends keyof Company>(key: K, value: Company[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -91,24 +94,55 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
   }
 
   async function autoFillFromJobPost() {
-    if (!draft.jobPostUrl.trim()) {
-      setParseError("먼저 채용공고 URL을 입력해주세요.");
+    const hasUrl = draft.jobPostUrl.trim().length > 0;
+    const hasRaw = rawText.trim().length >= 50;
+
+    if (!hasUrl && !hasRaw) {
+      setParseError(rawTextMode ? "공고 텍스트를 50자 이상 입력해주세요." : "먼저 채용공고 URL을 입력해주세요.");
       return;
     }
+
     setParsing(true);
     setParseError("");
+
+    // Attach session token so the API can verify the caller is logged in
+    let accessToken: string | undefined;
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token;
+      }
+    } catch {
+      // non-fatal — API will return 401 if token is missing
+    }
+
     try {
       const response = await fetch("/api/parse-job", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: draft.jobPostUrl }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          url: hasUrl ? draft.jobPostUrl : undefined,
+          rawText: rawText.trim() || undefined,
+        }),
       });
       const data = (await response.json()) as
         | { ok: true; result: ParsedJobPost }
-        | { ok: false; error: string };
+        | { ok: false; error: string; errorCode?: string };
 
       if (!data.ok) {
-        setParseError(data.error);
+        // Suggest raw text fallback when URL fetch fails
+        const fetchFailed =
+          data.errorCode === "fetch_failed" ||
+          data.errorCode === "text_extraction_failed";
+        setParseError(
+          fetchFailed && !rawTextMode
+            ? `${data.error} → 아래 "텍스트 직접 붙여넣기"를 눌러주세요.`
+            : data.error,
+        );
         return;
       }
 
@@ -183,16 +217,40 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
               />
             </Field>
           </div>
-          <div className="space-y-1">
-            <Button
-              disabled={parsing}
-              onClick={autoFillFromJobPost}
-              size="sm"
-              variant="secondary"
-            >
-              <Sparkles className="h-4 w-4" />
-              {parsing ? "공고 분석 중..." : "공고 URL에서 자동 채우기 (AI)"}
-            </Button>
+          <div className="space-y-2">
+            {rawTextMode ? (
+              <Textarea
+                onChange={(event) => setRawText(event.target.value)}
+                placeholder="채용공고 내용을 여기에 붙여넣으세요 (50자 이상)"
+                rows={5}
+                value={rawText}
+              />
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={parsing}
+                onClick={autoFillFromJobPost}
+                size="sm"
+                variant="secondary"
+              >
+                <Sparkles className="h-4 w-4" />
+                {parsing
+                  ? "공고 분석 중..."
+                  : rawTextMode
+                    ? "텍스트로 자동 채우기 (AI)"
+                    : "공고 URL에서 자동 채우기 (AI)"}
+              </Button>
+              <button
+                className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
+                onClick={() => {
+                  setRawTextMode((v) => !v);
+                  setParseError("");
+                }}
+                type="button"
+              >
+                {rawTextMode ? "URL로 전환" : "텍스트 직접 붙여넣기"}
+              </button>
+            </div>
             {parseError ? (
               <p className="text-xs text-red-600">{parseError}</p>
             ) : null}

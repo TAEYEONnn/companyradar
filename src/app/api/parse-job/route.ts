@@ -1,15 +1,22 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-/**
- * 채용공고 URL을 받아 공고 페이지를 가져온 뒤,
- * OpenAI API로 회사명/산업군/마감일 등을 구조화해 반환합니다.
- *
- * 필요 환경변수 (Vercel > Settings > Environment Variables):
- *   OPENAI_API_KEY=sk-...
- *   OPENAI_MODEL=gpt-4o-mini (선택)
- */
-
 export const runtime = "nodejs";
+
+const MAX_HTML_BYTES = 500_000;
+const MAX_PAGE_CHARS = 12_000;
+const MAX_RAW_TEXT_CHARS = 20_000;
+
+type ErrorCode =
+  | "auth_required"
+  | "invalid_request"
+  | "url_invalid"
+  | "url_blocked"
+  | "fetch_failed"
+  | "text_extraction_failed"
+  | "ai_failed"
+  | "ai_parse_failed"
+  | "config_missing";
 
 interface ParsedJobPost {
   name?: string;
@@ -19,80 +26,137 @@ interface ParsedJobPost {
   candidateReason?: string;
 }
 
-const MAX_PAGE_CHARS = 12000;
-
 export async function POST(request: Request) {
-  let url = "";
-  try {
-    const body = (await request.json()) as { url?: string };
-    url = (body.url ?? "").trim();
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "요청 형식이 올바르지 않습니다." },
-      { status: 200 },
-    );
+  // 1. Auth — require valid Supabase session token
+  const authHeader = request.headers.get("authorization") ?? "";
+  const accessToken = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  if (!accessToken) {
+    return apiError("로그인이 필요합니다.", "auth_required", 401);
   }
 
-  if (!/^https?:\/\//i.test(url)) {
-    return NextResponse.json(
-      { ok: false, error: "http(s)로 시작하는 URL을 입력해주세요." },
-      { status: 200 },
-    );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (supabaseUrl && supabaseAnonKey) {
+    try {
+      const client = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { persistSession: false },
+      });
+      const { data, error: authError } = await client.auth.getUser();
+      if (authError || !data.user) {
+        return apiError("로그인이 필요합니다.", "auth_required", 401);
+      }
+    } catch {
+      return apiError("인증 확인에 실패했습니다.", "auth_required", 401);
+    }
+  }
+
+  // 2. Parse body
+  let url = "";
+  let rawText = "";
+  try {
+    const body = (await request.json()) as { url?: string; rawText?: string };
+    url = (body.url ?? "").trim();
+    rawText = (body.rawText ?? "").trim().slice(0, MAX_RAW_TEXT_CHARS);
+  } catch {
+    return apiError("요청 형식이 올바르지 않습니다.", "invalid_request");
+  }
+
+  if (!url && !rawText) {
+    return apiError("URL 또는 공고 텍스트를 입력해주세요.", "invalid_request");
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "OPENAI_API_KEY가 설정되지 않았습니다. Vercel 환경변수에 추가해주세요.",
-      },
-      { status: 200 },
+    return apiError(
+      "OPENAI_API_KEY가 설정되지 않았습니다. Vercel 환경변수에 추가해주세요.",
+      "config_missing",
     );
   }
 
-  // 1. 공고 페이지 텍스트 수집
+  // 3. Resolve page text — URL fetch or raw text fallback
   let pageText = "";
-  try {
-    const pageResponse = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; CareerTrackerBot/1.0; personal job tracker)",
-        Accept: "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!pageResponse.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `공고 페이지를 불러오지 못했습니다 (HTTP ${pageResponse.status}). 로그인 필요 페이지일 수 있어요.`,
+
+  if (url) {
+    if (!/^https?:\/\//i.test(url)) {
+      return apiError("http(s)로 시작하는 URL을 입력해주세요.", "url_invalid");
+    }
+    const blocked = validatePublicUrl(url);
+    if (blocked) {
+      return apiError(blocked, "url_blocked");
+    }
+
+    try {
+      const pageResponse = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; CareerTrackerBot/1.0; personal job tracker)",
+          Accept: "text/html,application/xhtml+xml",
         },
-        { status: 200 },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!pageResponse.ok) {
+        return apiError(
+          `공고 페이지를 불러오지 못했습니다 (HTTP ${pageResponse.status}). 로그인 필요 페이지라면 텍스트를 직접 붙여넣어 주세요.`,
+          "fetch_failed",
+        );
+      }
+      const contentLength = pageResponse.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > MAX_HTML_BYTES) {
+        return apiError(
+          "페이지 크기가 너무 큽니다. 텍스트를 직접 붙여넣어 주세요.",
+          "fetch_failed",
+        );
+      }
+      // Stream with size guard
+      const reader = pageResponse.body?.getReader();
+      if (!reader) throw new Error("no body");
+      let html = "";
+      let total = 0;
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_HTML_BYTES) {
+          reader.cancel();
+          break;
+        }
+        html += decoder.decode(value, { stream: true });
+      }
+      pageText = stripHtml(html).slice(0, MAX_PAGE_CHARS);
+    } catch {
+      return apiError(
+        "공고 페이지 요청이 실패했거나 시간이 초과됐습니다. 텍스트를 직접 붙여넣어 주세요.",
+        "fetch_failed",
       );
     }
-    const html = await pageResponse.text();
-    pageText = stripHtml(html).slice(0, MAX_PAGE_CHARS);
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "공고 페이지 요청이 실패했거나 시간이 초과됐습니다." },
-      { status: 200 },
-    );
+
+    if (pageText.trim().length < 100) {
+      if (rawText.length >= 100) {
+        // URL 파싱 실패 시 함께 제출한 raw text로 fallback
+        pageText = rawText;
+      } else {
+        return apiError(
+          "페이지에서 텍스트를 충분히 추출하지 못했습니다 (JS 렌더링 페이지일 수 있어요). 공고 내용을 직접 붙여넣어 주세요.",
+          "text_extraction_failed",
+        );
+      }
+    }
+  } else {
+    if (rawText.trim().length < 50) {
+      return apiError(
+        "공고 텍스트가 너무 짧습니다. 더 많은 내용을 붙여넣어 주세요.",
+        "invalid_request",
+      );
+    }
+    pageText = rawText;
   }
 
-  if (pageText.trim().length < 100) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "페이지에서 텍스트를 충분히 추출하지 못했습니다. (JS 렌더링 페이지일 수 있어요)",
-      },
-      { status: 200 },
-    );
-  }
-
-  // 2. OpenAI API로 구조화
+  // 4. AI structured parsing
   try {
     const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -124,9 +188,9 @@ ${pageText}`,
     });
 
     if (!aiResponse.ok) {
-      return NextResponse.json(
-        { ok: false, error: `AI 분석 요청 실패 (HTTP ${aiResponse.status})` },
-        { status: 200 },
+      return apiError(
+        `AI 분석 요청 실패 (HTTP ${aiResponse.status})`,
+        "ai_failed",
       );
     }
 
@@ -134,17 +198,64 @@ ${pageText}`,
       choices?: { message?: { content?: string } }[];
     };
     const text = data.choices?.[0]?.message?.content ?? "";
-
     const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as ParsedJobPost;
+
+    let parsed: ParsedJobPost;
+    try {
+      parsed = JSON.parse(clean) as ParsedJobPost;
+    } catch {
+      return apiError(
+        "AI 응답을 해석하지 못했습니다. 다시 시도해주세요.",
+        "ai_parse_failed",
+      );
+    }
 
     return NextResponse.json({ ok: true, result: parsed }, { status: 200 });
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "AI 응답을 해석하지 못했습니다. 다시 시도해주세요." },
-      { status: 200 },
-    );
+    return apiError("AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.", "ai_failed");
   }
+}
+
+function apiError(message: string, code: ErrorCode, status = 200) {
+  return NextResponse.json({ ok: false, error: message, errorCode: code }, { status });
+}
+
+// Block loopback, link-local, and RFC1918 private ranges
+function validatePublicUrl(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return "유효하지 않은 URL 형식입니다.";
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  if (hostname === "localhost" || hostname === "localhost.") {
+    return "localhost URL은 허용되지 않습니다.";
+  }
+
+  if (hostname === "[::1]" || hostname === "::1") {
+    return "loopback 주소는 허용되지 않습니다.";
+  }
+
+  const ipv4 = hostname.replace(/^\[|\]$/g, "");
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(ipv4)) {
+    const parts = ipv4.split(".").map(Number);
+    if (
+      parts[0] === 127 ||
+      parts[0] === 10 ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168) ||
+      (parts[0] === 169 && parts[1] === 254) ||
+      parts[0] === 0 ||
+      parts[0] >= 240
+    ) {
+      return "내부 네트워크 주소는 허용되지 않습니다.";
+    }
+  }
+
+  return null;
 }
 
 function stripHtml(html: string): string {
