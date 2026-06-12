@@ -5,11 +5,13 @@ import {
   BookOpenText,
   CalendarClock,
   ClipboardCheck,
+  Clock,
   ExternalLink,
   FileText,
   Flag,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
   X,
 } from "lucide-react";
@@ -264,6 +266,8 @@ export function CompanyDetailPanel({
           <Metric label="관심도" value={`${company.interestLevel}/5`} />
         </section>
 
+        <NextActionBanner company={company} />
+
         <section className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">기본 정보</h3>
@@ -282,12 +286,31 @@ export function CompanyDetailPanel({
           />
           <InfoRow
             label="공고 상태"
-            value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"} · 최근 확인 ${company.lastCheckedAt || "없음"}`}
+            value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"}`}
           />
           <InfoRow
             label="근거 수준"
             value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "재검증 필요" : "최신"}`}
           />
+          <div className="flex flex-wrap gap-2 pt-1">
+            <DateStampButton
+              label="확인"
+              onStamp={() => onPatch(company.id, { lastCheckedAt: today() })}
+              value={company.lastCheckedAt}
+            />
+            <DateStampButton
+              label="리서치"
+              onStamp={() => onPatch(company.id, { lastResearchedAt: today() })}
+              value={company.lastResearchedAt}
+            />
+            <DateStampButton
+              label="검증"
+              onStamp={() =>
+                onPatch(company.id, { lastVerifiedAt: today(), needsRefresh: false })
+              }
+              value={company.lastVerifiedAt}
+            />
+          </div>
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
           <InfoRow label="후보 이유" value={company.candidateReason || "없음"} />
@@ -777,9 +800,8 @@ export function CompanyDetailPanel({
             면접 메모
           </h3>
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-            현재 Supabase service role key 노출 이력이 있어 민감한 면접 메모 저장을
-            권장하지 않습니다. 연봉/처우, 사람 이름, 내부 정보는 key rotation 또는 새
-            프로젝트 이전 후 기록하세요.
+            v0.3에서는 면접 메모가 암호화 없이 저장됩니다. 연봉/처우, 사람 이름,
+            내부 정보는 v0.4에서 암호화 저장이 구현된 후 기록하기를 권장합니다.
           </div>
           <div className="flex gap-2">
             <Input
@@ -878,5 +900,68 @@ function SignalGroup({
         ) : null}
       </div>
     </div>
+  );
+}
+
+// "다음 액션" summary banner — shown when applied/interviewing
+function NextActionBanner({ company }: { company: Company }) {
+  const needsAction =
+    company.status === "applied" || company.status === "interviewing";
+  if (!needsAction) return null;
+
+  const pending = company.followUpTasks.filter((t) => !t.completed);
+  const sorted = [...pending].sort(
+    (a, b) => (a.dueDate || "9999") < (b.dueDate || "9999") ? -1 : 1,
+  );
+  const next = sorted[0];
+
+  if (!next) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <Flag className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          <strong>후속조치 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 팔로업 태스크가 없습니다.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+      <Clock className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        <strong>다음 액션:</strong> {next.title}
+        {next.dueDate ? (
+          <span className="ml-1 font-medium">· {next.dueDate}</span>
+        ) : null}
+        {pending.length > 1 ? (
+          <span className="ml-1 text-sky-600">외 {pending.length - 1}개</span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+// Quick date-stamp button: shows last value and a refresh icon
+function DateStampButton({
+  label,
+  value,
+  onStamp,
+}: {
+  label: string;
+  value: string;
+  onStamp: () => void;
+}) {
+  return (
+    <button
+      className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:border-slate-400 hover:bg-white transition"
+      onClick={onStamp}
+      title={`오늘 날짜로 갱신`}
+      type="button"
+    >
+      <RefreshCw className="h-3 w-3 text-slate-400" />
+      {label}
+      <span className="text-slate-400">{value || "미기록"}</span>
+    </button>
   );
 }
