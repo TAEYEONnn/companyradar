@@ -88,7 +88,7 @@ export function CompanyTrackerApp() {
   );
   const [sortMode, setSortMode] = useState<SortMode>("score_desc");
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
+  const [viewMode, setViewMode] = useState<ViewMode>("today");
   const [listMode, setListMode] = useState<ListMode>("table");
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
@@ -741,10 +741,8 @@ export function CompanyTrackerApp() {
             ) : viewMode === "today" ? (
               <TodayPanel
                 companies={companies}
-                onBack={() => setViewMode("dashboard")}
                 onSelectCompany={(id) => {
                   setSelectedId(id);
-                  setViewMode("dashboard");
                   setDrawerOpen(true);
                 }}
               />

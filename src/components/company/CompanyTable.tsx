@@ -7,14 +7,12 @@ import type { ApplicationChecklist } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   COMPANY_SIZE_LABELS,
-  JOB_STATUS_LABELS,
-  PRIORITY_LABELS,
   STATUS_LABELS,
 } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { Company, CompanyScoreResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { getPriorityTone, STATUS_TONE } from "./shared";
+import { STATUS_TONE } from "./shared";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -56,7 +54,7 @@ export function CompanyTable({
       <div className="overflow-x-auto">
         <table
           aria-label="회사 목록"
-          className="w-full min-w-[860px] border-collapse text-left text-sm"
+          className="w-full min-w-[560px] border-collapse text-left text-sm"
           role="grid"
         >
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
@@ -64,10 +62,7 @@ export function CompanyTable({
               {onToggleCompare && <th className="w-8 px-2 py-3" scope="col" />}
               <th className="px-4 py-3" scope="col">회사</th>
               <th className="px-4 py-3" scope="col">회사핏</th>
-              <th className="px-4 py-3" scope="col">지원 우선순위</th>
               <th className="px-4 py-3" scope="col">상태</th>
-              <th className="px-4 py-3" scope="col">공고 상태</th>
-              <th className="px-4 py-3" scope="col">리스크</th>
               <th className="px-4 py-3" scope="col">수정</th>
             </tr>
           </thead>
@@ -128,49 +123,10 @@ export function CompanyTable({
                     </div>
                   </td>
 
-                  {/* 지원 우선순위 */}
-                  <td className="px-4 py-3">
-                    <Badge tone={getPriorityTone(company.applicationPriority)}>
-                      {PRIORITY_LABELS[company.applicationPriority]}
-                    </Badge>
-                    {company.priorityReason && (
-                      <div className="mt-1 max-w-36 truncate text-xs text-slate-500">
-                        {company.priorityReason}
-                      </div>
-                    )}
-                  </td>
-
                   {/* 상태 */}
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONE[company.status]}>
                       {STATUS_LABELS[company.status]}
-                    </Badge>
-                  </td>
-
-                  {/* 공고 상태 */}
-                  <td className="px-4 py-3">
-                    <Badge
-                      tone={
-                        company.jobStatus === "open"
-                          ? "green"
-                          : company.jobStatus === "closed"
-                            ? "red"
-                            : "slate"
-                      }
-                    >
-                      {JOB_STATUS_LABELS[company.jobStatus]}
-                    </Badge>
-                    {company.jobDeadline && (
-                      <div className="mt-0.5 text-xs text-slate-500">
-                        {company.jobDeadline}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* 리스크 */}
-                  <td className="px-4 py-3">
-                    <Badge tone={score?.highRisk ? "red" : "slate"}>
-                      {score?.highRisk ? "높음" : `${score?.riskCount ?? 0}개`}
                     </Badge>
                   </td>
 

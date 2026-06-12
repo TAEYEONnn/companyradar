@@ -1,11 +1,13 @@
 "use client";
 
-import { BrainCircuit, RefreshCw } from "lucide-react";
+import { BrainCircuit, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
+import { INTERVIEW_ROUND_TYPE_LABELS, STATUS_LABELS } from "@/lib/criteria";
 import type { Company, CompanyScoreResult } from "@/lib/types";
-import { isDueOrOverdue } from "./shared";
+import { STATUS_TONE } from "./shared";
 
 interface CoachPanelProps {
   companies: Company[];
@@ -13,10 +15,130 @@ interface CoachPanelProps {
   onBack: () => void;
 }
 
+type ActionUrgency = "urgent" | "normal" | "low";
+
+interface ActionRec {
+  action: string;
+  urgency: ActionUrgency;
+  context?: string;
+}
+
+function daysSince(dateStr: string): number {
+  return Math.floor((Date.now() - Date.parse(dateStr)) / 86_400_000);
+}
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((Date.parse(dateStr) - Date.now()) / 86_400_000);
+}
+
+function getActionRec(company: Company, today: string): ActionRec {
+  const { status } = company;
+
+  const lastHistory = (company.statusHistory ?? [])
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const daysSinceChange = lastHistory
+    ? daysSince(lastHistory.date.slice(0, 10))
+    : null;
+
+  const upcomingInterview = company.interviewRounds
+    .filter((r) => r.result === "scheduled" && r.scheduledAt >= today)
+    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0];
+
+  const hasPending = company.interviewRounds.some((r) => r.result === "pending");
+
+  if (status === "offer") {
+    return { action: "오퍼 조건 검토 및 협상 진행", urgency: "urgent" };
+  }
+
+  if (status === "interviewing") {
+    if (upcomingInterview) {
+      const days = daysUntil(upcomingInterview.scheduledAt);
+      const label =
+        INTERVIEW_ROUND_TYPE_LABELS[upcomingInterview.type] ?? upcomingInterview.type;
+      return {
+        action: `${label} 면접 준비`,
+        urgency: days <= 3 ? "urgent" : "normal",
+        context: `${upcomingInterview.scheduledAt} · ${days}일 후`,
+      };
+    }
+    if (hasPending) {
+      return { action: "면접 결과 입력 필요", urgency: "normal" };
+    }
+    return { action: "결과 대기 중", urgency: "low" };
+  }
+
+  if (status === "applied") {
+    if (daysSinceChange !== null && daysSinceChange >= 14) {
+      return {
+        action: "팔로업 메일 발송",
+        urgency: "urgent",
+        context: `지원 후 ${daysSinceChange}일 경과 — 담당자에게 연락`,
+      };
+    }
+    if (daysSinceChange !== null && daysSinceChange >= 7) {
+      return {
+        action: "팔로업 메일 발송 고려",
+        urgency: "normal",
+        context: `지원 후 ${daysSinceChange}일 경과`,
+      };
+    }
+    return {
+      action: "응답 대기 중",
+      urgency: "low",
+      context: daysSinceChange !== null ? `지원 후 ${daysSinceChange}일` : undefined,
+    };
+  }
+
+  if (status === "planned") {
+    if (company.jobDeadline) {
+      const days = daysUntil(company.jobDeadline);
+      if (days >= 0 && days <= 7) {
+        return {
+          action: "마감 임박 — 지원서 제출",
+          urgency: "urgent",
+          context: `마감 ${company.jobDeadline} · ${days}일 남음`,
+        };
+      }
+    }
+    return { action: "지원서 준비 및 제출", urgency: "normal" };
+  }
+
+  if (status === "interested") {
+    return { action: "회사 리서치 및 공고 확인", urgency: "low" };
+  }
+
+  return { action: "상태 업데이트 필요", urgency: "low" };
+}
+
+const URGENCY_DOT: Record<ActionUrgency, string> = {
+  urgent: "bg-red-500",
+  normal: "bg-amber-400",
+  low: "bg-slate-300",
+};
+
+const URGENCY_ORDER: Record<ActionUrgency, number> = {
+  urgent: 0,
+  normal: 1,
+  low: 2,
+};
+
 export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
   const [strategy, setStrategy] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [strategyOpen, setStrategyOpen] = useState(false);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const recs = companies
+    .filter((c) => !["rejected", "on_hold"].includes(c.status))
+    .map((c) => ({ company: c, rec: getActionRec(c, today) }))
+    .sort(
+      (a, b) =>
+        URGENCY_ORDER[a.rec.urgency] - URGENCY_ORDER[b.rec.urgency] ||
+        a.company.name.localeCompare(b.company.name),
+    );
 
   async function generate() {
     setLoading(true);
@@ -37,9 +159,6 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         applicationPriority: c.applicationPriority,
         fitScore: scoreMap.get(c.id)?.companyFitScore,
         jobDeadline: c.jobDeadline,
-        followUpDueDates: c.followUpTasks
-          .filter((t) => !t.completed && Boolean(t.dueDate) && isDueOrOverdue(t.dueDate))
-          .map((t) => t.dueDate),
         interviewCount: c.interviewRounds.length,
       }));
 
@@ -51,7 +170,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         },
         body: JSON.stringify({
           companies: snapshots,
-          today: new Date().toISOString().slice(0, 10),
+          today,
         }),
       });
 
@@ -64,6 +183,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         return;
       }
       setStrategy(data.strategy);
+      setStrategyOpen(true);
     } catch {
       setError("AI 코치 요청에 실패했습니다.");
     } finally {
@@ -71,16 +191,9 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
     }
   }
 
-  const active = companies.filter((c) => !["rejected", "on_hold"].includes(c.status)).length;
-  const applying = companies.filter((c) => ["applied", "interviewing"].includes(c.status)).length;
-  const deadlineSoon = companies.filter((c) => {
-    if (!c.jobDeadline || c.jobStatus !== "open") return false;
-    const days = Math.ceil((Date.parse(c.jobDeadline) - Date.now()) / 86_400_000);
-    return days >= 0 && days <= 7;
-  }).length;
-
   return (
     <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
@@ -88,7 +201,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
             AI 커리어 코치
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            현재 진행 현황을 분석해 이번 주 실행 계획을 제안합니다.
+            회사별 다음 행동 추천 · {recs.filter((r) => r.rec.urgency === "urgent").length}건 즉시 행동 필요
           </p>
         </div>
         <Button onClick={onBack} variant="secondary">
@@ -96,94 +209,115 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         </Button>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="진행 중" value={active} />
-        <StatCard label="답변 대기" tone="purple" value={applying} />
-        <StatCard label="마감 임박 (7일)" tone={deadlineSoon > 0 ? "amber" : "slate"} value={deadlineSoon} />
-      </div>
-
-      {/* Explain what each stat means for clarity */}
-      <div className="mt-2 space-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        <p><strong>진행 중</strong>: 거절(on_hold) 상태가 아닌 모든 회사 수입니다.</p>
-        <p><strong>답변 대기</strong>: 서류를 제출했거나 면접을 진행하여 기업의 결과를 기다리는 회사 수입니다.</p>
-        <p><strong>마감 임박 (7일)</strong>: 채용 공고 마감일이 앞으로 7일 이내인 회사 수입니다.</p>
-      </div>
-
-      <Button
-        className="w-full"
-        disabled={loading || companies.length === 0}
-        onClick={() => void generate()}
-      >
-        {loading ? (
-          <RefreshCw className="h-4 w-4 animate-spin" />
-        ) : (
-          <BrainCircuit className="h-4 w-4" />
-        )}
-        {loading ? "분석 중..." : strategy ? "전략 재생성" : "이번 주 전략 생성"}
-      </Button>
-
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
-
-      {strategy && (
-        <div className="space-y-1 rounded-lg border border-violet-100 bg-violet-50 p-4">
-          {strategy.split("\n").map((line, i) => {
-            if (line.startsWith("## ")) {
-              return (
-                <h3 className="mt-3 text-sm font-semibold text-violet-800 first:mt-0" key={i}>
-                  {line.replace("## ", "")}
-                </h3>
-              );
-            }
-            if (line.startsWith("- ")) {
-              return (
-                <p className="ml-3 text-sm leading-relaxed text-slate-700" key={i}>
-                  • {line.slice(2)}
-                </p>
-              );
-            }
-            if (line.trim()) {
-              return (
-                <p className="text-sm leading-relaxed text-slate-700" key={i}>
-                  {line}
-                </p>
-              );
-            }
-            return null;
-          })}
-        </div>
-      )}
-
-      {!strategy && !loading && !error && (
-        <p className="text-center text-sm text-slate-400">
-          버튼을 눌러 AI가 현재 지원 현황을 분석하고 이번 주 우선순위를 제안하게 하세요.
+      {/* 회사별 다음 행동 */}
+      {recs.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-400">
+          진행 중인 회사가 없습니다.
         </p>
+      ) : (
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          {recs.map(({ company, rec }) => (
+            <li key={company.id} className="flex items-start gap-3 px-4 py-3">
+              <div className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${URGENCY_DOT[rec.urgency]}`} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge tone={STATUS_TONE[company.status]}>
+                    {company.name}
+                  </Badge>
+                  <span className="text-xs text-slate-400">
+                    {STATUS_LABELS[company.status]}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-sm font-medium text-slate-800">
+                  {rec.action}
+                </p>
+                {rec.context && (
+                  <p className="mt-0.5 text-xs text-slate-400">{rec.context}</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
-    </section>
-  );
-}
 
-function StatCard({
-  label,
-  value,
-  tone = "slate",
-}: {
-  label: string;
-  value: number;
-  tone?: "slate" | "purple" | "amber" | "green";
-}) {
-  const toneClasses = {
-    slate: "bg-slate-50 text-slate-700",
-    purple: "bg-purple-50 text-purple-700",
-    amber: "bg-amber-50 text-amber-700",
-    green: "bg-emerald-50 text-emerald-700",
-  };
-  return (
-    <div className={`rounded-lg p-3 text-center ${toneClasses[tone]}`}>
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="mt-0.5 text-xs font-medium">{label}</div>
-    </div>
+      {/* AI 주간 전략 (접기/펼치기) */}
+      <div className="rounded-lg border border-slate-200">
+        <button
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 hover:text-slate-900"
+          onClick={() => setStrategyOpen((v) => !v)}
+          type="button"
+        >
+          <span className="flex items-center gap-2">
+            <BrainCircuit className="h-4 w-4 text-violet-500" />
+            AI 주간 전략
+          </span>
+          {strategyOpen ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </button>
+
+        {strategyOpen && (
+          <div className="border-t border-slate-200 p-4 space-y-3">
+            <Button
+              className="w-full"
+              disabled={loading || companies.length === 0}
+              onClick={() => void generate()}
+              size="sm"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <BrainCircuit className="h-4 w-4" />
+              )}
+              {loading ? "분석 중..." : strategy ? "전략 재생성" : "이번 주 전략 생성"}
+            </Button>
+
+            {error && (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+            )}
+
+            {strategy && (
+              <div className="space-y-1 rounded-lg border border-violet-100 bg-violet-50 p-4">
+                {strategy.split("\n").map((line, i) => {
+                  if (line.startsWith("## ")) {
+                    return (
+                      <h3
+                        className="mt-3 text-sm font-semibold text-violet-800 first:mt-0"
+                        key={i}
+                      >
+                        {line.replace("## ", "")}
+                      </h3>
+                    );
+                  }
+                  if (line.startsWith("- ")) {
+                    return (
+                      <p className="ml-3 text-sm leading-relaxed text-slate-700" key={i}>
+                        • {line.slice(2)}
+                      </p>
+                    );
+                  }
+                  if (line.trim()) {
+                    return (
+                      <p className="text-sm leading-relaxed text-slate-700" key={i}>
+                        {line}
+                      </p>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            )}
+
+            {!strategy && !loading && !error && (
+              <p className="text-center text-xs text-slate-400">
+                버튼을 눌러 AI가 이번 주 우선순위를 제안하게 하세요.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
