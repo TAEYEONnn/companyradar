@@ -103,6 +103,13 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         <StatCard label="마감 임박 (7일)" tone={deadlineSoon > 0 ? "amber" : "slate"} value={deadlineSoon} />
       </div>
 
+      {/* Explain what each stat means for clarity */}
+      <div className="mt-2 space-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p><strong>진행 중</strong>: 거절(on_hold) 상태가 아닌 모든 회사 수입니다.</p>
+        <p><strong>답변 대기</strong>: 서류를 제출했거나 면접을 진행하여 기업의 결과를 기다리는 회사 수입니다.</p>
+        <p><strong>마감 임박 (7일)</strong>: 채용 공고 마감일이 앞으로 7일 이내인 회사 수입니다.</p>
+      </div>
+
       <Button
         className="w-full"
         disabled={loading || companies.length === 0}

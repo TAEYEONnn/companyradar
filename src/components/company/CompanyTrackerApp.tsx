@@ -357,12 +357,14 @@ export function CompanyTrackerApp() {
   const sidebarBadges = useMemo<SidebarBadges>(
     () => ({
       inbox: candidates.filter((c) => c.needsReview).length,
-      followUp: companies.filter(
-        (c) =>
-          Boolean(c.jobDeadline) &&
-          c.followUpTasks.some(
-            (t) => !t.completed && Boolean(t.dueDate) && isDueOrOverdue(t.dueDate),
-          ),
+      // 팔로업: 완료되지 않은 할일 중 기한이 지났거나 7일 이내 마감될 예정인 항목이 있는 회사 수를 계산합니다.
+      followUp: companies.filter((c) =>
+        c.followUpTasks.some((t) => {
+          if (t.completed || !t.dueDate) return false;
+          const dueMs = Date.parse(t.dueDate) - Date.now();
+          // overdue or due within 7 days
+          return dueMs <= 0 || dueMs <= 7 * 86_400_000;
+        }),
       ).length,
       deadline: companies.filter(isDeadlineSoon).length,
       waiting: companies.filter((c) =>
