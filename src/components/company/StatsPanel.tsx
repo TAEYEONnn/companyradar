@@ -3,9 +3,17 @@
 import { ArrowLeft, BarChart3 } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { STATUS_LABELS } from "@/lib/criteria";
+import {
+  INTERVIEW_ROUND_TYPE_LABELS,
+  STATUS_LABELS,
+} from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
-import type { ApplicationStatus, Company, CompanyScoreResult } from "@/lib/types";
+import type {
+  ApplicationStatus,
+  Company,
+  CompanyScoreResult,
+  InterviewRoundType,
+} from "@/lib/types";
 import { Metric } from "./shared";
 
 const FUNNEL_STEPS: { key: ApplicationStatus[]; label: string }[] = [
@@ -16,13 +24,22 @@ const FUNNEL_STEPS: { key: ApplicationStatus[]; label: string }[] = [
 ];
 
 const STATUS_ORDER: ApplicationStatus[] = [
-  "interested",
-  "planned",
-  "applied",
-  "interviewing",
   "offer",
+  "interviewing",
+  "applied",
+  "planned",
+  "interested",
   "rejected",
   "on_hold",
+];
+
+const ROUND_TYPE_ORDER: InterviewRoundType[] = [
+  "screening",
+  "assignment",
+  "first",
+  "second",
+  "culture",
+  "offer",
 ];
 
 interface StatsPanelProps {
@@ -34,20 +51,18 @@ interface StatsPanelProps {
 export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
   const stats = useMemo(() => {
     const total = companies.length;
-    const applied = companies.filter((company) =>
-      ["applied", "interviewing", "offer", "rejected"].includes(company.status),
+    const applied = companies.filter((c) =>
+      ["applied", "interviewing", "offer", "rejected"].includes(c.status),
     ).length;
-    const interviewing = companies.filter((company) =>
-      ["interviewing", "offer"].includes(company.status),
+    const interviewing = companies.filter((c) =>
+      ["interviewing", "offer"].includes(c.status),
     ).length;
-    const offers = companies.filter((company) => company.status === "offer").length;
-    const rejected = companies.filter(
-      (company) => company.status === "rejected",
-    ).length;
+    const offers = companies.filter((c) => c.status === "offer").length;
+    const rejected = companies.filter((c) => c.status === "rejected").length;
 
     const statusCounts = STATUS_ORDER.map((status) => ({
       status,
-      count: companies.filter((company) => company.status === status).length,
+      count: companies.filter((c) => c.status === status).length,
     }));
 
     const scoreBuckets = [
@@ -58,28 +73,94 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
       { label: "미평가", min: 0, max: 0.01 },
     ].map((bucket) => ({
       ...bucket,
-      count: companies.filter((company) => {
-        const score = scoreMap.get(company.id)?.companyFitScore ?? 0;
+      count: companies.filter((c) => {
+        const score = scoreMap.get(c.id)?.companyFitScore ?? 0;
         return score >= bucket.min && score < bucket.max;
       }).length,
     }));
 
     const averageScore =
       companies.reduce(
-        (sum, company) => sum + (scoreMap.get(company.id)?.companyFitScore ?? 0),
+        (sum, c) => sum + (scoreMap.get(c.id)?.companyFitScore ?? 0),
         0,
       ) / Math.max(total, 1);
 
-    const interviewRoundsTotal = companies.reduce(
-      (sum, company) => sum + company.interviewRounds.length,
-      0,
+    const allRounds = companies.flatMap((c) => c.interviewRounds);
+    const interviewRoundsTotal = allRounds.length;
+    const passedRounds = allRounds.filter((r) => r.result === "passed").length;
+    const decidedRounds = allRounds.filter(
+      (r) => r.result === "passed" || r.result === "rejected",
+    ).length;
+
+    // ── 사이클타임 ──────────────────────────────────────────────
+    // 후보 등록 → 첫 면접까지 평균 일수
+    const companiesWithScheduled = companies.filter((c) =>
+      c.interviewRounds.some((r) => r.scheduledAt),
     );
-    const passedRounds = companies.reduce(
-      (sum, company) =>
-        sum +
-        company.interviewRounds.filter((round) => round.result === "passed").length,
-      0,
+    const avgDaysToFirst =
+      companiesWithScheduled.length > 0
+        ? companiesWithScheduled.reduce((sum, c) => {
+            const first = c.interviewRounds
+              .filter((r) => r.scheduledAt)
+              .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0];
+            const ms =
+              new Date(first.scheduledAt).getTime() -
+              new Date(c.createdAt).getTime();
+            return sum + Math.max(0, ms / 86_400_000);
+          }, 0) / companiesWithScheduled.length
+        : null;
+
+    // 첫 라운드 → 마지막 라운드 평균 기간 (2+ 라운드 보유 기업)
+    const companiesMultiRound = companies.filter(
+      (c) => c.interviewRounds.filter((r) => r.scheduledAt).length >= 2,
     );
+    const avgProcessDays =
+      companiesMultiRound.length > 0
+        ? companiesMultiRound.reduce((sum, c) => {
+            const scheduled = c.interviewRounds
+              .filter((r) => r.scheduledAt)
+              .map((r) => new Date(r.scheduledAt).getTime())
+              .sort((a, b) => a - b);
+            const span =
+              (scheduled[scheduled.length - 1] - scheduled[0]) / 86_400_000;
+            return sum + Math.max(0, span);
+          }, 0) / companiesMultiRound.length
+        : null;
+
+    // ── 라운드별 합격률 ────────────────────────────────────────
+    const roundTypeStats = ROUND_TYPE_ORDER.map((type) => {
+      const decided = allRounds.filter(
+        (r) =>
+          r.type === type &&
+          (r.result === "passed" || r.result === "rejected"),
+      );
+      const passed = decided.filter((r) => r.result === "passed").length;
+      return {
+        type,
+        label: INTERVIEW_ROUND_TYPE_LABELS[type],
+        total: decided.length,
+        passed,
+        rate: decided.length > 0 ? passed / decided.length : null,
+      };
+    }).filter((s) => s.total > 0);
+
+    // ── 점수 vs 결과 ──────────────────────────────────────────
+    const scoreByStatus = STATUS_ORDER.map((status) => {
+      const group = companies.filter((c) => c.status === status);
+      const avg =
+        group.length > 0
+          ? group.reduce(
+              (sum, c) => sum + (scoreMap.get(c.id)?.companyFitScore ?? 0),
+              0,
+            ) / group.length
+          : 0;
+      return {
+        status,
+        label: STATUS_LABELS[status],
+        count: group.length,
+        avgScore: avg,
+      };
+    }).filter((s) => s.count > 0);
 
     return {
       total,
@@ -92,20 +173,27 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
       averageScore,
       interviewRoundsTotal,
       passedRounds,
+      decidedRounds,
       applyRate: total > 0 ? (applied / total) * 100 : 0,
       interviewRate: applied > 0 ? (interviewing / applied) * 100 : 0,
       offerRate: applied > 0 ? (offers / applied) * 100 : 0,
+      roundPassRate: decidedRounds > 0 ? (passedRounds / decidedRounds) * 100 : 0,
+      avgDaysToFirst,
+      avgProcessDays,
+      roundTypeStats,
+      scoreByStatus,
     };
   }, [companies, scoreMap]);
 
   const funnelCounts = FUNNEL_STEPS.map((step) => ({
     label: step.label,
-    count: companies.filter((company) => step.key.includes(company.status)).length,
+    count: companies.filter((c) => step.key.includes(c.status)).length,
   }));
   const funnelMax = Math.max(funnelCounts[0]?.count ?? 1, 1);
 
   const maxStatusCount = Math.max(...stats.statusCounts.map((item) => item.count), 1);
   const maxBucketCount = Math.max(...stats.scoreBuckets.map((item) => item.count), 1);
+  const maxScoreByStatus = Math.max(...stats.scoreByStatus.map((s) => s.avgScore), 0.01);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
@@ -116,7 +204,7 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
             지원 통계
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            전환율과 분포로 지원 전략을 점검하세요.
+            전환율·사이클타임·점수 상관관계로 지원 전략을 점검하세요.
           </p>
         </div>
         <Button onClick={onBack} variant="secondary">
@@ -126,17 +214,58 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
       </div>
 
       <div className="space-y-6 p-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Metric label="지원 전환율" value={`${stats.applyRate.toFixed(0)}%`} />
-          <Metric label="서류→면접 전환" value={`${stats.interviewRate.toFixed(0)}%`} />
-          <Metric
-            label="지원→오퍼 전환"
-            tone={stats.offers > 0 ? "green" : "slate"}
-            value={`${stats.offerRate.toFixed(0)}%`}
-          />
-          <Metric label="평균 회사핏" value={formatScore(stats.averageScore)} />
+        {/* ── 전환율 ── */}
+        <div>
+          <SectionLabel>전환율</SectionLabel>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Metric label="지원 전환율" value={`${stats.applyRate.toFixed(0)}%`} />
+            <Metric label="서류→면접 전환" value={`${stats.interviewRate.toFixed(0)}%`} />
+            <Metric
+              label="지원→오퍼 전환"
+              tone={stats.offers > 0 ? "green" : "slate"}
+              value={`${stats.offerRate.toFixed(0)}%`}
+            />
+            <Metric label="평균 회사핏" value={formatScore(stats.averageScore)} />
+          </div>
         </div>
 
+        {/* ── 사이클타임 ── */}
+        <div>
+          <SectionLabel>사이클타임</SectionLabel>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Metric
+              label="첫 면접까지 평균"
+              value={
+                stats.avgDaysToFirst !== null
+                  ? `${stats.avgDaysToFirst.toFixed(1)}일`
+                  : "—"
+              }
+            />
+            <Metric
+              label="면접 프로세스 평균"
+              value={
+                stats.avgProcessDays !== null
+                  ? `${stats.avgProcessDays.toFixed(1)}일`
+                  : "—"
+              }
+            />
+            <Metric
+              label="라운드 통과율"
+              tone={stats.roundPassRate >= 50 ? "green" : stats.roundPassRate > 0 ? "slate" : "slate"}
+              value={
+                stats.decidedRounds > 0
+                  ? `${stats.roundPassRate.toFixed(0)}%`
+                  : "—"
+              }
+            />
+            <Metric
+              label="완료 프로세스"
+              value={`${stats.offers + stats.rejected}개`}
+            />
+          </div>
+        </div>
+
+        {/* ── 분포 차트 3개 ── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <ChartCard title="지원 퍼널">
             {funnelCounts.map((step) => (
@@ -175,6 +304,43 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
           </ChartCard>
         </div>
 
+        {/* ── 파이프라인 분석 2개 ── */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartCard title="라운드 유형별 합격률">
+            {stats.roundTypeStats.length === 0 ? (
+              <p className="text-xs text-slate-400">결과가 기록된 면접 라운드가 없습니다.</p>
+            ) : (
+              stats.roundTypeStats.map((s) => (
+                <PassRateRow
+                  key={s.type}
+                  label={s.label}
+                  passed={s.passed}
+                  rate={s.rate ?? 0}
+                  total={s.total}
+                />
+              ))
+            )}
+          </ChartCard>
+
+          <ChartCard title="상태별 평균 회사핏 점수">
+            {stats.scoreByStatus.length === 0 ? (
+              <p className="text-xs text-slate-400">점수 데이터가 없습니다.</p>
+            ) : (
+              stats.scoreByStatus.map((s) => (
+                <ScoreBarRow
+                  key={s.status}
+                  avgScore={s.avgScore}
+                  count={s.count}
+                  label={s.label}
+                  maxScore={maxScoreByStatus}
+                  status={s.status}
+                />
+              ))
+            )}
+          </ChartCard>
+        </div>
+
+        {/* ── raw counts ── */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Metric label="전체 후보" value={`${stats.total}`} />
           <Metric label="면접 라운드 누적" value={`${stats.interviewRoundsTotal}`} />
@@ -187,6 +353,14 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      {children}
+    </h3>
   );
 }
 
@@ -226,6 +400,74 @@ function BarRow({
         />
       </div>
       <span className="text-right font-semibold text-slate-800">{count}</span>
+    </div>
+  );
+}
+
+function PassRateRow({
+  label,
+  passed,
+  rate,
+  total,
+}: {
+  label: string;
+  passed: number;
+  rate: number;
+  total: number;
+}) {
+  const pct = Math.round(rate * 100);
+  const barColor =
+    pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-400";
+  return (
+    <div className="grid grid-cols-[88px_1fr_48px] items-center gap-2 text-sm">
+      <span className="truncate text-slate-600">{label}</span>
+      <div className="relative h-5 rounded bg-slate-100">
+        <div
+          className={`h-5 rounded ${barColor} transition-all`}
+          style={{ width: `${Math.max(pct, total > 0 ? 3 : 0)}%` }}
+        />
+      </div>
+      <span className="text-right text-xs text-slate-500">
+        {passed}/{total}
+      </span>
+    </div>
+  );
+}
+
+function ScoreBarRow({
+  avgScore,
+  count,
+  label,
+  maxScore,
+  status,
+}: {
+  avgScore: number;
+  count: number;
+  label: string;
+  maxScore: number;
+  status: ApplicationStatus;
+}) {
+  const barColor =
+    status === "offer"
+      ? "bg-emerald-500"
+      : status === "rejected"
+        ? "bg-red-400"
+        : status === "interviewing"
+          ? "bg-amber-500"
+          : "bg-sky-500";
+  const ratio = maxScore > 0 ? avgScore / maxScore : 0;
+  return (
+    <div className="grid grid-cols-[80px_1fr_64px] items-center gap-2 text-sm">
+      <span className="truncate text-slate-600">{label}</span>
+      <div className="h-5 rounded bg-slate-100">
+        <div
+          className={`h-5 rounded ${barColor} transition-all`}
+          style={{ width: `${Math.max(ratio * 100, avgScore > 0 ? 3 : 0)}%` }}
+        />
+      </div>
+      <span className="text-right text-xs text-slate-500">
+        {formatScore(avgScore)} <span className="text-slate-400">×{count}</span>
+      </span>
     </div>
   );
 }

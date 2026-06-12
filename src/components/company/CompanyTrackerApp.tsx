@@ -809,7 +809,7 @@ export function CompanyTrackerApp() {
           추가 · <kbd className="rounded border border-slate-300 px-1">/</kbd> 검색 ·{" "}
           <kbd className="rounded border border-slate-300 px-1">S</kbd> 통계 ·{" "}
           <kbd className="rounded border border-slate-300 px-1">ESC</kbd> 돌아가기
-          {" · "}v1.0.0
+          {" · "}v2.0.0
         </footer>
       </div>
 
