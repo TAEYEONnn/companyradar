@@ -73,6 +73,15 @@ export function CompanyDetailPanel({
   onEdit,
   onPatch,
 }: CompanyDetailPanelProps) {
+  const panelKeyRef = useRef<CryptoKey | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    getEncryptionKey(userId).then((key) => {
+      panelKeyRef.current = key;
+    });
+  }, [userId]);
+
   const [signalKind, setSignalKind] =
     useState<keyof Company["signals"]>("greenFlags");
   const [signalDraft, setSignalDraft] = useState<Omit<ResearchSignal, "id">>({
@@ -185,14 +194,17 @@ export function CompanyDetailPanel({
     });
   }
 
-  function addInterviewNote() {
+  async function addInterviewNote() {
     if (!noteDraft.trim()) return;
+    const content = panelKeyRef.current
+      ? await encryptNote(panelKeyRef.current, noteDraft)
+      : noteDraft;
     onPatch(company.id, {
       interviewNotes: [
         {
           id: createId("note"),
           title: "면접 메모",
-          content: noteDraft,
+          content,
           createdAt: today(),
         },
         ...company.interviewNotes,
@@ -817,6 +829,7 @@ export function CompanyDetailPanel({
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
             면접 메모
+            <Lock aria-label="암호화 저장" className="ml-1 h-3 w-3 text-slate-400" />
           </h3>
           <div className="flex gap-2">
             <Input
@@ -825,28 +838,17 @@ export function CompanyDetailPanel({
               placeholder="면접에서 들은 신호, 질문, 인상"
               value={noteDraft}
             />
-            <Button onClick={addInterviewNote} size="sm">
+            <Button onClick={() => void addInterviewNote()} size="sm">
               추가
             </Button>
           </div>
           {company.interviewNotes.map((note) => (
-            <div className="rounded-md border border-slate-200 p-3" key={note.id}>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>{note.title}</span>
-                <div className="flex items-center gap-2">
-                  <span>{note.createdAt}</span>
-                  <button
-                    aria-label="메모 삭제"
-                    className="text-slate-400 hover:text-red-600"
-                    onClick={() => removeInterviewNote(note.id)}
-                    type="button"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <p className="mt-2 text-sm text-slate-700">{note.content}</p>
-            </div>
+            <InterviewNoteItem
+              encKey={panelKeyRef.current}
+              key={note.id}
+              note={note}
+              onRemove={removeInterviewNote}
+            />
           ))}
         </section>
       </div>
@@ -1093,5 +1095,47 @@ function DateStampButton({
       {label}
       <span className="text-slate-400">{value || "미기록"}</span>
     </button>
+  );
+}
+
+function InterviewNoteItem({
+  note,
+  encKey,
+  onRemove,
+}: {
+  note: { id: string; title: string; content: string; createdAt: string };
+  encKey: CryptoKey | null;
+  onRemove: (id: string) => void;
+}) {
+  const [plaintext, setPlaintext] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!encKey) {
+      setPlaintext(note.content);
+      return;
+    }
+    decryptNote(encKey, note.content).then(setPlaintext);
+  }, [encKey, note.content]);
+
+  return (
+    <div className="rounded-md border border-slate-200 p-3">
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>{note.title}</span>
+        <div className="flex items-center gap-2">
+          <span>{note.createdAt}</span>
+          <button
+            aria-label="메모 삭제"
+            className="text-slate-400 hover:text-red-600"
+            onClick={() => onRemove(note.id)}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <p className="mt-2 text-sm text-slate-700">
+        {plaintext ?? <span className="animate-pulse text-slate-400">복호화 중…</span>}
+      </p>
+    </div>
   );
 }
