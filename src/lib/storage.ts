@@ -12,6 +12,7 @@ import type {
 
 const COMPANIES_KEY = "career-company-tracker:companies";
 const SETTINGS_KEY = "career-company-tracker:criteria-settings";
+const MIGRATION_COMPLETED_KEY = "career-company-tracker:migration-completed-at";
 
 export interface CompanyRepository {
   loadCompanies(userId?: string): Company[];
@@ -25,20 +26,7 @@ export const localStorageRepository: CompanyRepository = {
   loadCompanies(userId) {
     if (typeof window === "undefined") return [];
 
-    const raw =
-      window.localStorage.getItem(getCompaniesKey(userId)) ??
-      window.localStorage.getItem(COMPANIES_KEY);
-    if (!raw) return [];
-
-    try {
-      const parsedCompanies = JSON.parse(raw) as Company[];
-      if (isLegacySampleSet(parsedCompanies)) {
-        return [];
-      }
-      return parsedCompanies.map(normalizeCompany);
-    } catch {
-      return [];
-    }
+    return readCompaniesFromKey(getCompaniesKey(userId)) ?? readLegacyCompanies();
   },
 
   saveCompanies(companies, userId) {
@@ -179,6 +167,47 @@ function getCompaniesKey(userId?: string): string {
 
 function getSettingsKey(userId?: string): string {
   return userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY;
+}
+
+function getMigrationCompletedKey(userId: string): string {
+  return `${MIGRATION_COMPLETED_KEY}:${userId}`;
+}
+
+function readCompaniesFromKey(key: string): Company[] | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+
+  try {
+    const parsedCompanies = JSON.parse(raw) as Company[];
+    if (isLegacySampleSet(parsedCompanies)) {
+      return [];
+    }
+    return parsedCompanies.map(normalizeCompany);
+  } catch {
+    return [];
+  }
+}
+
+export function readLegacyCompanies(): Company[] {
+  return readCompaniesFromKey(COMPANIES_KEY) ?? [];
+}
+
+export function readUserScopedCompanies(userId: string): Company[] {
+  return readCompaniesFromKey(getCompaniesKey(userId)) ?? [];
+}
+
+export function getMigrationCompletedAt(userId: string): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(getMigrationCompletedKey(userId)) ?? "";
+}
+
+export function markMigrationCompleted(userId: string): string {
+  const completedAt = new Date().toISOString();
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(getMigrationCompletedKey(userId), completedAt);
+  }
+  return completedAt;
 }
 
 export function hasUserCompanies(companies: Company[]): boolean {

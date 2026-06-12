@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { exportBackup, mergeCompanies, parseBackupFile } from "@/lib/backup";
 import { createEmptyCompany } from "@/lib/company-factory";
 import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
+import { planCompanyMigration } from "@/lib/migration";
 import {
   createDebouncedPush,
   deleteRemoteCompany,
@@ -19,8 +20,12 @@ import {
 import { evaluateCompany, formatScore } from "@/lib/scoring";
 import {
   cloneSampleCompaniesForUser,
+  getMigrationCompletedAt,
   hasUserCompanies,
   localStorageRepository,
+  markMigrationCompleted,
+  readLegacyCompanies,
+  readUserScopedCompanies,
 } from "@/lib/storage";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import type {
@@ -37,6 +42,7 @@ import { CompanyTable } from "./CompanyTable";
 import { CriteriaSettingsPanel } from "./CriteriaSettingsPanel";
 import { DashboardSection } from "./DashboardSection";
 import { KanbanBoard } from "./KanbanBoard";
+import { MigrationDialog } from "./MigrationDialog";
 import {
   getDeadlineRank,
   getPriorityRank,
@@ -48,6 +54,11 @@ import {
 } from "./shared";
 import { StatsPanel } from "./StatsPanel";
 import { Toolbar } from "./Toolbar";
+
+interface MigrationPromptState {
+  localCompanies: Company[];
+  remoteCompanies: Company[];
+}
 
 export function CompanyTrackerApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -67,6 +78,9 @@ export function CompanyTrackerApp() {
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
+  const [storageWriteEnabled, setStorageWriteEnabled] = useState(true);
+  const [migrationPrompt, setMigrationPrompt] =
+    useState<MigrationPromptState | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
@@ -114,8 +128,15 @@ export function CompanyTrackerApp() {
       setIsReady(false);
       setRemotePushEnabled(true);
 
-      const loadedCompanies = localStorageRepository.loadCompanies(userId);
-      setSettings(localStorageRepository.loadSettings(userId));
+      const userScopedCompanies = readUserScopedCompanies(userId);
+      const legacyCompanies = readLegacyCompanies();
+      const loadedCompanies =
+        userScopedCompanies.length > 0 ? userScopedCompanies : legacyCompanies;
+      const loadedSettings = localStorageRepository.loadSettings(userId);
+      const migrationCompletedAt = getMigrationCompletedAt(userId);
+      setSettings(loadedSettings);
+
+      let remoteCompanies: Company[] = [];
 
       if (isRemoteSyncEnabled()) {
         const remote = await pullRemoteCompanies(userId);
@@ -123,32 +144,58 @@ export function CompanyTrackerApp() {
           setCompanies(loadedCompanies);
           setSelectedId(loadedCompanies[0]?.id ?? "");
           setRemotePushEnabled(false);
+          setStorageWriteEnabled(true);
           setIsReady(true);
           showToast("Supabase 데이터를 불러오지 못해 로컬 데이터만 표시합니다.");
           return;
         }
-        if (remote && remote.length > 0) {
-          const merged = mergeByUpdatedAt([], remote);
+        remoteCompanies = remote ?? [];
+      }
+
+      if (
+        !migrationCompletedAt &&
+        hasUserCompanies(loadedCompanies)
+      ) {
+        const displayCompanies =
+          remoteCompanies.length > 0 ? remoteCompanies : loadedCompanies;
+        setCompanies(displayCompanies);
+        setSelectedId(displayCompanies[0]?.id ?? "");
+        setRemotePushEnabled(false);
+        setStorageWriteEnabled(false);
+        setMigrationPrompt({
+          localCompanies: loadedCompanies,
+          remoteCompanies,
+        });
+        setIsReady(true);
+        return;
+      }
+
+      if (remoteCompanies.length > 0) {
+          const merged = mergeByUpdatedAt([], remoteCompanies);
           setCompanies(merged);
           setSelectedId(merged[0]?.id ?? "");
+          setStorageWriteEnabled(true);
           setIsReady(true);
           showToast("Supabase에서 데이터를 동기화했습니다.");
           return;
-        }
       }
 
       if (hasUserCompanies(loadedCompanies)) {
         setCompanies(loadedCompanies);
         setSelectedId(loadedCompanies[0]?.id ?? "");
-        setRemotePushEnabled(false);
+        setRemotePushEnabled(true);
+        setStorageWriteEnabled(true);
         setIsReady(true);
-        showToast("로컬 사용자 데이터가 감지됐습니다. v0.3.2 마이그레이션 전까지 로컬에만 저장됩니다.");
+        if (isRemoteSyncEnabled()) {
+          void pushRemoteCompanies(loadedCompanies, userId);
+        }
         return;
       }
 
       const ownedSeed = cloneSampleCompaniesForUser();
       setCompanies(ownedSeed);
       setSelectedId(ownedSeed[0]?.id ?? "");
+      setStorageWriteEnabled(true);
       setIsReady(true);
       if (isRemoteSyncEnabled()) {
         void pushRemoteCompanies(ownedSeed, userId);
@@ -159,9 +206,11 @@ export function CompanyTrackerApp() {
   // 저장: localStorage 즉시 + Supabase 디바운스 push
   useEffect(() => {
     if (!isReady || !userId) return;
-    localStorageRepository.saveCompanies(companies, userId);
+    if (storageWriteEnabled) {
+      localStorageRepository.saveCompanies(companies, userId);
+    }
     if (remotePushEnabled) debouncedPushRef.current(companies, userId);
-  }, [companies, isReady, remotePushEnabled, userId]);
+  }, [companies, isReady, remotePushEnabled, storageWriteEnabled, userId]);
 
   useEffect(() => {
     if (!isReady || !userId) return;
@@ -376,6 +425,76 @@ export function CompanyTrackerApp() {
     ? companies.find((company) => company.id === pendingDeleteId)
     : null;
 
+  const migrationPlan = useMemo(() => {
+    if (!migrationPrompt) return null;
+    return planCompanyMigration(
+      migrationPrompt.localCompanies,
+      migrationPrompt.remoteCompanies,
+    );
+  }, [migrationPrompt]);
+
+  async function uploadLocalCompaniesToSupabase() {
+    if (!migrationPrompt || !migrationPlan || !userId) return;
+    const nextCompanies = mergeByUpdatedAt(
+      migrationPrompt.remoteCompanies,
+      migrationPlan.uniqueLocalCompanies,
+    );
+    const pushed = isRemoteSyncEnabled()
+      ? await pushRemoteCompanies(nextCompanies, userId)
+      : false;
+    if (!pushed) {
+      showToast("Supabase 업로드에 실패했습니다. 로컬 데이터는 유지됩니다.");
+      return;
+    }
+    localStorageRepository.saveCompanies(nextCompanies, userId);
+    markMigrationCompleted(userId);
+    setCompanies(nextCompanies);
+    setSelectedId(nextCompanies[0]?.id ?? "");
+    setRemotePushEnabled(true);
+    setStorageWriteEnabled(true);
+    setMigrationPrompt(null);
+    showToast(
+      migrationPlan.duplicates.length > 0
+        ? `${migrationPlan.uniqueLocalCompanies.length}개 업로드, ${migrationPlan.duplicates.length}개는 병합 후보로 제외했습니다.`
+        : `${migrationPlan.uniqueLocalCompanies.length}개 로컬 회사를 Supabase에 업로드했습니다.`,
+    );
+  }
+
+  async function useRemoteCompaniesOnly() {
+    if (!migrationPrompt || !userId) return;
+    const nextCompanies =
+      migrationPrompt.remoteCompanies.length > 0
+        ? migrationPrompt.remoteCompanies
+        : cloneSampleCompaniesForUser();
+    const pushed =
+      migrationPrompt.remoteCompanies.length > 0 || !isRemoteSyncEnabled()
+        ? true
+        : await pushRemoteCompanies(nextCompanies, userId);
+    if (!pushed) {
+      showToast("Supabase 초기 seed 저장에 실패했습니다.");
+      return;
+    }
+    localStorageRepository.saveCompanies(nextCompanies, userId);
+    markMigrationCompleted(userId);
+    setCompanies(nextCompanies);
+    setSelectedId(nextCompanies[0]?.id ?? "");
+    setRemotePushEnabled(true);
+    setStorageWriteEnabled(true);
+    setMigrationPrompt(null);
+    showToast("Supabase 데이터를 기준으로 사용합니다.");
+  }
+
+  function backupLocalCompaniesForLater() {
+    if (!migrationPrompt) return;
+    exportBackup(migrationPrompt.localCompanies, settings);
+    setCompanies(migrationPrompt.localCompanies);
+    setSelectedId(migrationPrompt.localCompanies[0]?.id ?? "");
+    setRemotePushEnabled(false);
+    setStorageWriteEnabled(true);
+    setMigrationPrompt(null);
+    showToast("JSON 백업을 생성했습니다. 이번 세션은 로컬 데이터로 계속합니다.");
+  }
+
   if (isAuthLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
@@ -572,6 +691,17 @@ export function CompanyTrackerApp() {
         <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
           {toast}
         </div>
+      ) : null}
+
+      {migrationPrompt && migrationPlan ? (
+        <MigrationDialog
+          localCompanies={migrationPrompt.localCompanies}
+          migrationPlan={migrationPlan}
+          onBackupLater={backupLocalCompaniesForLater}
+          onUploadLocal={uploadLocalCompaniesToSupabase}
+          onUseRemoteOnly={useRemoteCompaniesOnly}
+          remoteCompanies={migrationPrompt.remoteCompanies}
+        />
       ) : null}
     </main>
   );

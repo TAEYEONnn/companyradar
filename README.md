@@ -190,6 +190,22 @@ OPENAI_MODEL=gpt-4o-mini
 - 로그인한 사용자의 `companies` row가 없고 localStorage에도 사용자 데이터가 없을 때만 sample seed를 사용자 소유 row로 생성합니다.
 - 여러 사용자가 같은 sample company id를 가질 수 있도록 DB primary key는 `(user_id, id)`입니다.
 
+### localStorage migration
+
+v0.3.2부터 로그인 후 localStorage 데이터를 Supabase로 자동 push하지 않습니다.
+
+- 사용자 데이터가 localStorage에서 발견되면 import 확인 모달을 띄웁니다.
+- 선택지:
+  - 로컬 업로드: 중복이 아닌 로컬 회사만 Supabase에 추가
+  - Supabase만 사용: 로컬 데이터를 업로드하지 않고 원격 데이터 기준으로 시작
+  - 백업 후 나중에: JSON 백업을 만들고 이번 세션은 로컬 데이터로 계속 사용
+- 중복 판정 기준:
+  - normalized company name
+  - homepage domain
+  - job posting URL
+- 중복 후보는 새 row를 만들지 않고 업로드 대상에서 제외합니다.
+- 업로드 또는 Supabase만 사용을 완료하면 localStorage에 사용자별 `migrationCompletedAt`을 저장합니다.
+
 ### RLS REST 검증
 
 아래 예시는 `service_role` key를 사용하지 않습니다.
