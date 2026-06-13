@@ -146,10 +146,14 @@ export function AppSidebar({
       )}
     >
       {/* Logo */}
-      <div className="flex h-14 items-center gap-2 border-b border-slate-100 px-4">
+      <button
+        className="flex h-14 items-center gap-2 border-b border-slate-100 px-4 text-left transition-colors hover:bg-slate-50"
+        onClick={() => onNavigate("dashboard")}
+        type="button"
+      >
         <Building2 className="h-4 w-4 text-slate-500" />
         <span className="text-sm font-semibold text-slate-900">CareerTrack</span>
-      </div>
+      </button>
 
       {/* Nav */}
       <nav className="flex flex-col gap-1 p-2 md:block md:flex-1 md:space-y-0.5 md:overflow-y-auto">

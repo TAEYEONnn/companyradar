@@ -178,7 +178,7 @@ export function Toolbar({
         )}
 
         <div className="flex items-center gap-1">
-          <Button aria-label="샘플 데이터 초기화" onClick={onReset} size="icon" title="샘플 데이터 초기화" variant="ghost">
+          <Button aria-label="직군 샘플로 초기화" onClick={onReset} size="icon" title="직군 샘플로 초기화" variant="ghost">
             <RotateCcw className="h-4 w-4" />
           </Button>
         </div>

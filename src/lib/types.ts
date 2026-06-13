@@ -158,6 +158,7 @@ export interface FollowUpTask {
   title: string;
   dueDate: string;
   completed: boolean;
+  completedAt?: string;
   relatedRoundId?: string;
   createdAt: string;
 }

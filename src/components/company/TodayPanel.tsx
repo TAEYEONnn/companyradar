@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowRight, CalendarCheck, CheckCircle2, ShieldCheck } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowRight, CalendarCheck, CheckCircle2, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
@@ -58,16 +58,23 @@ const SECTION_GROUPS: { label: string; urgencies: Urgency[] }[] = [
 interface TodayPanelProps {
   companies: Company[];
   onCompleteFollowUpTask: (companyId: string, taskId: string) => void;
+  onDeleteFollowUpTask: (companyId: string, taskId: string) => void;
   onMarkVerified: (companyId: string) => void;
+  onOpenCompanyList: () => void;
+  onReopenFollowUpTask: (companyId: string, taskId: string) => void;
   onSelectCompany: (id: string) => void;
 }
 
 export function TodayPanel({
   companies,
   onCompleteFollowUpTask,
+  onDeleteFollowUpTask,
   onMarkVerified,
+  onOpenCompanyList,
+  onReopenFollowUpTask,
   onSelectCompany,
 }: TodayPanelProps) {
+  const [showCompleted, setShowCompleted] = useState(false);
   const today = useCurrentDate();
   const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
   const weekEnd = useMemo(
@@ -228,6 +235,20 @@ export function TodayPanel({
 
   const completableItems = items.filter((item) => item.canCompleteDirectly && item.taskId);
   const actionRequiredCount = items.length - completableItems.length;
+  const completedItems = useMemo(() => {
+    return companies
+      .flatMap((company) =>
+        company.followUpTasks
+          .filter((task) => task.completed)
+          .map((task) => ({
+            companyId: company.id,
+            companyName: company.name,
+            task,
+            completedSortDate: task.completedAt || task.dueDate || task.createdAt,
+          })),
+      )
+      .sort((a, b) => b.completedSortDate.localeCompare(a.completedSortDate));
+  }, [companies]);
 
   function completeAllDirectTasks() {
     for (const item of completableItems) {
@@ -248,6 +269,7 @@ export function TodayPanel({
             {items.length === 0
               ? "할 일 없음"
               : `${items.length}개 남음${actionRequiredCount > 0 ? ` · 확인 필요 ${actionRequiredCount}개` : ""}`}
+            {completedItems.length > 0 ? ` · 완료 ${completedItems.length}개` : ""}
           </p>
         </div>
         {completableItems.length > 0 && (
@@ -257,7 +279,7 @@ export function TodayPanel({
             variant="primary"
           >
             <CheckCircle2 className="h-4 w-4" />
-            완료 가능한 항목 전체 완료
+            전체 완료로 이동
           </Button>
         )}
       </div>
@@ -266,6 +288,9 @@ export function TodayPanel({
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
           <CheckCircle2 className="h-8 w-8" />
           <p className="text-sm">오늘 할 일이 없습니다. 잘 하고 계세요!</p>
+          <Button onClick={onOpenCompanyList} size="sm" variant="secondary">
+            회사 목록에서 다음 액션 추가
+          </Button>
         </div>
       ) : (
         <div className="py-1">
@@ -374,6 +399,71 @@ export function TodayPanel({
           })}
         </div>
       )}
+
+      {completedItems.length > 0 ? (
+        <div className="border-t border-slate-200">
+          <button
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowCompleted((value) => !value)}
+            type="button"
+          >
+            <span>완료됨 {completedItems.length}개</span>
+            <span className="text-xs text-slate-400">
+              {showCompleted ? "접기" : "보기"}
+            </span>
+          </button>
+          {showCompleted ? (
+            <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60">
+              {completedItems.map(({ companyId, companyName, task }) => (
+                <li
+                  className="flex flex-wrap items-start gap-3 px-4 py-3"
+                  key={`${companyId}-${task.id}`}
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div className="min-w-0 flex-1">
+                    <button
+                      className="text-left text-sm text-slate-700 hover:text-slate-950"
+                      onClick={() => onSelectCompany(companyId)}
+                      type="button"
+                    >
+                      <span className="font-medium">{companyName}</span>{" "}
+                      <span className="line-through decoration-slate-300">{task.title}</span>
+                    </button>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      완료 {task.completedAt ? new Date(task.completedAt).toLocaleString("ko-KR") : task.dueDate || task.createdAt}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => onReopenFollowUpTask(companyId, task.id)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      다시 열기
+                    </Button>
+                    <Button
+                      onClick={() => onSelectCompany(companyId)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      회사 보기
+                    </Button>
+                    <Button
+                      onClick={() => onDeleteFollowUpTask(companyId, task.id)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      삭제
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

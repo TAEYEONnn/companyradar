@@ -1032,7 +1032,13 @@ export function CompanyDetailPanel({
                   onPatch(company.id, {
                     followUpTasks: company.followUpTasks.map((item) =>
                       item.id === task.id
-                        ? { ...item, completed: event.target.checked }
+                        ? {
+                            ...item,
+                            completed: event.target.checked,
+                            completedAt: event.target.checked
+                              ? new Date().toISOString()
+                              : undefined,
+                          }
                         : item,
                     ),
                   })

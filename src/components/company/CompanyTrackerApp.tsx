@@ -95,7 +95,7 @@ export function CompanyTrackerApp() {
   );
   const [sortMode, setSortMode] = useState<SortMode>("score_desc");
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("today");
+  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [listMode, setListMode] = useState<ListMode>("table");
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
@@ -109,6 +109,7 @@ export function CompanyTrackerApp() {
     useState<MigrationPromptState | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
+  const [sampleResetOpen, setSampleResetOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [deletionRequested, setDeletionRequested] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -219,13 +220,27 @@ export function CompanyTrackerApp() {
       }
 
       if (remoteCompanies.length > 0) {
-          const merged = mergeByUpdatedAt([], remoteCompanies);
-          setCompanies(merged);
-          setSelectedId(merged[0]?.id ?? "");
-          setStorageWriteEnabled(true);
-          setIsReady(true);
-          showToast("Supabase에서 데이터를 동기화했습니다.");
-          return;
+        const merged = mergeByUpdatedAt(loadedCompanies, remoteCompanies);
+        const localHasUserCompanies = hasUserCompanies(loadedCompanies);
+        const remoteHasUserCompanies = hasUserCompanies(remoteCompanies);
+        const mergedDiffersFromRemote =
+          companySyncSignature(merged) !== companySyncSignature(remoteCompanies);
+
+        setCompanies(merged);
+        setSelectedId(merged[0]?.id ?? "");
+        setStorageWriteEnabled(true);
+        setIsReady(true);
+
+        if (isRemoteSyncEnabled() && mergedDiffersFromRemote) {
+          void pushRemoteCompanies(merged, userId);
+        }
+
+        showToast(
+          localHasUserCompanies && (mergedDiffersFromRemote || !remoteHasUserCompanies)
+            ? "기기 데이터와 Supabase 데이터를 병합했습니다."
+            : "Supabase에서 데이터를 동기화했습니다.",
+        );
+        return;
       }
 
       if (hasUserCompanies(loadedCompanies)) {
@@ -374,6 +389,9 @@ export function CompanyTrackerApp() {
     return { active, highRisk, needsValidation, highPriority, average };
   }, [companies, scoreMap]);
 
+  const hasOnlySampleCompanies =
+    companies.length > 0 && companies.every((company) => company.isSampleData);
+
   const dashboardSections = useMemo(() => {
     const deadlineSoon = companies.filter(isDeadlineSoon);
     const waitingResponse = companies.filter((company) =>
@@ -477,8 +495,42 @@ export function CompanyTrackerApp() {
           ? {
               ...company,
               followUpTasks: company.followUpTasks.map((task) =>
-                task.id === taskId ? { ...task, completed: true } : task,
+                task.id === taskId
+                  ? { ...task, completed: true, completedAt: new Date().toISOString() }
+                  : task,
               ),
+              updatedAt: new Date().toISOString(),
+            }
+          : company,
+      ),
+    );
+  }
+
+  function reopenFollowUpTask(companyId: string, taskId: string) {
+    setCompanies((current) =>
+      current.map((company) =>
+        company.id === companyId
+          ? {
+              ...company,
+              followUpTasks: company.followUpTasks.map((task) =>
+                task.id === taskId
+                  ? { ...task, completed: false, completedAt: undefined }
+                  : task,
+              ),
+              updatedAt: new Date().toISOString(),
+            }
+          : company,
+      ),
+    );
+  }
+
+  function deleteFollowUpTask(companyId: string, taskId: string) {
+    setCompanies((current) =>
+      current.map((company) =>
+        company.id === companyId
+          ? {
+              ...company,
+              followUpTasks: company.followUpTasks.filter((task) => task.id !== taskId),
               updatedAt: new Date().toISOString(),
             }
           : company,
@@ -513,6 +565,7 @@ export function CompanyTrackerApp() {
     if (isRemoteSyncEnabled()) {
       void pushRemoteCompanies(ownedSeed, userId);
     }
+    setSampleResetOpen(false);
   }
 
   function createCandidate(draft: {
@@ -907,7 +960,10 @@ export function CompanyTrackerApp() {
               <TodayPanel
                 companies={companies}
                 onCompleteFollowUpTask={completeFollowUpTask}
+                onDeleteFollowUpTask={deleteFollowUpTask}
                 onMarkVerified={markCompanyVerified}
+                onOpenCompanyList={() => setViewMode("dashboard")}
+                onReopenFollowUpTask={reopenFollowUpTask}
                 onSelectCompany={(id) => {
                   setSelectedId(id);
                   setDrawerOpen(true);
@@ -944,13 +1000,18 @@ export function CompanyTrackerApp() {
             ) : (
               /* ─── Companies (table / kanban) ─── */
               <div className="rounded-lg border border-slate-200 bg-white">
+                {hasOnlySampleCompanies ? (
+                  <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">
+                    현재 직군 예시 회사 1개만 표시 중입니다. 새 회사를 추가하면 로그인 계정 기준으로 자동 저장됩니다.
+                  </div>
+                ) : null}
                 <Toolbar
                   advancedFilter={advancedFilter}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
                   onListModeChange={setListMode}
                   onQueryChange={setQuery}
-                  onReset={resetSampleData}
+                  onReset={() => setSampleResetOpen(true)}
                   onSortModeChange={setSortMode}
                   onStatusFilterChange={setStatusFilter}
                   query={query}
@@ -1085,6 +1146,15 @@ export function CompanyTrackerApp() {
         title="선택한 회사를 삭제할까요?"
       />
 
+      <ConfirmDialog
+        confirmLabel="직군 샘플로 초기화"
+        description="현재 회사 목록을 지우고 내 직군 기준 샘플 1개만 남깁니다. 기존 데이터는 JSON 백업 후 진행하는 것을 권장합니다."
+        onCancel={() => setSampleResetOpen(false)}
+        onConfirm={resetSampleData}
+        open={sampleResetOpen}
+        title="회사 목록을 샘플로 초기화할까요?"
+      />
+
       {toast ? (
         <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
           {toast}
@@ -1116,6 +1186,13 @@ export function CompanyTrackerApp() {
       )}
     </div>
   );
+}
+
+function companySyncSignature(companies: Company[]) {
+  return companies
+    .map((company) => `${company.id}:${company.updatedAt}`)
+    .sort()
+    .join("|");
 }
 
 function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
