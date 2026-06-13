@@ -51,6 +51,7 @@ import type {
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { AppSidebar, type SidebarBadges } from "./AppSidebar";
 import { AuthGate } from "./AuthGate";
+import { BillingPrompt } from "./BillingPrompt";
 import { CandidateInboxPanel } from "./CandidateInboxPanel";
 import { CompanyDrawer } from "./CompanyDrawer";
 import { CompanyForm } from "./CompanyForm";
@@ -1034,6 +1035,8 @@ export function CompanyTrackerApp() {
           remoteCompanies={migrationPrompt.remoteCompanies}
         />
       ) : null}
+
+      <BillingPrompt />
     </div>
   );
 }

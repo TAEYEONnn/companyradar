@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -10,7 +9,7 @@ function apiError(status: number, code: string, message: string) {
 
 export async function POST(request: Request) {
   // --- Auth ---
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "gen-prep-questions");
   if (auth.response) return auth.response;
 
   // --- Body ---
@@ -125,7 +124,7 @@ export async function POST(request: Request) {
       (q) => q.category && q.question && validCategories.has(q.category),
     );
 
-    await logAiRequest(auth.user, "gen-prep-questions", "success");
+    await consumeAiCredit(auth.user, "gen-prep-questions", auth.entitlement);
     return NextResponse.json({ ok: true, questions });
   } catch {
     return apiError(502, "ai_failed", "AI 질문 생성 중 오류가 발생했습니다.");

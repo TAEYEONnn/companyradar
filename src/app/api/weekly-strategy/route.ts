@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -20,7 +19,7 @@ interface CompanySnapshot {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "weekly-strategy");
   if (auth.response) return auth.response;
 
   let body: { companies?: CompanySnapshot[]; today?: string };
@@ -105,7 +104,7 @@ export async function POST(request: Request) {
     if (!strategy)
       return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
 
-    await logAiRequest(auth.user, "weekly-strategy", "success");
+    await consumeAiCredit(auth.user, "weekly-strategy", auth.entitlement);
     return NextResponse.json({ ok: true, strategy });
   } catch {
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");

@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -20,7 +19,7 @@ interface ResearchResult {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "research-company");
   if (auth.response) return auth.response;
 
   let body: { companyName?: string; homepageUrl?: string; industry?: string };
@@ -143,7 +142,7 @@ export async function POST(request: Request) {
       questions: parsed.questions ?? "",
     };
 
-    await logAiRequest(auth.user, "research-company", "success");
+    await consumeAiCredit(auth.user, "research-company", auth.entitlement);
     return NextResponse.json({ ok: true, result });
   } catch {
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");

@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -10,7 +9,7 @@ function apiError(status: number, code: string, message: string) {
 
 export async function POST(request: Request) {
   // --- Auth ---
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "summarize-company");
   if (auth.response) return auth.response;
 
   // --- Body ---
@@ -127,7 +126,7 @@ ${logLines || "없음"}
     if (!summary)
       return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
 
-    await logAiRequest(auth.user, "summarize-company", "success");
+    await consumeAiCredit(auth.user, "summarize-company", auth.entitlement);
     return NextResponse.json({ ok: true, summary });
   } catch {
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");

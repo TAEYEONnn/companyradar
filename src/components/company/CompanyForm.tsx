@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { AI_FORBIDDEN_MESSAGE } from "@/lib/api-error";
+import { AI_PAYMENT_REQUIRED_MESSAGE, dispatchPaymentRequired } from "@/lib/api-error";
 import { VALIDATION_REASON_LABELS } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { ScoreSlider } from "@/components/ui/score-slider";
@@ -148,9 +148,10 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
             | { ok: false; error: string; errorCode?: string }
             | { error: { code?: string; message?: string } };
 
-          if (r.status === 403 || ("error" in d && typeof d.error === "object" && d.error.code === "forbidden")) {
-            const err = new Error(AI_FORBIDDEN_MESSAGE) as Error & { errorCode?: string };
-            err.errorCode = "forbidden";
+          if (r.status === 402 || ("error" in d && typeof d.error === "object" && d.error.code === "payment_required")) {
+            dispatchPaymentRequired();
+            const err = new Error(AI_PAYMENT_REQUIRED_MESSAGE) as Error & { errorCode?: string };
+            err.errorCode = "payment_required";
             throw err;
           }
           return d;

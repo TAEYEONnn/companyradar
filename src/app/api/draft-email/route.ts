@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -12,7 +11,7 @@ function apiError(status: number, code: string, message: string) {
 
 export async function POST(request: Request) {
   // --- Auth ---
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "draft-email");
   if (auth.response) return auth.response;
 
   // --- Body ---
@@ -98,7 +97,7 @@ export async function POST(request: Request) {
     const draft = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!draft) return apiError(502, "ai_failed", "AI가 초안을 생성하지 못했습니다.");
 
-    await logAiRequest(auth.user, "draft-email", "success");
+    await consumeAiCredit(auth.user, "draft-email", auth.entitlement);
     return NextResponse.json({ draft });
   } catch {
     return apiError(502, "ai_failed", "AI 요청 중 오류가 발생했습니다.");

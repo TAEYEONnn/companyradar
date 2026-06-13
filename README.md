@@ -1,15 +1,16 @@
 # Career Company Tracker
 
-좋은 회사를 단순 규모가 아니라 커리어 성장 가능성, 조직 안정성, 제품 품질, 구성원 후기, 포지션 적합도, 디자인 조직 성숙도 기준으로 평가하고 추적하는 개인용 웹앱입니다.
+디자인 계열 구직자가 관심 회사를 정리하고, 채용 공고와 회사 리서치, 면접 준비 기록을 한 곳에서 관리하는 개인용 커리어 트래커입니다.
 
-## Security Precondition
+## 주요 기능
 
-v0.3.1부터 사용자 데이터는 Supabase Auth session + RLS 정책으로만 접근합니다.
-
-- 노출된 `service_role` key는 RLS를 우회할 수 있으므로 폐기해야 합니다.
-- 프로젝트 재생성 또는 JWT/API key rotation이 어렵다면, 현재 프로젝트에는 민감한 면접 메모, 연봉/처우, 사람 이름, 내부 정보를 저장하지 마세요.
-- `service_role` key는 클라이언트 코드, 서버 API route, Vercel 환경변수, README 예시에 절대 넣지 않습니다.
-- 앱에는 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OPENAI_API_KEY`만 사용합니다.
+- Magic Link 기반 로그인
+- 로그인 사용자별 회사 목록, 설정, 후보 Inbox 저장
+- 회사 등록/수정, 상태/우선순위/마감일 관리
+- 회사핏 점수, 리스크, Green flag / Red flag / Unknown 신호 기록
+- 모바일 회사 카드 리스트와 상세 드로어
+- AI 공고 파싱, 회사 리서치, 비교 분석, 주간 전략, 면접 질문, 메일 초안, 회사 요약
+- AI 유료 베타: 계정당 첫 성공 1회 무료, 이후 10회권 4,900원
 
 ## 실행
 
@@ -20,288 +21,82 @@ npm run dev
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
-## 기술 스택
+프로덕션 빌드 확인:
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui 스타일의 로컬 UI 컴포넌트
-- Supabase Auth + RLS
-- localStorage 보조 저장
-
-## 주요 기능
-
-- Magic Link 로그인
-- 사용자별 Supabase row 소유권
-- 회사 등록/수정
-- 상태 관리: 관심, 지원 예정, 지원 완료, 면접 중, 탈락, 오퍼, 보류
-- 회사 평가 점수(`companyFitScore`)와 실제 지원 우선순위(`applicationPriority`) 분리
-- 근거 신뢰도(`evidenceLevel`)와 `검증 필요` 표시
-- 5개 평가 카테고리와 21개 세부 항목 1~5점 평가
-- 가중치 기반 총점 계산
-- 점수 라벨: 적극 지원, 지원 고려, 정보 추가 필요, 보류
-- Green flag / Red flag / Unknown 구조화 신호 기록
-- 디자이너 적합도 체크리스트
-- 지원 준비 체크리스트
-- 면접 라운드, 면접 메모, 다음 할일 관리
-- 공고 상태, 마감일, 최근 확인일 관리
-- 경고 신호 체크리스트와 리스크 높음 뱃지
-- 마감 임박, 회신 대기, 팔로업 필요, 정보 부족 후보 섹션
-- 상태별 필터, 점수순/지원 우선순위순/마감 임박순/최근 수정순 정렬
-- 실제 회사 기반 sample seed 15개 포함
-
-## 데이터 구조
-
-- `src/lib/types.ts`: 회사, 점수, 리서치 로그, 설정 타입
-- `src/lib/criteria.ts`: 평가 항목, 기본 가중치, 상태/규모 라벨
-- `src/lib/scoring.ts`: 평균 점수, 가중치 총점, 라벨 계산
-- `src/lib/sample-data.ts`: 실제 회사 기반 sample seed 15개
-- `src/lib/storage.ts`: localStorage repository
-
-## Supabase 확장 포인트
-
-`src/lib/storage.ts`의 `CompanyRepository` 인터페이스를 유지한 채 저장소를 교체할 수 있습니다. v0.3.1에서는 localStorage를 보조 저장소로 유지하고, Supabase Auth session이 있는 경우 사용자별 row에 동기화합니다.
-
-예상 테이블:
-
-- `companies`
-- `candidate_inbox_items`
-- `company_scores`
-- `research_logs`
-- `risk_flags`
-- `interview_notes`
-- `interview_rounds`
-- `follow_up_tasks`
-- `research_signals`
-- `criteria_settings`
-
-## Do / Don't
-
-Do:
-
-- 회사 규모보다 역할, 성장 문제, 조직 신호를 우선 기록합니다.
-- 회사 평가 점수와 지금 지원할 우선순위를 분리해서 판단합니다.
-- 외부 후기와 면접 신호를 greenFlags, redFlags, unknowns로 나눠 기록합니다.
-- 경고 신호가 많아도 총점과 별도로 판단합니다.
-
-Don't:
-
-- 출처 없는 투자/매출 수치를 확정값처럼 기록하지 않습니다.
-- sample seed 데이터를 최신 채용공고로 간주하지 않습니다.
-- 면접에서 확인하지 못한 내용을 사실처럼 단정하지 않습니다.
-- 점수만 보고 지원 여부를 결정하지 않습니다.
-
----
-
-## v0.2 업데이트
-
-### 새 기능
-- **항목 삭제**: 신호 / 면접 라운드 / 할일 / 면접 메모 개별 삭제
-- **리서치 로그**: 출처·링크·긍/부정 신호·확인 질문 기록 (Detail Panel)
-- **면접 라운드 개선**: 라운드 유형 선택, 결과(예정/통과/탈락 등) 인라인 변경
-- **칸반 보드**: 테이블 ↔ 칸반 토글, 드래그앤드롭으로 상태 이동
-- **지원 통계**: 퍼널 전환율, 상태별 분포, 점수 분포 차트
-- **JSON 백업/복원**: 툴바에서 내보내기/가져오기 (id 기준 최신본 병합)
-- **삭제 확인 다이얼로그**: 실수 방지
-- **키보드 단축키**: `N` 회사 추가, `/` 검색, `S` 통계, `ESC` 돌아가기
-- **반응형 개선**: 모바일/태블릿 레이아웃 대응
-
-### 선택 기능 (환경변수 필요)
-
-**1. Supabase 동기화** — 기기 간 데이터 공유
+```bash
+npm run build
 ```
-# .env.local 또는 Vercel 환경변수
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-```
-- 기존 프로젝트는 `supabase/migrations/20260612_v031_auth_rls.sql` 실행
-- 새 프로젝트는 `supabase/schema.sql` 실행
-- 설정 시 Magic Link 로그인 후 헤더에 "Supabase 동기화" 뱃지 표시
-- localStorage는 사용자별 보조 저장소, Supabase는 Auth/RLS 기반 원격 저장소
 
-**2. 공고 URL AI 자동 채우기**
-```
-OPENAI_API_KEY=sk-...
-# 선택
+## 환경변수
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
-```
-- 회사 추가 폼에서 채용공고 URL 입력 → "자동 채우기" 버튼
-- 회사명/산업군/제품 설명/마감일을 OpenAI API가 추출
-- 로그인이 필요하거나 JS 렌더링되는 공고 페이지는 실패할 수 있음
 
-### 구조 변경
+# 운영자/무제한 AI 계정
+AI_ALLOWED_EMAILS=dev@example.com
+AI_ALLOWED_USER_IDS=
+
+# Toss Payments
+NEXT_PUBLIC_TOSS_CLIENT_KEY=
+TOSS_SECRET_KEY=
+TOSS_WEBHOOK_SECRET=
+
+# 서버 전용. 클라이언트에 노출 금지
+SUPABASE_SERVICE_ROLE_KEY=
 ```
-src/components/company/
-  CompanyTrackerApp.tsx   # 오케스트레이터 (1,775줄 → 477줄)
-  CompanyTable.tsx        # 테이블 뷰
-  KanbanBoard.tsx         # 칸반 뷰
-  CompanyDetailPanel.tsx  # 상세 패널
-  CompanyForm.tsx         # 추가/수정 폼
-  CriteriaSettingsPanel.tsx
-  DashboardSection.tsx
-  StatsPanel.tsx          # 통계
-  Toolbar.tsx             # 검색/필터/백업/뷰 토글
-  shared.tsx              # Metric, InfoRow, 공통 헬퍼
-src/lib/
-  backup.ts               # JSON 내보내기/가져오기
-  company-factory.ts      # 빈 회사 객체 생성
-  remote-sync.ts          # Supabase Auth/RLS 동기화
-  supabase-client.ts      # Supabase client/session 유틸
-  use-keyboard-shortcuts.ts
-src/app/api/parse-job/route.ts  # AI 공고 파싱
-supabase/schema.sql
+
+`service_role` key와 `TOSS_SECRET_KEY`는 서버 API route에서만 사용합니다. `NEXT_PUBLIC_` prefix가 붙은 값만 브라우저에 노출됩니다.
+
+## Supabase 설정
+
+Supabase SQL Editor에서 아래 migration을 순서대로 적용합니다.
+
+```txt
 supabase/migrations/20260612_v031_auth_rls.sql
 supabase/migrations/20260612_v033_candidate_inbox.sql
+supabase/migrations/20260613_v034_profiles_ai_requests.sql
+supabase/migrations/20260613_v035_ai_billing_credits.sql
 ```
 
----
+주요 테이블:
 
-## v0.3.1 Auth/RLS Hardening
+- `companies`: 사용자별 회사 데이터
+- `candidate_inbox_items`: 검토 전 후보 회사/공고
+- `profiles`: `owner / beta_user / blocked` 역할
+- `ai_requests`: AI 요청 로그
+- `ai_credit_accounts`: 무료/유료 AI 잔여 횟수
+- `ai_credit_ledger`: 무료 지급, 구매 지급, 성공 차감 기록
+- `payments`: 토스페이먼츠 주문/승인 상태
 
-### Supabase 설정
+## AI 권한과 과금
 
-1. Supabase SQL Editor에서 기존 프로젝트는 migration을 실행합니다.
+- `AI_ALLOWED_EMAILS` 또는 `AI_ALLOWED_USER_IDS`에 포함된 계정, `profiles.role = owner` 계정은 AI를 무제한 사용합니다.
+- `profiles.role = blocked` 계정은 무료/유료 크레딧이 있어도 AI 사용이 차단됩니다.
+- 일반 사용자는 `ai_credit_accounts.free_uses_remaining + paid_credits_remaining > 0`일 때 AI를 사용할 수 있습니다.
+- 새 계정은 첫 성공 AI 응답 1회를 무료로 사용할 수 있습니다.
+- 이후에는 `AI 10회 이용권`을 4,900원에 구매합니다.
+- 크레딧은 성공한 AI 응답에만 1회 차감됩니다. OpenAI 오류, 네트워크 오류, 권한 오류는 차감하지 않습니다.
 
-```sql
--- 파일 내용 실행
-supabase/migrations/20260612_v031_auth_rls.sql
-```
+## 결제 흐름
 
-새 프로젝트는 `supabase/schema.sql`을 실행합니다.
+결제는 토스페이먼츠 일회성 원화 결제로 처리합니다.
 
-2. Vercel 환경변수를 설정합니다.
+1. AI 잔여 횟수가 없으면 클라이언트가 `402 payment_required` 응답을 받고 구매 모달을 엽니다.
+2. 사용자가 `10회권 4,900원 구매`를 누르면 `/api/billing/create-order`가 pending 주문을 만듭니다.
+3. 토스페이먼츠 결제창에서 결제가 끝나면 `/billing/success`로 돌아옵니다.
+4. 성공 페이지가 `/api/billing/confirm`을 호출해 `paymentKey/orderId/amount`를 검증하고 토스 승인 API를 호출합니다.
+5. 승인 상태가 `DONE`이면 `paid_credits_remaining`에 10회를 지급합니다.
+6. 같은 `orderId`가 다시 confirm되거나 웹훅이 중복 도착해도 크레딧은 한 번만 지급됩니다.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
-```
+정산 계좌는 토스페이먼츠 상점 설정에서 등록합니다. 앱 DB에는 계좌번호를 저장하지 않습니다.
 
-3. Supabase Dashboard > Authentication > URL Configuration을 설정합니다.
+## 개발 메모
 
-- Site URL: `https://company-career-tracker.vercel.app`
-- Redirect URLs:
-  - `http://localhost:3000/**`
-  - `https://company-career-tracker.vercel.app/**`
-  - Vercel preview URL 패턴, 예: `https://company-career-tracker-*.vercel.app/**`
-
-### 개발 테스트용 Email + Password 로그인
-
-Magic Link가 Supabase email rate limit에 걸리면 개발 테스트가 막힙니다. 로그인 화면의
-**Email + Password** 탭으로 비밀번호 로그인이 가능합니다 (Magic Link도 그대로 유지).
-앱에 회원가입 기능은 없으므로 테스트 계정은 Dashboard에서 직접 만듭니다.
-
-1. Supabase Dashboard > **Authentication > Users > Add user**
-2. 테스트 이메일 입력
-3. **Auto Confirm User** 체크 (이메일 인증 절차 없이 바로 로그인 가능)
-4. Password 설정
-5. 앱 로그인 화면 > **Email + Password** 탭 > 위 이메일/비밀번호로 로그인
-
-> `signInWithPassword`는 anon key만 사용하며 RLS를 우회하지 않습니다. service_role key는
-> 클라이언트에서 사용하지 않습니다. 비밀번호는 코드에 하드코딩하지 않습니다.
-
-### Seed ownership
-
-- 기존 원격 sample rows는 migration에서 삭제합니다.
-- 로그인한 사용자의 `companies` row가 없고 localStorage에도 사용자 데이터가 없을 때만 sample seed를 사용자 소유 row로 생성합니다.
-- 여러 사용자가 같은 sample company id를 가질 수 있도록 DB primary key는 `(user_id, id)`입니다.
-
-### localStorage migration
-
-v0.3.2부터 로그인 후 localStorage 데이터를 Supabase로 자동 push하지 않습니다.
-
-- 사용자 데이터가 localStorage에서 발견되면 import 확인 모달을 띄웁니다.
-- 선택지:
-  - 로컬 업로드: 중복이 아닌 로컬 회사만 Supabase에 추가
-  - Supabase만 사용: 로컬 데이터를 업로드하지 않고 원격 데이터 기준으로 시작
-  - 백업 후 나중에: JSON 백업을 만들고 이번 세션은 로컬 데이터로 계속 사용
-- 중복 판정 기준:
-  - normalized company name
-  - homepage domain
-  - job posting URL
-- 중복 후보는 새 row를 만들지 않고 업로드 대상에서 제외합니다.
-- 업로드 또는 Supabase만 사용을 완료하면 localStorage에 사용자별 `migrationCompletedAt`을 저장합니다.
-
-### RLS REST 검증
-
-아래 예시는 `service_role` key를 사용하지 않습니다.
-
-```bash
-export SUPABASE_URL="https://xxxx.supabase.co"
-export SUPABASE_ANON_KEY="eyJ..."
-export ACCESS_TOKEN="로그인한 사용자의 Supabase access token"
-export USER_ID="로그인한 사용자의 uuid"
-```
-
-Anon key만으로 select가 차단되는지 확인합니다.
-
-```bash
-curl -i "$SUPABASE_URL/rest/v1/companies?select=id" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $SUPABASE_ANON_KEY"
-```
-
-기대 결과: `200`이어도 `[]`만 반환되거나 RLS로 사용자 row가 노출되지 않아야 합니다.
-
-로그인 access token으로 자기 row insert/select가 되는지 확인합니다.
-
-```bash
-curl -i "$SUPABASE_URL/rest/v1/companies" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "[{\"user_id\":\"$USER_ID\",\"id\":\"rls_test_company\",\"data\":{\"id\":\"rls_test_company\",\"name\":\"RLS Test\"},\"updated_at\":\"2026-06-12T00:00:00Z\"}]"
-
-curl -i "$SUPABASE_URL/rest/v1/companies?select=id,user_id&id=eq.rls_test_company" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-```
-
-다른 `user_id`로 insert/update가 차단되는지 확인합니다.
-
-```bash
-curl -i "$SUPABASE_URL/rest/v1/companies" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "[{\"user_id\":\"00000000-0000-0000-0000-000000000000\",\"id\":\"rls_forbidden\",\"data\":{\"id\":\"rls_forbidden\"}}]"
-```
-
-기대 결과: RLS `with check` 위반으로 실패합니다.
-
-검증 후 테스트 row를 삭제합니다.
-
-```bash
-curl -i -X DELETE "$SUPABASE_URL/rest/v1/companies?id=eq.rls_test_company" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-```
-
----
-
-## v0.3.3 Candidate Inbox
-
-Candidate Inbox는 검토 전 후보를 `companies`와 섞지 않기 위한 별도 저장소입니다.
-
-- 적용 전 Supabase SQL Editor에서 `supabase/migrations/20260612_v033_candidate_inbox.sql`을 실행합니다.
-- 후보는 `candidate_inbox_items`에 저장합니다.
-- `companies` 목록, 점수 계산, 상태 필터에는 검토 전 후보를 포함하지 않습니다.
-- 후보를 승인하면 새 `company` row를 만들고 candidate에는 `promotedCompanyId`를 저장합니다.
-- v0.3.3은 수동 후보 저장/승격까지만 포함합니다. URL fetch, raw text fallback, AI structured parsing은 v0.3.4/v0.3.5 범위입니다.
-
-Candidate Inbox RLS도 `companies`와 같은 방식으로 검증합니다.
-
-```bash
-curl -i "$SUPABASE_URL/rest/v1/candidate_inbox_items?select=id" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $SUPABASE_ANON_KEY"
-
-curl -i "$SUPABASE_URL/rest/v1/candidate_inbox_items" \
-  -H "apikey: $SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "[{\"user_id\":\"$USER_ID\",\"id\":\"candidate_rls_test\",\"source_url\":\"https://example.com/jobs\",\"raw_text\":\"test\",\"discovery_reason\":\"manual\"}]"
-```
+- 샘플 데이터는 최초 진입용 예시 1개만 제공합니다.
+- Supabase 데이터를 불러오지 못해도 로그인 사용자별 localStorage에 임시 저장합니다.
+- 결제/크레딧 로직은 `SUPABASE_SERVICE_ROLE_KEY`가 필요합니다.
+- 토스 테스트 키를 사용하면 실제 결제가 발생하지 않습니다.

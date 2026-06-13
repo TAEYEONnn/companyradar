@@ -1,32 +1,40 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+export type AuthErrorCode =
+  | "auth_required"
+  | "config_missing"
+  | "forbidden"
+  | "payment_required";
+
 interface AuthErrorBody {
   error: {
-    code: "auth_required" | "config_missing" | "forbidden";
+    code: AuthErrorCode;
     message: string;
   };
 }
 
-interface RequireAllowedUserResult {
-  response?: NextResponse<AuthErrorBody>;
-  user?: {
-    id: string;
-    email?: string;
-    accessToken: string;
-    role?: "owner" | "beta_user" | "blocked";
-  };
+export type ProfileRole = "owner" | "beta_user" | "blocked";
+
+export interface AuthenticatedUser {
+  id: string;
+  email?: string;
+  accessToken: string;
+  role?: ProfileRole;
 }
 
-type ProfileRole = "owner" | "beta_user" | "blocked";
+interface RequireUserResult {
+  response?: NextResponse<AuthErrorBody>;
+  user?: AuthenticatedUser;
+}
 
 const AUTH_REQUIRED_MESSAGE = "로그인이 필요합니다.";
 const CONFIG_MISSING_MESSAGE = "인증 설정이 누락되었습니다.";
 const FORBIDDEN_MESSAGE = "forbidden";
 
-export async function requireAllowedSupabaseUser(
+export async function requireSupabaseUser(
   request: Request,
-): Promise<RequireAllowedUserResult> {
+): Promise<RequireUserResult> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -55,37 +63,54 @@ export async function requireAllowedSupabaseUser(
     };
   }
 
-  const allowedEmails = parseAllowlist(process.env.AI_ALLOWED_EMAILS).map((email) =>
-    email.toLowerCase(),
-  );
-  const allowedUserIds = parseAllowlist(process.env.AI_ALLOWED_USER_IDS);
-  const userEmail = data.user.email?.toLowerCase();
   const { data: profile } = await client
     .from("profiles")
     .select("role")
     .maybeSingle<{ role: ProfileRole }>();
-  const profileRole = profile?.role;
-  const userInAllowlist =
-    (userEmail ? allowedEmails.includes(userEmail) : false) ||
-    allowedUserIds.includes(data.user.id);
-  const userAllowed =
-    profileRole !== "blocked" &&
-    (userInAllowlist || profileRole === "owner" || profileRole === "beta_user");
-
-  if (!userAllowed) {
-    return {
-      response: authError(403, "forbidden", FORBIDDEN_MESSAGE),
-    };
-  }
 
   return {
     user: {
       id: data.user.id,
       email: data.user.email,
       accessToken,
-      role: profileRole,
+      role: profile?.role,
     },
   };
+}
+
+export async function requireAllowedSupabaseUser(
+  request: Request,
+): Promise<RequireUserResult> {
+  const auth = await requireSupabaseUser(request);
+  if (auth.response || !auth.user) return auth;
+
+  if (!isAllowedAiOperator(auth.user)) {
+    return {
+      response: authError(403, "forbidden", FORBIDDEN_MESSAGE),
+    };
+  }
+
+  return auth;
+}
+
+export function isAllowedAiOperator(user: AuthenticatedUser) {
+  if (user.role === "blocked") return false;
+  if (user.role === "owner") return true;
+
+  const allowedEmails = parseAllowlist(process.env.AI_ALLOWED_EMAILS).map((email) =>
+    email.toLowerCase(),
+  );
+  const allowedUserIds = parseAllowlist(process.env.AI_ALLOWED_USER_IDS);
+  const userEmail = user.email?.toLowerCase();
+
+  return (
+    (userEmail ? allowedEmails.includes(userEmail) : false) ||
+    allowedUserIds.includes(user.id)
+  );
+}
+
+export function authError(status: number, code: AuthErrorCode, message: string) {
+  return NextResponse.json({ error: { code, message } }, { status });
 }
 
 function getBearerToken(request: Request) {
@@ -100,12 +125,4 @@ function parseAllowlist(value?: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function authError(
-  status: number,
-  code: AuthErrorBody["error"]["code"],
-  message: string,
-) {
-  return NextResponse.json({ error: { code, message } }, { status });
 }

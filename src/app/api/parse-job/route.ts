@@ -1,5 +1,4 @@
-import { logAiRequest } from "@/lib/server-ai-usage";
-import { requireAllowedSupabaseUser } from "@/lib/server-auth";
+import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -43,7 +42,7 @@ interface ParsedJobPost {
 
 export async function POST(request: Request) {
   // 1. Auth — require valid Supabase session token from an allowlisted user
-  const auth = await requireAllowedSupabaseUser(request);
+  const auth = await authorizeAiRequest(request, "parse-job");
   if (auth.response) return auth.response;
 
   // 2. Parse body
@@ -229,7 +228,7 @@ ${pageText}`,
       );
     }
 
-    await logAiRequest(auth.user, "parse-job", "success");
+    await consumeAiCredit(auth.user, "parse-job", auth.entitlement);
     return NextResponse.json({ ok: true, result: parsed }, { status: 200 });
   } catch {
     return apiError("AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.", "ai_failed");
