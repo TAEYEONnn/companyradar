@@ -1,7 +1,7 @@
 "use client";
 
 const DEV_EMAILS = new Set(["dev@example.com"]);
-const DEFAULT_DEV_HOSTS = ["localhost", "127.0.0.1", "192.168.10.46", "192.168.137.1"];
+const DEFAULT_DEV_HOSTS = ["localhost", "127.0.0.1"];
 
 function configuredDevHosts() {
   const raw = process.env.NEXT_PUBLIC_DEV_TOOL_ORIGINS ?? "";

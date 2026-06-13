@@ -524,7 +524,9 @@ export function CriteriaSettingsPanel({
             />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
-                긴급 문의는 companyradar.app@gmail.com 으로도 받을 수 있습니다.
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL
+                  ? `긴급 문의는 ${process.env.NEXT_PUBLIC_SUPPORT_EMAIL} 으로도 받을 수 있습니다.`
+                  : "접수 후 이메일로 답변 드립니다."}
               </p>
               <Button
                 disabled={submitting === "support"}

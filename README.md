@@ -14,6 +14,7 @@
 
 ## 이번 빌드 변경사항
 
+- 개인정보 제거: 소스 코드에 하드코딩되어 있던 로컬 IP 주소와 서비스 이메일 주소를 제거했습니다. IP 주소는 `NEXT_PUBLIC_DEV_TOOL_ORIGINS` 환경변수로, 이메일은 `NEXT_PUBLIC_SUPPORT_EMAIL` 환경변수로 교체했습니다.
 - 어드민 접근 수정: `profiles` 테이블이 없으면 생성, 기존 사용자 백필, `owner` 설정 안내를 `v038` 마이그레이션에 통합했습니다.
 - 삭제 확인 범위 확장: 준비 질문(PrepQuestion), 후보 검토(CandidateInbox)에도 삭제 확인 다이얼로그를 추가했습니다.
 - 설정 화면 텍스트 개선: "고급 백업" → "데이터 백업 · 복원", "계산 시 자동 정규화됩니다" → "100%를 넘으면 비율에 맞게 자동 조정됩니다", "리스크 높음 기준" → "리스크 경고 기준".
@@ -56,6 +57,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 # 테스트 도구를 노출할 개발 호스트/오리진(선택)
 NEXT_PUBLIC_DEV_TOOL_ORIGINS=
+
+# 관리자 답장·설정 화면에 표시할 서비스 이메일(선택)
+NEXT_PUBLIC_SUPPORT_EMAIL=
 ```
 
 `service_role` key와 `TOSS_SECRET_KEY`는 서버 API route에서만 사용합니다. `NEXT_PUBLIC_` prefix가 붙은 값만 브라우저에 노출됩니다.

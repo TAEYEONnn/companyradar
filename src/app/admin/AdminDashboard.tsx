@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
 
-const REPLY_SIGNATURE = `\n\n---\nCompanyRadar 운영팀\ncompanyradar.app@gmail.com`;
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "";
+const REPLY_SIGNATURE = `\n\n---\nCompanyRadar 운영팀${SUPPORT_EMAIL ? `\n${SUPPORT_EMAIL}` : ""}`;
 
 type SupportRequest = {
   id: string;
