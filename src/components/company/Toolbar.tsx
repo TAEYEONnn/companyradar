@@ -2,17 +2,15 @@
 
 import {
   ArrowDownWideNarrow,
-  Download,
   Kanban,
   ListFilter,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Table2,
-  Upload,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { STATUS_OPTIONS } from "@/lib/criteria";
@@ -56,8 +54,6 @@ interface ToolbarProps {
   statusFilter: ApplicationStatus | "all";
   advancedFilter?: AdvancedFilter;
   onAdvancedFilterChange?: (f: AdvancedFilter) => void;
-  onExport: () => void;
-  onImportFile: (file: File) => void;
   onListModeChange: (mode: ListMode) => void;
   onQueryChange: (query: string) => void;
   onReset: () => void;
@@ -72,15 +68,12 @@ export function Toolbar({
   statusFilter,
   advancedFilter = EMPTY_ADVANCED_FILTER,
   onAdvancedFilterChange,
-  onExport,
-  onImportFile,
   onListModeChange,
   onQueryChange,
   onReset,
   onSortModeChange,
   onStatusFilterChange,
 }: ToolbarProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const active = isFilterActive(advancedFilter);
@@ -185,29 +178,6 @@ export function Toolbar({
         )}
 
         <div className="flex items-center gap-1">
-          <Button aria-label="JSON 내보내기" onClick={onExport} size="icon" title="JSON 내보내기" variant="ghost">
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button
-            aria-label="JSON 가져오기"
-            onClick={() => fileInputRef.current?.click()}
-            size="icon"
-            title="JSON 가져오기"
-            variant="ghost"
-          >
-            <Upload className="h-4 w-4" />
-          </Button>
-          <input
-            accept="application/json"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) onImportFile(file);
-              event.target.value = "";
-            }}
-            ref={fileInputRef}
-            type="file"
-          />
           <Button aria-label="샘플 데이터 초기화" onClick={onReset} size="icon" title="샘플 데이터 초기화" variant="ghost">
             <RotateCcw className="h-4 w-4" />
           </Button>

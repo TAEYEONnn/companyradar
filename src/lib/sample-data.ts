@@ -9,6 +9,7 @@ import type {
   ResearchSignal,
   ScoreEvidenceValues,
   ScoreValues,
+  UserRole,
 } from "@/lib/types";
 
 const VERIFIED_AT = "2026-06-11";
@@ -627,4 +628,17 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
 ];
 
-export const SAMPLE_COMPANIES: Company[] = ALL_SAMPLE_COMPANIES.slice(0, 1);
+const ROLE_SAMPLE_INDEX: Record<UserRole, number> = {
+  designer: 0,
+  pm: 1,
+  frontend: 9,
+  ux_researcher: 3,
+  marketer: 7,
+};
+
+export function getSampleCompaniesForRole(role: UserRole = "designer"): Company[] {
+  const sample = ALL_SAMPLE_COMPANIES[ROLE_SAMPLE_INDEX[role]] ?? ALL_SAMPLE_COMPANIES[0];
+  return sample ? [sample] : [];
+}
+
+export const SAMPLE_COMPANIES: Company[] = getSampleCompaniesForRole("designer");

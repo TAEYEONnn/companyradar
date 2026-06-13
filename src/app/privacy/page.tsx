@@ -18,6 +18,8 @@ export default function PrivacyPage() {
           <ul className="mt-2 list-inside list-disc space-y-1">
             <li>이메일 주소 (회원가입 및 로그인 목적)</li>
             <li>이용자가 직접 입력한 회사/공고 데이터, 지원 상태, 면접 기록</li>
+            <li>서비스 문의, 환불 요청, 회원탈퇴 요청 내용</li>
+            <li>AI 크레딧 사용량, 결제 승인 상태, 결제 식별자</li>
             <li>서비스 이용 기록 (오류 추적 목적)</li>
           </ul>
         </section>
@@ -26,6 +28,7 @@ export default function PrivacyPage() {
           <h2 className="mb-2 text-base font-semibold text-slate-800">2. 개인정보의 이용 목적</h2>
           <ul className="list-inside list-disc space-y-1">
             <li>회원 인증 및 서비스 제공</li>
+            <li>AI 크레딧 지급, 사용량 차감, 결제/환불 처리</li>
             <li>서비스 개선 및 오류 수정</li>
             <li>이용자 문의 응답</li>
           </ul>
@@ -34,8 +37,9 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-2 text-base font-semibold text-slate-800">3. 개인정보의 보관 및 파기</h2>
           <p>
-            수집된 개인정보는 이용자가 회원 탈퇴를 요청할 때까지 보관합니다. 탈퇴 요청 시 관련
-            법령에서 보관 의무를 정한 경우를 제외하고 지체 없이 파기합니다.
+            수집된 개인정보는 이용자가 회원탈퇴를 요청하고 운영자가 처리할 때까지 보관합니다.
+            결제, 환불, 분쟁 대응 등 관련 법령에서 보관 의무를 정한 정보는 필요한 기간 동안
+            보관할 수 있습니다.
           </p>
         </section>
 
@@ -44,7 +48,7 @@ export default function PrivacyPage() {
           <p>
             이용자의 개인정보는 법령에서 요구하는 경우를 제외하고 제3자에게 제공하지 않습니다.
             단, AI 분석 기능 이용 시 입력 데이터가 AI API 제공사(OpenAI)로 전송될 수 있으며,
-            해당 데이터는 이용자가 직접 입력한 회사 정보에 한합니다.
+            결제 처리 시 결제 식별자와 승인 정보가 토스페이먼츠를 통해 처리될 수 있습니다.
           </p>
         </section>
 
