@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { ApplicationChecklist } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { getCompanyValidationReasons } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
   STATUS_LABELS,
@@ -85,6 +86,7 @@ export function CompanyTable({
               const score = scoreMap.get(company.id);
               const isSelected = selectedId === company.id;
               const isChecked = selectedIds.includes(company.id);
+              const validationReasons = getCompanyValidationReasons(company);
               return (
                 <tr
                   aria-selected={isSelected}
@@ -122,6 +124,20 @@ export function CompanyTable({
                     <div className="mt-0.5 text-xs text-slate-500">
                       {company.industry} · {COMPANY_SIZE_LABELS[company.size]}
                     </div>
+                    {validationReasons.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {validationReasons.slice(0, 2).map((reason) => (
+                          <Badge key={reason} tone="amber">
+                            {reason}
+                          </Badge>
+                        ))}
+                        {validationReasons.length > 2 && (
+                          <span className="text-xs text-amber-700">
+                            +{validationReasons.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <ChecklistDots checklist={company.applicationChecklist} />
                   </td>
 

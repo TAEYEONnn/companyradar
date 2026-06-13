@@ -26,6 +26,7 @@ export interface AdvancedFilter {
   hasRedFlag: boolean;
   hasRisk: boolean;
   hasInterviews: boolean;
+  needsValidation: boolean;
 }
 
 export const EMPTY_ADVANCED_FILTER: AdvancedFilter = {
@@ -34,10 +35,18 @@ export const EMPTY_ADVANCED_FILTER: AdvancedFilter = {
   hasRedFlag: false,
   hasRisk: false,
   hasInterviews: false,
+  needsValidation: false,
 };
 
 function isFilterActive(f: AdvancedFilter) {
-  return f.minScore > 0 || f.hasGreenFlag || f.hasRedFlag || f.hasRisk || f.hasInterviews;
+  return (
+    f.minScore > 0 ||
+    f.hasGreenFlag ||
+    f.hasRedFlag ||
+    f.hasRisk ||
+    f.hasInterviews ||
+    f.needsValidation
+  );
 }
 
 interface ToolbarProps {
@@ -228,6 +237,11 @@ export function Toolbar({
             active={advancedFilter.hasInterviews}
             label="면접 기록 있음"
             onClick={() => toggleChip("hasInterviews")}
+          />
+          <FilterChip
+            active={advancedFilter.needsValidation}
+            label="검증 필요"
+            onClick={() => toggleChip("needsValidation")}
           />
 
           {/* 최소 점수 */}

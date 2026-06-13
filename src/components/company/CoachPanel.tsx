@@ -1,8 +1,10 @@
 "use client";
 
-import { ArrowLeft, BrainCircuit, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, BrainCircuit, ChevronDown, ChevronUp, RefreshCw, Target } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { getCompanyValidationReasons } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import type { Company, CompanyScoreResult } from "@/lib/types";
 import { useCurrentDate } from "@/lib/use-current-date";
@@ -23,6 +25,68 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
   const activeCompanies = companies.filter(
     (company) => !["rejected", "on_hold"].includes(company.status),
   );
+  const opportunities = useMemo(() => {
+    const list: { title: string; description: string; companies?: string[] }[] = [];
+    const preApply = activeCompanies.filter((company) =>
+      ["interested", "planned"].includes(company.status),
+    );
+    const inPipeline = activeCompanies.filter((company) =>
+      ["applied", "interviewing", "offer"].includes(company.status),
+    );
+
+    if (activeCompanies.length > 0 && preApply.length >= Math.max(3, inPipeline.length * 2)) {
+      list.push({
+        title: "지원 비중 편향",
+        description: `검토/예정 후보가 ${preApply.length}개이고 실제 지원 파이프라인은 ${inPipeline.length}개입니다. 이번 주에는 검증 완료 후보를 지원 단계로 이동시키는 것이 좋습니다.`,
+      });
+    }
+
+    const industryCounts = activeCompanies.reduce<Record<string, number>>((acc, company) => {
+      const key = company.industry.trim() || "미분류";
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+    const topIndustry = Object.entries(industryCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topIndustry && topIndustry[1] >= Math.max(3, Math.ceil(activeCompanies.length * 0.45))) {
+      list.push({
+        title: "특정 분야 과다 지원",
+        description: `${topIndustry[0]} 후보가 ${topIndustry[1]}개로 많습니다. 비슷한 리스크를 피하려면 다른 산업군의 고득점 후보를 1-2개 섞어보세요.`,
+      });
+    }
+
+    const validationCandidates = activeCompanies
+      .filter((company) => {
+        const score = scoreMap.get(company.id)?.companyFitScore ?? 0;
+        return (
+          ["high", "medium"].includes(company.applicationPriority) &&
+          ["interested", "planned"].includes(company.status) &&
+          score >= 3.7 &&
+          getCompanyValidationReasons(company).length > 0
+        );
+      })
+      .sort(
+        (a, b) =>
+          (scoreMap.get(b.id)?.companyFitScore ?? 0) -
+          (scoreMap.get(a.id)?.companyFitScore ?? 0),
+      )
+      .slice(0, 3);
+    if (validationCandidates.length > 0) {
+      list.push({
+        title: "검증 완료 후 우선 지원 가능 후보",
+        description: "점수와 우선순위는 충분하지만 검증 사유가 남아 있습니다. 확인만 끝내면 이번 주 지원 후보로 올릴 수 있습니다.",
+        companies: validationCandidates.map((company) => company.name),
+      });
+    }
+
+    return list.length > 0
+      ? list
+      : [
+          {
+            title: "기회 신호 안정",
+            description: "지원 비중, 산업군 쏠림, 검증 대기 후보가 과하게 치우치지 않았습니다. 이번 주에는 현재 분배를 유지하면서 고득점 후보의 근거 품질을 높이세요.",
+          },
+        ];
+  }, [activeCompanies, scoreMap]);
 
   async function generate() {
     setLoading(true);
@@ -44,6 +108,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         fitScore: scoreMap.get(c.id)?.companyFitScore,
         jobDeadline: c.jobDeadline,
         interviewCount: c.interviewRounds.length,
+        validationReasons: getCompanyValidationReasons(c),
       }));
 
       const res = await fetch("/api/weekly-strategy", {
@@ -95,6 +160,33 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
       </div>
 
       {/* AI 주간 전략 (접기/펼치기) */}
+      <div className="rounded-lg border border-slate-200">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <Target className="h-4 w-4 text-emerald-600" />
+            이번 주 기회
+          </span>
+          <Badge tone="green">{opportunities.length}개</Badge>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {opportunities.map((item) => (
+            <div className="space-y-2 px-4 py-3" key={item.title}>
+              <div className="text-sm font-semibold text-slate-900">{item.title}</div>
+              <p className="text-sm leading-relaxed text-slate-600">{item.description}</p>
+              {item.companies && (
+                <div className="flex flex-wrap gap-1">
+                  {item.companies.map((company) => (
+                    <Badge key={company} tone="blue">
+                      {company}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-lg border border-slate-200">
         <button
           className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 hover:text-slate-900"

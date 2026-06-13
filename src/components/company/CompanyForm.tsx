@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { VALIDATION_REASON_LABELS } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { ScoreSlider } from "@/components/ui/score-slider";
 import {
@@ -242,6 +243,15 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
         candidateReason: current.candidateReason || merged.candidateReason || current.candidateReason,
         evidenceLevel: Math.max(current.evidenceLevel, 2) as EvidenceLevel,
         needsRefresh: true,
+        validationReason: Array.from(
+          new Set([
+            ...current.validationReason,
+            VALIDATION_REASON_LABELS.aiExtracted,
+            VALIDATION_REASON_LABELS.staleJobCheck,
+            ...(merged.jobDeadline ? [] : [VALIDATION_REASON_LABELS.missingDeadline]),
+            VALIDATION_REASON_LABELS.lowEvidence,
+          ]),
+        ),
         lastCheckedAt: now.slice(0, 10),
         signals: {
           greenFlags: [...allGreen, ...current.signals.greenFlags],
