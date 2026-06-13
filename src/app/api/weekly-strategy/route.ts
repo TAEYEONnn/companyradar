@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const auth = await authorizeAiRequest(request, "weekly-strategy");
   if (auth.response) return auth.response;
 
-  let body: { companies?: CompanySnapshot[]; today?: string; stats?: WeeklyStrategyStats };
+  let body: { companies?: CompanySnapshot[]; today?: string; stats?: WeeklyStrategyStats; userRole?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -47,6 +47,9 @@ export async function POST(request: Request) {
 
   const today = body.today ?? new Date().toISOString().slice(0, 10);
   const stats = body.stats;
+  const roleName = body.userRole
+    ? { designer: "프로덕트 디자이너", pm: "PM/PO", frontend: "프론트엔드 개발자", ux_researcher: "UX 리서처", marketer: "프로덕트 마케터" }[body.userRole] ?? "프로덕트 디자이너"
+    : "프로덕트 디자이너";
 
   const companySummary = companies
     .slice(0, 20)
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
     ? `\n포트폴리오 현황: 검증필요=${stats.needsValidation}개, 면접중=${stats.interviews}개, 7일내마감=${stats.deadline7d}개, 답변대기=${stats.waitingResponse}개, 높은우선순위=${stats.highPriority}개`
     : "";
 
-  const systemPrompt = `당신은 프로덕트 디자이너 취업 준비를 지원하는 AI 커리어 코치입니다.
+  const systemPrompt = `당신은 ${roleName} 취업 준비를 지원하는 AI 커리어 코치입니다.
 오늘 날짜는 ${today}입니다.
 
 지원자의 현재 회사 트래킹 현황을 보고 이번 주 실행 전략을 작성하세요.

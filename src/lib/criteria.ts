@@ -3,10 +3,12 @@ import type {
   ApplicationStatus,
   CompanySize,
   CriteriaSettings,
+  DesignerFitChecklist,
   DiscoveryReason,
   EvidenceLevel,
   JobStatus,
   ScoreCategoryDefinition,
+  UserRole,
 } from "@/lib/types";
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
@@ -231,4 +233,79 @@ export const DEFAULT_CRITERIA_SETTINGS: CriteriaSettings = {
     personalFit: 0.1,
   },
   highRiskThreshold: 3,
+};
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  designer: "프로덕트 디자이너",
+  pm: "PM / PO",
+  frontend: "프론트엔드 개발자",
+  ux_researcher: "UX 리서처",
+  marketer: "프로덕트 마케터",
+};
+
+export const ROLE_WEIGHT_PRESETS: Record<UserRole, CriteriaSettings["weights"]> = {
+  designer:      { businessProduct: 0.2,  organizationCulture: 0.25, designGrowth: 0.3,  compensationWork: 0.15, personalFit: 0.1 },
+  pm:            { businessProduct: 0.3,  organizationCulture: 0.25, designGrowth: 0.2,  compensationWork: 0.15, personalFit: 0.1 },
+  frontend:      { businessProduct: 0.2,  organizationCulture: 0.25, designGrowth: 0.3,  compensationWork: 0.15, personalFit: 0.1 },
+  ux_researcher: { businessProduct: 0.15, organizationCulture: 0.3,  designGrowth: 0.3,  compensationWork: 0.15, personalFit: 0.1 },
+  marketer:      { businessProduct: 0.25, organizationCulture: 0.25, designGrowth: 0.25, compensationWork: 0.15, personalFit: 0.1 },
+};
+
+export const ROLE_GROWTH_LABEL: Record<UserRole, string> = {
+  designer:      "디자인 성장 가능성",
+  pm:            "프로덕트 영향력",
+  frontend:      "기술 성장 가능성",
+  ux_researcher: "리서치 환경",
+  marketer:      "마케팅 임팩트",
+};
+
+export const ROLE_FIT_LABELS: Record<UserRole, Record<keyof DesignerFitChecklist, string>> = {
+  designer: {
+    hasDesignSystemOpportunity: "디자인 시스템 개선 기회",
+    hasDesignOpsOpportunity: "디자인 운영/프로세스 개선 기회",
+    hasComponentOwnership: "컴포넌트 오너십",
+    hasDocumentationCulture: "문서화 문화",
+    canImproveProcess: "협업 프로세스 개선 가능",
+    isOnlyVisualProductionRole: "단순 시각 제작 역할",
+  },
+  pm: {
+    hasDesignSystemOpportunity: "프로덕트 전략 결정 권한",
+    hasDesignOpsOpportunity: "데이터 기반 의사결정 환경",
+    hasComponentOwnership: "엔지니어링팀 협업 구조",
+    hasDocumentationCulture: "사용자 리서치 도입 가능",
+    canImproveProcess: "PM 역할 범위 명확",
+    isOnlyVisualProductionRole: "단순 기능 기획 역할 여부",
+  },
+  frontend: {
+    hasDesignSystemOpportunity: "기술 부채 개선 기회",
+    hasDesignOpsOpportunity: "코드 리뷰 문화",
+    hasComponentOwnership: "컴포넌트 오너십",
+    hasDocumentationCulture: "최신 기술스택",
+    canImproveProcess: "테스트 문화",
+    isOnlyVisualProductionRole: "단순 퍼블리싱 역할 여부",
+  },
+  ux_researcher: {
+    hasDesignSystemOpportunity: "정성/정량 리서치 모두 가능",
+    hasDesignOpsOpportunity: "리서치 결과 반영 구조",
+    hasComponentOwnership: "사용자 접근성",
+    hasDocumentationCulture: "리서치 독립성",
+    canImproveProcess: "팀내 리서치 문화",
+    isOnlyVisualProductionRole: "단순 서포트 역할 여부",
+  },
+  marketer: {
+    hasDesignSystemOpportunity: "그로스 실험 환경",
+    hasDesignOpsOpportunity: "데이터 분석 환경",
+    hasComponentOwnership: "콘텐츠 자율성",
+    hasDocumentationCulture: "크로스팀 협업",
+    canImproveProcess: "마케팅 예산 권한",
+    isOnlyVisualProductionRole: "단순 실행 역할 여부",
+  },
+};
+
+export const ROLE_FIT_CHECKLIST_TITLE: Record<UserRole, string> = {
+  designer:      "디자이너 적합도 체크리스트",
+  pm:            "PM/PO 적합도 체크리스트",
+  frontend:      "개발자 적합도 체크리스트",
+  ux_researcher: "UX 리서처 적합도 체크리스트",
+  marketer:      "마케터 적합도 체크리스트",
 };

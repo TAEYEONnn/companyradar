@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   Flag,
+  Loader2,
   Lock,
   Mail,
   Pencil,
@@ -37,6 +38,8 @@ import {
   INTERVIEW_ROUND_TYPE_OPTIONS,
   JOB_STATUS_LABELS,
   PRIORITY_LABELS,
+  ROLE_FIT_CHECKLIST_TITLE,
+  ROLE_FIT_LABELS,
   ROUND_RESULT_LABELS,
   ROUND_RESULT_OPTIONS,
   STATUS_LABELS,
@@ -45,6 +48,7 @@ import { formatScore } from "@/lib/scoring";
 import type {
   Company,
   CompanyScoreResult,
+  CriteriaSettings,
   EvidenceLevel,
   InterviewRound,
   InterviewRoundType,
@@ -69,6 +73,7 @@ interface CompanyDetailPanelProps {
   company: Company;
   score: CompanyScoreResult;
   userId: string;
+  settings?: CriteriaSettings;
   onBack?: () => void;
   onDelete: (companyId: string) => void;
   onEdit: (company: Company) => void;
@@ -79,11 +84,15 @@ export function CompanyDetailPanel({
   company,
   score,
   userId,
+  settings,
   onBack,
   onDelete,
   onEdit,
   onPatch,
 }: CompanyDetailPanelProps) {
+  const userRole = settings?.userRole ?? "designer";
+  const fitLabels = ROLE_FIT_LABELS[userRole];
+  const fitTitle = ROLE_FIT_CHECKLIST_TITLE[userRole];
   const [panelKey, setPanelKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
@@ -338,11 +347,14 @@ export function CompanyDetailPanel({
           {validationReasons.length > 0 && (
             <>
               <div className="mt-2 flex flex-wrap gap-1">
-                {validationReasons.map((reason) => (
+                {validationReasons.slice(0, 2).map((reason) => (
                   <Badge key={reason} tone="amber">
                     {reason}
                   </Badge>
                 ))}
+                {validationReasons.length > 2 && (
+                  <Badge tone="amber">+{validationReasons.length - 2}개 더</Badge>
+                )}
               </div>
               <div className="mt-2">
                 <Button
@@ -381,12 +393,12 @@ export function CompanyDetailPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <section className="grid grid-cols-3 gap-2">
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Metric label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
           <Metric label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
         </section>
-        <section className="grid grid-cols-3 gap-2">
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Metric
             label="리스크"
             tone={score.highRisk ? "red" : "slate"}
@@ -492,9 +504,9 @@ export function CompanyDetailPanel({
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold">디자이너 적합도</h3>
+          <h3 className="text-sm font-semibold">{fitTitle}</h3>
           <div className="grid grid-cols-1 gap-2">
-            {Object.entries(DESIGNER_FIT_LABELS).map(([key, label]) => (
+            {Object.entries(fitLabels).map(([key, label]) => (
               <label
                 className="flex items-center gap-2 rounded-md border border-slate-200 p-2 text-sm"
                 key={key}
@@ -677,7 +689,11 @@ export function CompanyDetailPanel({
               size="sm"
               variant="secondary"
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              {aiResearchLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
               {aiResearchLoading ? "분석 중..." : "AI 리서치"}
             </Button>
           </div>
@@ -978,6 +994,7 @@ export function CompanyDetailPanel({
         <PrepQuestionSection
           company={company}
           encKey={panelKey}
+          settings={settings}
           onPatch={onPatch}
         />
 
@@ -1293,10 +1310,12 @@ const PREP_CATEGORY_OPTIONS: PrepCategory[] = [
 function PrepQuestionSection({
   company,
   encKey,
+  settings,
   onPatch,
 }: {
   company: Company;
   encKey: CryptoKey | null;
+  settings?: CriteriaSettings;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
 }) {
   const [category, setCategory] = useState<PrepCategory>("behavioral");
@@ -1331,6 +1350,7 @@ function PrepQuestionSection({
           candidateReason: company.candidateReason,
           greenFlags: company.signals.greenFlags.map((s) => s.label),
           redFlags: company.signals.redFlags.map((s) => s.label),
+          userRole: settings?.userRole,
         }),
       });
       const data = (await res.json()) as
@@ -1428,7 +1448,11 @@ function PrepQuestionSection({
           size="sm"
           variant="secondary"
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          {genLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
           {genLoading ? "생성 중..." : "AI 질문 생성"}
         </Button>
       </div>

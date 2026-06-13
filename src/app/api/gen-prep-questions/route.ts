@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     candidateReason?: string;
     greenFlags?: string[];
     redFlags?: string[];
+    userRole?: string;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -34,7 +35,11 @@ export async function POST(request: Request) {
     candidateReason = "",
     greenFlags = [],
     redFlags = [],
+    userRole,
   } = body;
+  const roleName = userRole
+    ? { designer: "프로덕트 디자이너", pm: "PM/PO", frontend: "프론트엔드 개발자", ux_researcher: "UX 리서처", marketer: "프로덕트 마케터" }[userRole] ?? "프로덕트 디자이너"
+    : "프로덕트 디자이너";
 
   if (!companyName.trim())
     return apiError(400, "invalid_request", "companyName은 필수입니다.");
@@ -44,7 +49,7 @@ export async function POST(request: Request) {
   if (!apiKey)
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
 
-  const systemPrompt = `당신은 프로덕트 디자이너 취업 준비를 돕는 커리어 코치입니다.
+  const systemPrompt = `당신은 ${roleName} 취업 준비를 돕는 커리어 코치입니다.
 주어진 회사 정보를 바탕으로 면접에서 나올 가능성이 높은 예상 질문을 생성하세요.
 
 규칙:

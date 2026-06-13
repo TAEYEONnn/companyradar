@@ -95,9 +95,11 @@ export function KanbanBoard({
                           {formatScore(score?.companyFitScore ?? 0)}
                         </span>
                       </div>
-                      <div className="mt-1 truncate text-xs text-slate-500">
-                        {company.industry || "산업군 미입력"}
-                      </div>
+                      {company.industry && (
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {company.industry}
+                        </div>
+                      )}
                       <div className="mt-2 flex flex-wrap items-center gap-1">
                         <Badge tone={getPriorityTone(company.applicationPriority)}>
                           {PRIORITY_LABELS[company.applicationPriority]}

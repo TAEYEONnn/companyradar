@@ -152,7 +152,7 @@ export function AppSidebar({
       </div>
 
       {/* Nav */}
-      <nav className="flex gap-1 overflow-x-auto p-2 md:block md:flex-1 md:space-y-0.5 md:overflow-y-auto">
+      <nav className="flex flex-col gap-1 p-2 md:block md:flex-1 md:space-y-0.5 md:overflow-y-auto">
         {NAV_ITEMS.map(({ id, icon: Icon, label, badgeKey }) => {
           const count = badgeKey ? (badges[badgeKey] ?? 0) : 0;
           const isActive =

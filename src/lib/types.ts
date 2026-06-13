@@ -247,7 +247,10 @@ export interface CompanyScoreResult {
   riskCount: number;
 }
 
+export type UserRole = "designer" | "pm" | "frontend" | "ux_researcher" | "marketer";
+
 export interface CriteriaSettings {
   weights: Record<ScoreCategoryKey, number>;
   highRiskThreshold: number;
+  userRole?: UserRole;
 }

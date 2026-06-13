@@ -16,14 +16,16 @@ import {
   JOB_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   RISK_CHECKLIST,
+  ROLE_FIT_CHECKLIST_TITLE,
+  ROLE_FIT_LABELS,
   SCORE_CATEGORIES,
   STATUS_OPTIONS,
-  DESIGNER_FIT_LABELS,
 } from "@/lib/criteria";
 import type {
   ApplicationPriority,
   ApplicationStatus,
   Company,
+  CriteriaSettings,
   EvidenceLevel,
   JobStatus,
   ResearchSignal,
@@ -52,11 +54,15 @@ interface ParsedJobPost {
 
 interface CompanyFormProps {
   company: Company;
+  settings?: CriteriaSettings;
   onCancel: () => void;
   onSubmit: (company: Company) => void;
 }
 
-export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
+export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFormProps) {
+  const userRole = settings?.userRole ?? "designer";
+  const fitLabels = ROLE_FIT_LABELS[userRole];
+  const fitTitle = ROLE_FIT_CHECKLIST_TITLE[userRole];
   const [draft, setDraft] = useState<Company>(company);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -606,9 +612,9 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
           </section>
 
           <section className="rounded-md border border-slate-200 p-3">
-            <h3 className="text-sm font-semibold">디자이너 적합도 체크리스트</h3>
+            <h3 className="text-sm font-semibold">{fitTitle}</h3>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {Object.entries(DESIGNER_FIT_LABELS).map(([key, label]) => (
+              {Object.entries(fitLabels).map(([key, label]) => (
                 <label
                   className="flex items-start gap-2 rounded-md border border-slate-200 p-2 text-sm"
                   key={key}

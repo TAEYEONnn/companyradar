@@ -7,16 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import type { Company, CompanyScoreResult } from "@/lib/types";
+import type { Company, CompanyScoreResult, CriteriaSettings } from "@/lib/types";
 import { useCurrentDate } from "@/lib/use-current-date";
 
 interface CoachPanelProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
+  settings?: CriteriaSettings;
   onBack: () => void;
 }
 
-export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
+export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanelProps) {
   const [strategy, setStrategy] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -144,6 +145,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
           companies: snapshots,
           stats,
           today,
+          userRole: settings?.userRole,
         }),
       });
 

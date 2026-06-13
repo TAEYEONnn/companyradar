@@ -34,6 +34,7 @@ import {
   cloneSampleCompaniesForUser,
   getMigrationCompletedAt,
   hasUserCompanies,
+  loadUserRole,
   localStorageRepository,
   markMigrationCompleted,
   readLegacyCompanies,
@@ -50,6 +51,7 @@ import type {
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { AppSidebar, type SidebarBadges } from "./AppSidebar";
+import { OnboardingModal } from "./OnboardingModal";
 import { AuthGate } from "./AuthGate";
 import { BillingPrompt } from "./BillingPrompt";
 import { CandidateInboxPanel } from "./CandidateInboxPanel";
@@ -112,6 +114,7 @@ export function CompanyTrackerApp() {
     state: "idle",
     lastAt: "",
   });
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const debouncedPushRef = useRef(
     createDebouncedPush(1500, (status) => setSyncStatus(status)),
@@ -239,6 +242,9 @@ export function CompanyTrackerApp() {
       setSelectedId(ownedSeed[0]?.id ?? "");
       setStorageWriteEnabled(true);
       setIsReady(true);
+      if (loadUserRole() === null) {
+        setShowOnboarding(true);
+      }
       if (isRemoteSyncEnabled()) {
         void pushRemoteCompanies(ownedSeed, userId);
       }
@@ -879,6 +885,7 @@ export function CompanyTrackerApp() {
             ) : viewMode === "coach" ? (
               <CoachPanel
                 companies={companies}
+                settings={settings}
                 onBack={() => setViewMode("dashboard")}
                 scoreMap={scoreMap}
               />
@@ -896,6 +903,7 @@ export function CompanyTrackerApp() {
             ) : viewMode === "form" && editingCompany ? (
               <CompanyForm
                 company={editingCompany}
+                settings={settings}
                 onCancel={() => {
                   setEditingCompany(null);
                   setViewMode("dashboard");
@@ -1011,6 +1019,7 @@ export function CompanyTrackerApp() {
       {/* ─── Company Drawer ─── */}
       <CompanyDrawer
         company={selectedCompany ?? null}
+        settings={settings}
         onClose={() => setDrawerOpen(false)}
         onDelete={(id) => {
           setPendingDeleteId(id);
@@ -1065,6 +1074,16 @@ export function CompanyTrackerApp() {
       ) : null}
 
       <BillingPrompt />
+
+      {showOnboarding && (
+        <OnboardingModal
+          onComplete={(role, patch) => {
+            setSettings((prev) => ({ ...prev, ...patch }));
+            setShowOnboarding(false);
+          }}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
     </div>
   );
 }

@@ -9,11 +9,13 @@ import type {
   EvidenceLevel,
   ScoreEvidenceValues,
   SignalGroups,
+  UserRole,
 } from "@/lib/types";
 
 const COMPANIES_KEY = "career-company-tracker:companies";
 const SETTINGS_KEY = "career-company-tracker:criteria-settings";
 const MIGRATION_COMPLETED_KEY = "career-company-tracker:migration-completed-at";
+const ROLE_KEY = "career-company-tracker:user-role";
 
 export interface CompanyRepository {
   loadCompanies(userId?: string): Company[];
@@ -223,6 +225,17 @@ export function markMigrationCompleted(userId: string): string {
 
 export function hasUserCompanies(companies: Company[]): boolean {
   return companies.some((company) => !company.isSampleData);
+}
+
+export function loadUserRole(): UserRole | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(ROLE_KEY);
+  return (stored as UserRole | null) ?? null;
+}
+
+export function saveUserRole(role: UserRole): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ROLE_KEY, role);
 }
 
 export function cloneSampleCompaniesForUser(): Company[] {

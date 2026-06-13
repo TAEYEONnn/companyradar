@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
-import type { Company, CompanyScoreResult } from "@/lib/types";
+import type { Company, CompanyScoreResult, CriteriaSettings } from "@/lib/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
 
 function DeadlineAlert({ company }: { company: Company }) {
@@ -30,6 +30,7 @@ interface CompanyDrawerProps {
   company: Company | null;
   score: CompanyScoreResult | null;
   userId: string;
+  settings?: CriteriaSettings;
   onClose: () => void;
   onDelete: (id: string) => void;
   onEdit: (company: Company) => void;
@@ -41,6 +42,7 @@ export function CompanyDrawer({
   company,
   score,
   userId,
+  settings,
   onClose,
   onDelete,
   onEdit,
@@ -80,6 +82,7 @@ export function CompanyDrawer({
             <DeadlineAlert company={company} />
             <CompanyDetailPanel
               company={company}
+              settings={settings}
               onBack={onClose}
               onDelete={(id) => {
                 onDelete(id);
