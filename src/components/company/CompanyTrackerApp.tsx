@@ -689,7 +689,7 @@ export function CompanyTrackerApp() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-950">
+    <div className="flex min-h-screen flex-col overflow-hidden bg-slate-100 text-slate-950 md:h-screen md:flex-row">
       {/* ─── Sidebar ─── */}
       <AppSidebar
         appliedCount={
@@ -755,6 +755,8 @@ export function CompanyTrackerApp() {
       {/* ─── Main column ─── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top header */}
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 sm:px-5">
+          <span className="text-sm font-semibold text-slate-700">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-5">
           <Button
             aria-label="메뉴 열기"
@@ -789,6 +791,7 @@ export function CompanyTrackerApp() {
         </header>
 
         {/* Summary bar */}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 sm:px-5">
         <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 md:gap-3 md:px-5">
           <span className="font-medium text-slate-800">{companies.length}개 회사</span>
           <span>·</span>
@@ -805,7 +808,7 @@ export function CompanyTrackerApp() {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-auto">
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             {viewMode === "settings" ? (
               <CriteriaSettingsPanel
                 onBack={() => setViewMode("dashboard")}
@@ -890,7 +893,7 @@ export function CompanyTrackerApp() {
                   statusFilter={statusFilter}
                 />
                 {selectedCompanyIds.length > 0 && (
-                  <div className="flex items-center justify-between border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
                     <div>
                       <span className="font-medium text-sky-700">
                         {selectedCompanyIds.length}개 선택됨
@@ -904,7 +907,7 @@ export function CompanyTrackerApp() {
                         </span>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
                         onClick={() => setSelectedCompanyIds([])}
