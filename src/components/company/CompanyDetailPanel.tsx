@@ -79,6 +79,7 @@ interface CompanyDetailPanelProps {
   onDelete: (companyId: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
+  onToast?: (message: string) => void;
 }
 
 export function CompanyDetailPanel({
@@ -91,6 +92,7 @@ export function CompanyDetailPanel({
   onDelete,
   onEdit,
   onPatch,
+  onToast,
 }: CompanyDetailPanelProps) {
   const userRole = settings?.userRole ?? "designer";
   const fitLabels = ROLE_FIT_LABELS[userRole];
@@ -357,6 +359,11 @@ export function CompanyDetailPanel({
     });
   }
 
+  function markJobPostingChecked() {
+    onPatch(company.id, getValidationCompletePatch(today()));
+    onToast?.("공고 확인일을 오늘로 기록했습니다.");
+  }
+
   return (
     <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="shrink-0 border-b border-slate-200 p-3">
@@ -437,32 +444,16 @@ export function CompanyDetailPanel({
                   {reason}
                 </Badge>
               ))}
-              <Button
-                onClick={() => onPatch(company.id, getValidationCompletePatch(today()))}
-                size="sm"
-                variant="secondary"
-              >
-                <ClipboardCheck className="h-3.5 w-3.5" />
-                검증 완료
-              </Button>
             </div>
           ) : null}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <DateStampButton
-              label="확인"
-              onStamp={() => onPatch(company.id, { lastCheckedAt: today() })}
-              value={company.lastCheckedAt}
-            />
-            <DateStampButton
-              label="리서치"
-              onStamp={() => onPatch(company.id, { lastResearchedAt: today() })}
-              value={company.lastResearchedAt}
-            />
-            <DateStampButton
-              label="검증"
-              onStamp={() => onPatch(company.id, getValidationCompletePatch(today()))}
-              value={company.lastVerifiedAt}
-            />
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+            <span className="font-medium text-slate-700">
+              공고 상태 · 마지막 확인 {formatShortDate(company.lastCheckedAt)}
+            </span>
+            <Button onClick={markJobPostingChecked} size="sm" variant="secondary">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              공고 확인했어요
+            </Button>
           </div>
         </div>
       </div>
@@ -1243,6 +1234,7 @@ function EncryptedNoteSection({
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [encKey, setEncKey] = useState<CryptoKey | null>(null);
+  const [keyStatus, setKeyStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -1250,15 +1242,47 @@ function EncryptedNoteSection({
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    getEncryptionKey(userId).then(async (key) => {
-      if (cancelled) return;
-      keyRef.current = key;
-      setEncKey(key);
-    });
+    async function loadKey() {
+      setKeyStatus("loading");
+      setFeedback(null);
+      try {
+        const key = await getEncryptionKey(userId);
+        if (cancelled) return;
+        keyRef.current = key;
+        setEncKey(key);
+        setKeyStatus("ready");
+      } catch {
+        if (cancelled) return;
+        keyRef.current = null;
+        setEncKey(null);
+        setKeyStatus("error");
+      }
+    }
+    void loadKey();
     return () => {
       cancelled = true;
     };
   }, [userId]);
+
+  async function retryLoadKey() {
+    if (!userId) return;
+    setKeyStatus("loading");
+    setFeedback(null);
+    try {
+      const key = await getEncryptionKey(userId);
+      keyRef.current = key;
+      setEncKey(key);
+      setKeyStatus("ready");
+    } catch {
+      keyRef.current = null;
+      setEncKey(null);
+      setKeyStatus("error");
+      setFeedback({
+        tone: "error",
+        message: "암호화 키를 준비하지 못했습니다. 다시 시도해 주세요.",
+      });
+    }
+  }
 
   const notes = [
     ...(company.privateSensitiveNotes ?? []),
@@ -1332,6 +1356,7 @@ function EncryptedNoteSection({
     const key = await importAndSaveEncryptionKey(userId, b64);
     keyRef.current = key;
     setEncKey(key);
+    setKeyStatus("ready");
     if (importInputRef.current) importInputRef.current.value = "";
   }
 
@@ -1361,10 +1386,18 @@ function EncryptedNoteSection({
           value={content}
         />
         <div className="flex justify-end">
-          <Button disabled={!content.trim() || saving || !encKey} onClick={() => void addPrivateNote()} size="sm">
-            {!encKey ? "준비 중" : saving ? "저장 중" : "저장"}
+          <Button disabled={!content.trim() || saving || keyStatus !== "ready"} onClick={() => void addPrivateNote()} size="sm">
+            {keyStatus === "loading" ? "암호화 준비 중" : saving ? "저장 중" : "저장"}
           </Button>
         </div>
+        {keyStatus === "error" ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <span>암호화 키를 준비하지 못했습니다. 다시 시도해 주세요.</span>
+            <Button onClick={() => void retryLoadKey()} size="sm" variant="secondary">
+              다시 시도
+            </Button>
+          </div>
+        ) : null}
         {feedback ? (
           <p
             className={
@@ -1425,35 +1458,6 @@ function EncryptedNoteSection({
         </div>
       </details>
     </section>
-  );
-}
-
-// Quick date-stamp control: shows the stored date and updates it to today.
-function DateStampButton({
-  label,
-  value,
-  onStamp,
-}: {
-  label: string;
-  value: string;
-  onStamp: () => void;
-}) {
-  return (
-    <button
-      className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
-      onClick={onStamp}
-      title={`오늘 날짜로 갱신`}
-      type="button"
-    >
-      <span className="min-w-0">
-        <span className="block truncate font-medium text-slate-700">{label}</span>
-        <span className="block text-[11px] text-slate-400">{formatShortDate(value)}</span>
-      </span>
-      <span className="inline-flex shrink-0 items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">
-        <RefreshCw className="h-3 w-3" />
-        오늘
-      </span>
-    </button>
   );
 }
 

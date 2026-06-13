@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server-auth";
+import { hasApprovedAiPayment } from "@/lib/server-billing";
 import { getSupabaseAdminClient } from "@/lib/server-supabase-admin";
 
 export async function POST(request: Request) {
@@ -30,6 +31,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const hasApprovedPayment = await hasApprovedAiPayment(auth.user.id);
+    if (!hasApprovedPayment) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "no_refundable_payment",
+            message: "환불 요청 가능한 결제 이력이 없습니다.",
+          },
+        },
+        { status: 403 },
+      );
+    }
+
     const admin = getSupabaseAdminClient();
     const { data, error } = await admin
       .from("refund_requests")

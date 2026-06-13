@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -43,6 +43,7 @@ interface CriteriaSettingsPanelProps {
   onImportFile: (file: File) => void;
   onDeleteAccount: (reason: string, confirmText: string) => Promise<boolean>;
   onResetPassword: () => void;
+  onToast: (message: string) => void;
 }
 
 export function CriteriaSettingsPanel({
@@ -55,18 +56,43 @@ export function CriteriaSettingsPanel({
   onImportFile,
   onDeleteAccount,
   onResetPassword,
+  onToast,
 }: CriteriaSettingsPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCriteria, setShowCriteria] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+  const [showRefund, setShowRefund] = useState(false);
   const [supportMessage, setSupportMessage] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [submitting, setSubmitting] = useState<"support" | "refund" | "delete" | null>(null);
-  const [notice, setNotice] = useState("");
+  const [hasApprovedPayment, setHasApprovedPayment] = useState(false);
   const scoreThresholds = normalizeScoreThresholds(settings.scoreThresholds);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBillingState() {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const res = await fetch("/api/billing/entitlement", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { hasApprovedPayment?: boolean };
+        if (!cancelled) setHasApprovedPayment(Boolean(data.hasApprovedPayment));
+      } catch {
+        if (!cancelled) setHasApprovedPayment(false);
+      }
+    }
+    void loadBillingState();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateScoreThreshold(key: keyof ScoreThresholdSettings, value: number) {
     onChange({
@@ -92,11 +118,10 @@ export function CriteriaSettingsPanel({
 
   async function submitSupportRequest() {
     if (!supportMessage.trim()) {
-      setNotice("문의 내용을 입력해 주세요.");
+      onToast("문의 내용을 입력해 주세요.");
       return;
     }
     setSubmitting("support");
-    setNotice("");
     try {
       const token = await getAccessToken();
       const res = await fetch("/api/support/request", {
@@ -113,9 +138,9 @@ export function CriteriaSettingsPanel({
       });
       if (!res.ok) throw new Error();
       setSupportMessage("");
-      setNotice("문의가 접수되었습니다. 확인 후 이메일로 답변드릴게요.");
+      onToast("문의가 접수되었습니다. 확인 후 이메일로 답변드릴게요.");
     } catch {
-      setNotice("문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      onToast("문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSubmitting(null);
     }
@@ -123,11 +148,10 @@ export function CriteriaSettingsPanel({
 
   async function submitRefundRequest() {
     if (!refundReason.trim()) {
-      setNotice("환불 요청 사유를 입력해 주세요.");
+      onToast("환불 요청 사유를 입력해 주세요.");
       return;
     }
     setSubmitting("refund");
-    setNotice("");
     try {
       const token = await getAccessToken();
       const res = await fetch("/api/billing/refund-request", {
@@ -138,11 +162,18 @@ export function CriteriaSettingsPanel({
         },
         body: JSON.stringify({ reason: refundReason }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } };
+        throw new Error(data.error?.message ?? "환불 요청 접수에 실패했습니다.");
+      }
       setRefundReason("");
-      setNotice("환불 요청이 접수되었습니다. 결제/사용 이력을 확인해 이메일로 안내드릴게요.");
-    } catch {
-      setNotice("환불 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      onToast("환불 요청이 접수되었습니다. 결제/사용 이력을 확인해 이메일로 안내드릴게요.");
+    } catch (error) {
+      onToast(
+        error instanceof Error
+          ? error.message
+          : "환불 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(null);
     }
@@ -150,15 +181,14 @@ export function CriteriaSettingsPanel({
 
   async function handleDeleteConfirm() {
     setSubmitting("delete");
-    setNotice("");
     const ok = await onDeleteAccount(deleteReason, deleteInput);
     if (ok) {
       setDeleteInput("");
       setDeleteReason("");
       setShowDeleteConfirm(false);
-      setNotice("탈퇴 요청이 접수되었습니다. 운영자가 확인 후 이메일로 안내드립니다.");
+      onToast("탈퇴 요청이 접수되었습니다. 운영자가 확인 후 이메일로 안내드립니다.");
     } else {
-      setNotice("탈퇴 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      onToast("탈퇴 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
     setSubmitting(null);
   }
@@ -198,115 +228,6 @@ export function CriteriaSettingsPanel({
             </Button>
           </ActionBox>
         </div>
-      </SettingsCard>
-
-      <SettingsCard
-        description="버그, 기능 제안, 사용 중 막힌 부분을 남겨주세요."
-        icon={<Mail className="h-4 w-4" />}
-        title="서비스 문의"
-      >
-        <Textarea
-          aria-label="서비스 문의 내용"
-          onChange={(event) => setSupportMessage(event.target.value)}
-          placeholder="문의 내용을 적어주세요. 문제가 발생한 화면이나 상황을 함께 적으면 더 빨리 확인할 수 있어요."
-          rows={4}
-          value={supportMessage}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">
-            긴급 문의는 companysignal.app@gmail.com 으로도 받을 수 있습니다.
-          </p>
-          <Button
-            disabled={submitting === "support"}
-            onClick={() => void submitSupportRequest()}
-          >
-            문의 접수
-          </Button>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard
-        description="AI 10회권은 결제 후 7일 이내 미사용이면 전액 환불을 요청할 수 있습니다."
-        icon={<ReceiptText className="h-4 w-4" />}
-        title="결제 및 환불"
-      >
-        <div className="rounded-md border border-sky-100 bg-sky-50 p-3 text-sm leading-6 text-slate-700">
-          계정당 첫 AI 1회는 무료입니다. 이후 10회권을 구매해 사용하며, 성공한 AI 응답에만
-          크레딧이 차감됩니다. 중복 결제, 서비스 장애, 사용 이력이 있는 환불은 운영자가 개별
-          확인합니다.
-        </div>
-        <Textarea
-          aria-label="환불 요청 사유"
-          onChange={(event) => setRefundReason(event.target.value)}
-          placeholder="환불 요청 사유를 적어주세요. 가능하면 결제일, 결제 수단, Toss 영수증 정보를 함께 적어주세요."
-          rows={3}
-          value={refundReason}
-        />
-        <Button
-          disabled={submitting === "refund"}
-          onClick={() => void submitRefundRequest()}
-          variant="secondary"
-        >
-          환불 요청 접수
-        </Button>
-      </SettingsCard>
-
-      <SettingsCard
-        description="로그인 계정 기준으로 Supabase에 자동 저장됩니다. JSON은 보조 백업입니다."
-        icon={<Download className="h-4 w-4" />}
-        title="데이터"
-      >
-        <button
-          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
-          onClick={() => setShowBackup((value) => !value)}
-          type="button"
-        >
-          <span>
-            <span className="block text-sm font-medium">고급 백업</span>
-            <span className="block text-xs text-slate-500">
-              JSON 가져오기/내보내기는 계정 저장의 보조 수단입니다.
-            </span>
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 text-slate-400 transition-transform ${showBackup ? "rotate-180" : ""}`}
-          />
-        </button>
-        {showBackup ? (
-          <div className="grid gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 md:grid-cols-2">
-            <ActionBox
-              description="현재 계정의 회사 데이터를 JSON 파일로 저장합니다."
-              icon={<Download className="h-4 w-4" />}
-              title="JSON 내보내기"
-            >
-              <Button onClick={onExport} variant="secondary">
-                내보내기
-              </Button>
-            </ActionBox>
-            <ActionBox
-              description="기존 JSON 백업을 현재 계정 데이터에 병합합니다."
-              icon={<Upload className="h-4 w-4" />}
-              title="JSON 가져오기"
-            >
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="secondary"
-              >
-                가져오기
-              </Button>
-              <input
-                accept="application/json"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) onImportFile(file);
-                  event.target.value = "";
-                }}
-                ref={fileInputRef}
-                type="file"
-              />
-            </ActionBox>
-          </div>
-        ) : null}
       </SettingsCard>
 
       <SettingsCard
@@ -481,6 +402,158 @@ export function CriteriaSettingsPanel({
       </SettingsCard>
 
       <SettingsCard
+        description="로그인 계정 기준으로 Supabase에 자동 저장됩니다. JSON은 보조 백업입니다."
+        icon={<Download className="h-4 w-4" />}
+        title="데이터"
+      >
+        <button
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
+          onClick={() => setShowBackup((value) => !value)}
+          type="button"
+        >
+          <span>
+            <span className="block text-sm font-medium">고급 백업</span>
+            <span className="block text-xs text-slate-500">
+              JSON 가져오기/내보내기는 계정 저장의 보조 수단입니다.
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-slate-400 transition-transform ${showBackup ? "rotate-180" : ""}`}
+          />
+        </button>
+        {showBackup ? (
+          <div className="grid gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 md:grid-cols-2">
+            <ActionBox
+              description="현재 계정의 회사 데이터를 JSON 파일로 저장합니다."
+              icon={<Download className="h-4 w-4" />}
+              title="JSON 내보내기"
+            >
+              <Button onClick={onExport} variant="secondary">
+                내보내기
+              </Button>
+            </ActionBox>
+            <ActionBox
+              description="기존 JSON 백업을 현재 계정 데이터에 병합합니다."
+              icon={<Upload className="h-4 w-4" />}
+              title="JSON 가져오기"
+            >
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="secondary"
+              >
+                가져오기
+              </Button>
+              <input
+                accept="application/json"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) onImportFile(file);
+                  event.target.value = "";
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+            </ActionBox>
+          </div>
+        ) : null}
+      </SettingsCard>
+
+      <SettingsCard
+        description="사용 중 막힌 부분이나 버그를 남길 수 있습니다."
+        icon={<Mail className="h-4 w-4" />}
+        title="도움말 및 문의"
+      >
+        <button
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
+          onClick={() => setShowSupport((value) => !value)}
+          type="button"
+        >
+          <span>
+            <span className="block text-sm font-medium">서비스 문의 접수</span>
+            <span className="block text-xs text-slate-500">
+              버그, 기능 제안, 사용 문의를 남깁니다.
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-slate-400 transition-transform ${showSupport ? "rotate-180" : ""}`}
+          />
+        </button>
+        {showSupport ? (
+          <div className="space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+            <Textarea
+              aria-label="서비스 문의 내용"
+              onChange={(event) => setSupportMessage(event.target.value)}
+              placeholder="문의 내용을 적어주세요. 문제가 발생한 화면이나 상황을 함께 적으면 더 빨리 확인할 수 있어요."
+              rows={4}
+              value={supportMessage}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                긴급 문의는 companysignal.app@gmail.com 으로도 받을 수 있습니다.
+              </p>
+              <Button
+                disabled={submitting === "support"}
+                onClick={() => void submitSupportRequest()}
+                variant="secondary"
+              >
+                문의 접수
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </SettingsCard>
+
+      <SettingsCard
+        description="승인된 결제 이력이 있는 계정만 환불 요청을 접수할 수 있습니다."
+        icon={<ReceiptText className="h-4 w-4" />}
+        title="결제 및 환불"
+      >
+        <button
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
+          onClick={() => setShowRefund((value) => !value)}
+          type="button"
+        >
+          <span>
+            <span className="block text-sm font-medium">환불 요청</span>
+            <span className="block text-xs text-slate-500">
+              결제 후 7일 이내, 유료 크레딧 미사용 건을 운영자가 확인합니다.
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-slate-400 transition-transform ${showRefund ? "rotate-180" : ""}`}
+          />
+        </button>
+        {showRefund ? (
+          hasApprovedPayment ? (
+            <div className="space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+              <p className="text-sm leading-6 text-slate-600">
+                중복 결제, 서비스 장애, 사용 이력이 있는 환불은 운영자가 개별 확인합니다.
+              </p>
+              <Textarea
+                aria-label="환불 요청 사유"
+                onChange={(event) => setRefundReason(event.target.value)}
+                placeholder="환불 요청 사유를 적어주세요. 가능하면 결제일, 결제 수단, Toss 영수증 정보를 함께 적어주세요."
+                rows={3}
+                value={refundReason}
+              />
+              <Button
+                disabled={submitting === "refund"}
+                onClick={() => void submitRefundRequest()}
+                variant="secondary"
+              >
+                환불 요청 접수
+              </Button>
+            </div>
+          ) : (
+            <p className="rounded-md border border-slate-100 bg-slate-50 p-3 text-sm text-slate-500">
+              환불 요청 가능한 결제 이력이 없습니다.
+            </p>
+          )
+        ) : null}
+      </SettingsCard>
+
+      <SettingsCard
         description="탈퇴는 결제/환불 가능성을 확인한 뒤 운영자가 처리합니다."
         icon={<UserX className="h-4 w-4" />}
         title="회원탈퇴"
@@ -541,12 +614,6 @@ export function CriteriaSettingsPanel({
           </div>
         )}
       </SettingsCard>
-
-      {notice ? (
-        <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
-          {notice}
-        </div>
-      ) : null}
 
       <div className="flex flex-wrap gap-4 text-xs text-slate-400">
         <PolicyLink href="/terms" label="이용약관" />

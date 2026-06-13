@@ -39,7 +39,7 @@ export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanel
     if (activeCompanies.length > 0 && preApply.length >= Math.max(3, inPipeline.length * 2)) {
       list.push({
         title: "지원 비중 편향",
-        description: `검토/예정 후보가 ${preApply.length}개이고 실제 지원 파이프라인은 ${inPipeline.length}개입니다. 이번 주에는 검증 완료 후보를 지원 단계로 이동시키는 것이 좋습니다.`,
+        description: `검토/예정 후보가 ${preApply.length}개이고 실제 지원 파이프라인은 ${inPipeline.length}개입니다. 이번 주에는 공고 확인을 마친 후보를 지원 단계로 이동시키는 것이 좋습니다.`,
       });
     }
 
@@ -74,7 +74,7 @@ export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanel
       .slice(0, 3);
     if (validationCandidates.length > 0) {
       list.push({
-        title: "검증 완료 후 우선 지원 가능 후보",
+        title: "공고 확인 후 우선 지원 가능 후보",
         description: "점수와 우선순위는 충분하지만 검증 사유가 남아 있습니다. 확인만 끝내면 이번 주 지원 후보로 올릴 수 있습니다.",
         companies: validationCandidates.map((company) => company.name),
       });

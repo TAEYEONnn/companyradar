@@ -1,4 +1,4 @@
-import { getEntitlement } from "@/lib/server-billing";
+import { getEntitlement, hasApprovedAiPayment } from "@/lib/server-billing";
 import { AI_CREDIT_PRODUCT } from "@/lib/billing";
 import { isAllowedAiOperator, requireSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       },
       product: AI_CREDIT_PRODUCT,
       blocked: true,
+      hasApprovedPayment: false,
     });
   }
 
@@ -39,12 +40,14 @@ export async function GET(request: Request) {
         totalRemaining: null,
       },
       product: AI_CREDIT_PRODUCT,
+      hasApprovedPayment: true,
     });
   }
 
   try {
     const entitlement = await getEntitlement(auth.user.id);
-    return NextResponse.json({ ok: true, entitlement, product: AI_CREDIT_PRODUCT });
+    const hasApprovedPayment = await hasApprovedAiPayment(auth.user.id);
+    return NextResponse.json({ ok: true, entitlement, product: AI_CREDIT_PRODUCT, hasApprovedPayment });
   } catch {
     return NextResponse.json(
       { error: { code: "billing_failed", message: "이용권 정보를 불러오지 못했습니다." } },

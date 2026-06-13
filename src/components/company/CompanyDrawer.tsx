@@ -37,6 +37,7 @@ interface CompanyDrawerProps {
   onDelete: (id: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (id: string, patch: Partial<Company>) => void;
+  onToast?: (message: string) => void;
 }
 
 export function CompanyDrawer({
@@ -50,6 +51,7 @@ export function CompanyDrawer({
   onDelete,
   onEdit,
   onPatch,
+  onToast,
 }: CompanyDrawerProps) {
   useEffect(() => {
     if (!open) return;
@@ -95,6 +97,7 @@ export function CompanyDrawer({
               }}
               onEdit={onEdit}
               onPatch={onPatch}
+              onToast={onToast}
               score={score}
               userId={userId}
             />

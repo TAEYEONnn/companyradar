@@ -160,6 +160,19 @@ export async function getEntitlement(userId: string): Promise<AiEntitlement> {
   };
 }
 
+export async function hasApprovedAiPayment(userId: string): Promise<boolean> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("payments")
+    .select("order_id")
+    .eq("user_id", userId)
+    .eq("status", "approved")
+    .limit(1);
+
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 async function getPaymentForUser(userId: string, orderId: string) {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin

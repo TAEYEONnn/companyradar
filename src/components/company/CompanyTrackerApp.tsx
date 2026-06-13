@@ -565,7 +565,7 @@ export function CompanyTrackerApp() {
 
   function markCompanyVerified(companyId: string) {
     patchCompany(companyId, getValidationCompletePatch());
-    showToast("검증 완료로 표시했습니다.");
+    showToast("공고 확인일을 오늘로 기록했습니다.");
   }
 
   function startCreate() {
@@ -963,6 +963,7 @@ export function CompanyTrackerApp() {
                 onImportFile={handleImportFile}
                 onResetPassword={() => void resetPassword()}
                 onSignOut={() => void signOut()}
+                onToast={showToast}
                 settings={settings}
                 userEmail={userEmail}
               />
@@ -1143,6 +1144,7 @@ export function CompanyTrackerApp() {
           setDrawerOpen(false);
         }}
         onPatch={patchCompany}
+        onToast={showToast}
         open={drawerOpen}
         score={selectedScore ?? null}
         userId={userId}

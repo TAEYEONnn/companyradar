@@ -441,7 +441,7 @@ export function TodayPanel({
                                 size="sm"
                                 variant="secondary"
                               >
-                                검증 완료
+                                공고 확인했어요
                               </Button>
                             </div>
                           ) : !item.canCompleteDirectly && (
