@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
@@ -131,31 +131,56 @@ export function AdminDashboard({
   const [refunds, setRefunds] = useState(initialRefunds);
   const [deletions, setDeletions] = useState(initialDeletions);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
+  function showToast(message: string) {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  }
 
   async function handleSupportStatus(id: string, status: string) {
     setUpdating(id);
     const token = await getAccessToken();
-    if (!token) { setUpdating(null); return; }
+    if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
     const ok = await updateStatus("support_requests", id, status, token);
-    if (ok) setSupport((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    if (ok) {
+      setSupport((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+      showToast("상태가 업데이트됐습니다.");
+    } else {
+      showToast("상태 업데이트에 실패했습니다.");
+    }
     setUpdating(null);
   }
 
   async function handleRefundStatus(id: string, status: string) {
     setUpdating(id);
     const token = await getAccessToken();
-    if (!token) { setUpdating(null); return; }
+    if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
     const ok = await updateStatus("refund_requests", id, status, token);
-    if (ok) setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    if (ok) {
+      setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+      showToast("상태가 업데이트됐습니다.");
+    } else {
+      showToast("상태 업데이트에 실패했습니다.");
+    }
     setUpdating(null);
   }
 
   async function handleDeletionStatus(id: string, status: string) {
     setUpdating(id);
     const token = await getAccessToken();
-    if (!token) { setUpdating(null); return; }
+    if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
     const ok = await updateStatus("account_deletion_requests", id, status, token);
-    if (ok) setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    if (ok) {
+      setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+      showToast("상태가 업데이트됐습니다.");
+    } else {
+      showToast("상태 업데이트에 실패했습니다.");
+    }
     setUpdating(null);
   }
 
@@ -171,6 +196,11 @@ export function AdminDashboard({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg">
+          {toast}
+        </div>
+      )}
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -270,11 +300,13 @@ export function AdminDashboard({
                     </a>
                     {req.status === "open" && (
                       <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "in_review")} size="sm" variant="secondary">
+                        {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                         검토 중으로
                       </Button>
                     )}
                     {["open", "in_review"].includes(req.status) && (
                       <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "resolved")} size="sm" variant="secondary">
+                        {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                         완료
                       </Button>
                     )}
@@ -327,6 +359,7 @@ export function AdminDashboard({
                     </a>
                     {["requested", "in_review"].includes(req.status) && (
                       <Button disabled={updating === req.id} onClick={() => void handleRefundStatus(req.id, "approved")} size="sm" variant="secondary">
+                        {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                         환불 승인
                       </Button>
                     )}
@@ -378,6 +411,7 @@ export function AdminDashboard({
                     </a>
                     {["requested", "in_review"].includes(req.status) && (
                       <Button disabled={updating === req.id} onClick={() => void handleDeletionStatus(req.id, "completed")} size="sm" variant="secondary">
+                        {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                         처리 완료
                       </Button>
                     )}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "이용약관 | Company Signal",
+  title: "이용약관 | CompanyRadar",
 };
 
 export default function TermsPage() {
@@ -15,7 +15,7 @@ export default function TermsPage() {
         <section>
           <h2 className="mb-2 text-base font-semibold text-slate-800">제1조 (목적)</h2>
           <p>
-            본 약관은 Company Signal(이하 &quot;서비스&quot;)을 이용함에 있어 서비스 제공자와
+            본 약관은 CompanyRadar(이하 &quot;서비스&quot;)을 이용함에 있어 서비스 제공자와
             이용자 간의 권리·의무 및 책임 사항을 규정함을 목적으로 합니다.
           </p>
         </section>
@@ -73,9 +73,16 @@ export default function TermsPage() {
           <h2 className="mb-2 text-base font-semibold text-slate-800">제7조 (문의)</h2>
           <p>
             이용약관에 관한 문의는{" "}
-            <a className="text-slate-900 underline" href="mailto:companysignal.app@gmail.com">
-              companysignal.app@gmail.com
-            </a>
+            {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? (
+              <a
+                className="text-slate-900 underline"
+                href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`}
+              >
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL}
+              </a>
+            ) : (
+              "설정 화면 내 문의 양식"
+            )}
             으로 연락해주세요.
           </p>
         </section>

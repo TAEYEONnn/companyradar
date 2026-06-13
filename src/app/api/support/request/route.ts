@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "config_error",
-          message: "서비스를 일시적으로 이용할 수 없습니다. companysignal.app@gmail.com으로 문의해 주세요.",
+          message: `서비스를 일시적으로 이용할 수 없습니다.${process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? ` ${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}으로 문의해 주세요.` : ""}`,
         },
       },
       { status: 503 },

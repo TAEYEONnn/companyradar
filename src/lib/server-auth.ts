@@ -63,18 +63,24 @@ export async function requireSupabaseUser(
     };
   }
 
-  const { data: profile } = await client
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle<{ role: ProfileRole }>();
+  let profileRole: ProfileRole | undefined;
+  try {
+    const { data: profile } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .maybeSingle<{ role: ProfileRole }>();
+    profileRole = profile?.role;
+  } catch {
+    // profiles table may not exist yet; proceed without role
+  }
 
   return {
     user: {
       id: data.user.id,
       email: data.user.email,
       accessToken,
-      role: profile?.role,
+      role: profileRole,
     },
   };
 }

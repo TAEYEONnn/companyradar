@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "개인정보 처리방침 | Company Signal",
+  title: "개인정보 처리방침 | CompanyRadar",
 };
 
 export default function PrivacyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <div className="prose prose-slate max-w-none space-y-6 text-sm text-slate-700">
         <section>
           <h2 className="mb-2 text-base font-semibold text-slate-800">1. 수집하는 개인정보</h2>
-          <p>Company Signal은 서비스 제공을 위해 아래와 같은 정보를 수집합니다.</p>
+          <p>CompanyRadar은 서비스 제공을 위해 아래와 같은 정보를 수집합니다.</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
             <li>이메일 주소 (회원가입 및 로그인 목적)</li>
             <li>이용자가 직접 입력한 회사/공고 데이터, 지원 상태, 면접 기록</li>
@@ -75,9 +75,16 @@ export default function PrivacyPage() {
           <h2 className="mb-2 text-base font-semibold text-slate-800">7. 문의</h2>
           <p>
             개인정보 처리에 관한 문의는{" "}
-            <a className="text-slate-900 underline" href="mailto:companysignal.app@gmail.com">
-              companysignal.app@gmail.com
-            </a>
+            {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? (
+              <a
+                className="text-slate-900 underline"
+                href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`}
+              >
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL}
+              </a>
+            ) : (
+              "설정 화면 내 문의 양식"
+            )}
             으로 연락해주세요.
           </p>
         </section>

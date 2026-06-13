@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "환불 정책 | Company Signal",
+  title: "환불 정책 | CompanyRadar",
 };
 
 export default function RefundPolicyPage() {
@@ -13,7 +13,7 @@ export default function RefundPolicyPage() {
 
       <div className="mb-8 rounded-md border border-sky-200 bg-sky-50 px-4 py-3">
         <p className="text-sm text-amber-700">
-          Company Signal의 AI 기능은 유료 베타입니다. 계정당 첫 성공 1회는 무료이며, 이후
+          CompanyRadar의 AI 기능은 유료 베타입니다. 계정당 첫 성공 1회는 무료이며, 이후
           AI 10회권을 구매해 사용할 수 있습니다.
         </p>
       </div>
@@ -41,9 +41,16 @@ export default function RefundPolicyPage() {
           <h2 className="mb-2 text-base font-semibold text-slate-800">3. 환불 문의</h2>
           <p>
             결제 또는 환불 관련 문의는 앱 설정의 결제 및 환불 섹션에서 접수하거나{" "}
-            <a className="text-slate-900 underline" href="mailto:companysignal.app@gmail.com">
-              companysignal.app@gmail.com
-            </a>
+            {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? (
+              <a
+                className="text-slate-900 underline"
+                href={`mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`}
+              >
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL}
+              </a>
+            ) : (
+              "이메일"
+            )}
             으로 아래 내용을 포함해 연락해주세요.
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1">
