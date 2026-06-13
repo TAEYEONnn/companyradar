@@ -66,6 +66,7 @@ export async function requireSupabaseUser(
   const { data: profile } = await client
     .from("profiles")
     .select("role")
+    .eq("id", data.user.id)
     .maybeSingle<{ role: ProfileRole }>();
 
   return {

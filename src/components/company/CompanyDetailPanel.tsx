@@ -27,6 +27,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { VALIDATION_REASON_LABELS, getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
@@ -146,6 +147,11 @@ export function CompanyDetailPanel({
   const [activeTab, setActiveTab] = useState<DrawerDetailTab>(focusTarget?.tab ?? "summary");
   const [headerCompact, setHeaderCompact] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ title: string; onConfirm: () => void } | null>(null);
+
+  function confirmDelete(title: string, fn: () => void) {
+    setPendingDelete({ title, onConfirm: fn });
+  }
   const detailTabs: { id: DrawerDetailTab; label: string; count?: number }[] = [
     { id: "summary", label: "요약" },
     {
@@ -780,21 +786,21 @@ export function CompanyDetailPanel({
           </div>
           <SignalGroup
             kind="greenFlags"
-            onRemove={removeSignal}
+            onRemove={(kind, id) => confirmDelete("이 기록을 삭제할까요?", () => removeSignal(kind, id))}
             signals={company.signals.greenFlags}
             title="좋은 점"
             tone="green"
           />
           <SignalGroup
             kind="redFlags"
-            onRemove={removeSignal}
+            onRemove={(kind, id) => confirmDelete("이 기록을 삭제할까요?", () => removeSignal(kind, id))}
             signals={company.signals.redFlags}
             title="걱정되는 점"
             tone="red"
           />
           <SignalGroup
             kind="unknowns"
-            onRemove={removeSignal}
+            onRemove={(kind, id) => confirmDelete("이 기록을 삭제할까요?", () => removeSignal(kind, id))}
             signals={company.signals.unknowns}
             title="더 확인할 점"
             tone="amber"
@@ -888,7 +894,7 @@ export function CompanyDetailPanel({
                   <button
                     aria-label="회사 조사 메모 삭제"
                     className="text-slate-400 hover:text-red-600"
-                    onClick={() => removeResearchLog(log.id)}
+                    onClick={() => confirmDelete("회사 조사 메모를 삭제할까요?", () => removeResearchLog(log.id))}
                     type="button"
                   >
                     <X className="h-4 w-4" />
@@ -988,7 +994,7 @@ export function CompanyDetailPanel({
                 <button
                   aria-label="라운드 삭제"
                   className="text-slate-400 hover:text-red-600"
-                  onClick={() => removeRound(round.id)}
+                  onClick={() => confirmDelete("면접 라운드를 삭제할까요?", () => removeRound(round.id))}
                   type="button"
                 >
                   <X className="h-4 w-4" />
@@ -1082,7 +1088,7 @@ export function CompanyDetailPanel({
               <button
                 aria-label="할일 삭제"
                 className="text-slate-400 hover:text-red-600"
-                onClick={() => removeFollowUpTask(task.id)}
+                onClick={() => confirmDelete("할 일을 삭제할까요?", () => removeFollowUpTask(task.id))}
                 type="button"
               >
                 <X className="h-4 w-4" />
@@ -1132,7 +1138,7 @@ export function CompanyDetailPanel({
                   <button
                     aria-label="할일 삭제"
                     className="text-slate-400 hover:text-red-600"
-                    onClick={() => removeFollowUpTask(task.id)}
+                    onClick={() => confirmDelete("할 일을 삭제할까요?", () => removeFollowUpTask(task.id))}
                     type="button"
                   >
                     <X className="h-4 w-4" />
@@ -1178,7 +1184,7 @@ export function CompanyDetailPanel({
               encKey={panelKey}
               key={note.id}
               note={note}
-              onRemove={removeInterviewNote}
+              onRemove={(id) => confirmDelete("면접 메모를 삭제할까요?", () => removeInterviewNote(id))}
             />
           ))}
         </section>
@@ -1194,6 +1200,17 @@ export function CompanyDetailPanel({
 
         {activeTab === "ai" ? <DraftEmailSection company={company} /> : null}
       </div>
+
+      <ConfirmDialog
+        description="이 작업은 되돌릴 수 없습니다."
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          pendingDelete?.onConfirm();
+          setPendingDelete(null);
+        }}
+        open={pendingDelete !== null}
+        title={pendingDelete?.title ?? ""}
+      />
     </aside>
   );
 }

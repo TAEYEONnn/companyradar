@@ -14,10 +14,11 @@
 
 ## 이번 빌드 변경사항
 
+- 어드민 페이지 접근 권한 버그를 수정했습니다. `profiles` 테이블에 row가 없으면 role이 null로 읽혀 `owner` 계정도 접근이 차단되던 문제를 해결했습니다. 마이그레이션 `v038`을 적용하고 운영자 계정을 수동으로 `owner`로 설정하세요 (아래 참고).
+- 드로어에서 신호/조사 메모/라운드/할 일/면접 메모 삭제 시 확인 다이얼로그가 표시됩니다. 실수로 삭제되는 데이터 손실을 방지합니다.
+- 드로어 이전/다음 회사 이동 버튼 및 키보드 ◀▶ 단축키가 정상 동작합니다.
 - 드로어 "공고 확인했어요" 버튼을 누르면 `jobStatus`가 `open`으로 설정되어 "확인 필요" 뱃지가 정상적으로 사라집니다.
-- 드로어 뱃지에서 공고 확인 관련 항목("공고 확인 30일 초과", "공고 상태 미확인")을 제거했습니다. 해당 정보는 아래 "공고 확인했어요" 배너에서 확인할 수 있습니다.
-- 어드민 답장 이메일 템플릿이 개선됐습니다: 문의/환불/탈퇴별로 원문 인용, 처리 안내, 서명이 자동 삽입됩니다.
-- 회사 조사 탭 신호(좋은 점/걱정되는 점/미확인) 빈 상태에 입력 가이드 문구를 추가했습니다.
+- 회사 목록 빈 상태에 "필터 초기화" 및 "회사 추가" 버튼이 표시됩니다.
 
 ## 실행
 
@@ -71,6 +72,15 @@ supabase/migrations/20260612_v033_candidate_inbox.sql
 supabase/migrations/20260613_v034_profiles_ai_requests.sql
 supabase/migrations/20260613_v035_ai_billing_credits.sql
 supabase/migrations/20260613_v036_support_account_requests.sql
+supabase/migrations/20260614_v038_profiles_trigger.sql
+```
+
+`v038` 적용 후 운영자 계정을 `owner`로 설정:
+
+```sql
+update public.profiles
+set role = 'owner'
+where email = 'your-operator@example.com';
 ```
 
 주요 테이블:
