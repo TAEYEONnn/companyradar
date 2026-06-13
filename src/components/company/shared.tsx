@@ -54,20 +54,28 @@ export function isDueOrOverdue(date: string): boolean {
 }
 
 export function Metric({
+  compact = false,
   label,
   value,
   tone = "slate",
 }: {
+  compact?: boolean;
   label: string;
   value: string;
   tone?: "slate" | "green" | "red";
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+    <div
+      className={cn(
+        "rounded-lg border border-slate-200 bg-white",
+        compact ? "px-2.5 py-2" : "px-4 py-3",
+      )}
+    >
+      <div className={cn("font-semibold uppercase text-slate-500", compact ? "text-[11px]" : "text-xs")}>{label}</div>
       <div
         className={cn(
-          "mt-2 whitespace-nowrap text-xl font-semibold",
+          "whitespace-nowrap font-semibold",
+          compact ? "mt-1 text-sm" : "mt-2 text-xl",
           tone === "green" && "text-emerald-700",
           tone === "red" && "text-red-700",
         )}

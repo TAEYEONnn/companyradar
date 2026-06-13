@@ -35,6 +35,7 @@ export function createEmptyCompany(): Company {
     validationReason: [],
     memo: "",
     privateSensitiveNote: "",
+    privateSensitiveNotes: [],
     scores: SCORE_CATEGORIES.reduce((scores, category) => {
       scores[category.key] = category.items.reduce(
         (items, item) => {

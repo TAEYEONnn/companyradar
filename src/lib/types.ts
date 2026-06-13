@@ -107,6 +107,13 @@ export interface InterviewNote {
   createdAt: string;
 }
 
+export interface PrivateSensitiveNote {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
 export type PrepCategory = "behavioral" | "technical" | "culture" | "situational";
 
 export interface PrepQuestion {
@@ -213,6 +220,7 @@ export interface Company {
   memo: string;
   /** AES-GCM ciphertext. Decrypted client-side with per-device key in localStorage. */
   privateSensitiveNote: string;
+  privateSensitiveNotes?: PrivateSensitiveNote[];
   scores: ScoreValues;
   scoreEvidence: ScoreEvidenceValues;
   signals: SignalGroups;

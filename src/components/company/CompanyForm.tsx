@@ -18,7 +18,7 @@ import {
   RISK_CHECKLIST,
   ROLE_FIT_CHECKLIST_TITLE,
   ROLE_FIT_LABELS,
-  SCORE_CATEGORIES,
+  getRoleScoreCategories,
   STATUS_OPTIONS,
 } from "@/lib/criteria";
 import type {
@@ -63,6 +63,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
   const userRole = settings?.userRole ?? "designer";
   const fitLabels = ROLE_FIT_LABELS[userRole];
   const fitTitle = ROLE_FIT_CHECKLIST_TITLE[userRole];
+  const scoreCategories = getRoleScoreCategories(userRole);
   const [draft, setDraft] = useState<Company>(company);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -567,7 +568,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
         <div className="space-y-5">
           <section className="space-y-4">
             <h3 className="text-sm font-semibold">좋은 회사 평가 기준</h3>
-            {SCORE_CATEGORIES.map((category) => (
+            {scoreCategories.map((category) => (
               <div className="rounded-md border border-slate-200 p-3" key={category.key}>
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="font-semibold">{category.title}</h4>

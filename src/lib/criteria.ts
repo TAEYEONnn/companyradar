@@ -7,6 +7,7 @@ import type {
   DiscoveryReason,
   EvidenceLevel,
   JobStatus,
+  ScoreCategoryKey,
   ScoreCategoryDefinition,
   UserRole,
 } from "@/lib/types";
@@ -213,6 +214,298 @@ export const SCORE_CATEGORIES: ScoreCategoryDefinition[] = [
     ],
   },
 ];
+
+type RoleScoreText = {
+  title: string;
+  shortTitle: string;
+  items: Record<string, string>;
+};
+
+const ROLE_SCORE_TEXT: Record<UserRole, Record<ScoreCategoryKey, RoleScoreText>> = {
+  designer: {
+    businessProduct: {
+      title: "사업/제품",
+      shortTitle: "사업",
+      items: {
+        solvesProblem: "제품이 실제 사용자 문제를 해결하는가",
+        sustainable: "서비스가 지속 가능해 보이는가",
+        marketStability: "시장이 너무 작거나 불안정하지 않은가",
+        productQuality: "제품 완성도와 UX 품질이 괜찮은가",
+      },
+    },
+    organizationCulture: {
+      title: "조직/문화",
+      shortTitle: "조직",
+      items: {
+        reviewQuality: "후기와 평판이 전반적으로 괜찮은가",
+        burnoutRisk: "야근/번아웃 위험이 낮아 보이는가",
+        decisionClarity: "의사결정 구조가 지나치게 혼란스럽지 않은가",
+        retention: "사람들이 오래 일할 수 있는 환경인가",
+      },
+    },
+    designGrowth: {
+      title: "디자인 성장 가능성",
+      shortTitle: "디자인",
+      items: {
+        strategicRole: "디자이너 역할이 단순 제작에 그치지 않는가",
+        systemOpportunity: "디자인 시스템/UX/제품 개선 여지가 있는가",
+        collaboration: "기획/개발과 협업 구조가 있는가",
+        portfolioProblem: "포트폴리오에 남길 만한 문제가 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "근무 형태가 지속 가능하게 맞는가",
+        commute: "출퇴근 거리와 시간이 감당 가능한가",
+        benefits: "복지와 장비/지원이 충분한가",
+        contractStability: "계약/고용 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 역량과 적절히 맞는가",
+        learningDirection: "배우고 싶은 방향과 맞는가",
+        interviewSignal: "면접/커뮤니케이션 인상이 좋은가",
+        growthCurve: "장기적으로 성장 곡선이 있는가",
+      },
+    },
+  },
+  pm: {
+    businessProduct: {
+      title: "제품/시장 기회",
+      shortTitle: "제품",
+      items: {
+        solvesProblem: "해결하는 문제가 명확하고 중요한가",
+        sustainable: "비즈니스 모델이 지속 가능해 보이는가",
+        marketStability: "시장 크기와 성장성이 충분한가",
+        productQuality: "제품 지표/사용성 개선 여지가 보이는가",
+      },
+    },
+    organizationCulture: {
+      title: "조직/의사결정",
+      shortTitle: "조직",
+      items: {
+        reviewQuality: "조직 평판과 협업 문화가 괜찮은가",
+        burnoutRisk: "PM에게 과도한 조율 부담이 몰리지 않는가",
+        decisionClarity: "권한과 의사결정 구조가 명확한가",
+        retention: "핵심 인력이 안정적으로 유지되는가",
+      },
+    },
+    designGrowth: {
+      title: "제품 영향력",
+      shortTitle: "영향력",
+      items: {
+        strategicRole: "로드맵/전략에 실질적으로 관여할 수 있는가",
+        systemOpportunity: "제품 문제를 구조적으로 개선할 기회가 있는가",
+        collaboration: "디자인/개발/데이터 협업 체계가 있는가",
+        portfolioProblem: "성과로 설명 가능한 제품 문제가 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "근무 형태가 PM 업무 방식과 맞는가",
+        commute: "출퇴근 부담이 지속 가능한가",
+        benefits: "복지와 업무 지원이 충분한가",
+        contractStability: "고용/계약 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 PM 역량과 역할 난이도가 맞는가",
+        learningDirection: "배우고 싶은 제품 역량과 맞는가",
+        interviewSignal: "면접에서 커뮤니케이션 신뢰가 있었는가",
+        growthCurve: "다음 커리어 단계에 도움이 되는가",
+      },
+    },
+  },
+  frontend: {
+    businessProduct: {
+      title: "제품/기술 맥락",
+      shortTitle: "제품",
+      items: {
+        solvesProblem: "프론트엔드로 기여할 사용자 문제가 명확한가",
+        sustainable: "제품과 기술 투자가 지속 가능해 보이는가",
+        marketStability: "서비스 성장성과 안정성이 괜찮은가",
+        productQuality: "UI 품질과 성능 개선 여지가 있는가",
+      },
+    },
+    organizationCulture: {
+      title: "개발 문화",
+      shortTitle: "문화",
+      items: {
+        reviewQuality: "코드 리뷰와 개발 문화 평판이 괜찮은가",
+        burnoutRisk: "릴리즈/운영 부담이 과도하지 않은가",
+        decisionClarity: "기술 의사결정 구조가 명확한가",
+        retention: "개발자가 오래 일할 수 있는 환경인가",
+      },
+    },
+    designGrowth: {
+      title: "기술 성장 가능성",
+      shortTitle: "기술",
+      items: {
+        strategicRole: "프론트엔드가 제품 의사결정에 참여하는가",
+        systemOpportunity: "디자인 시스템/성능/아키텍처 개선 기회가 있는가",
+        collaboration: "디자인/백엔드/PM 협업 구조가 건강한가",
+        portfolioProblem: "기술적으로 설명 가능한 성과를 만들 수 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "근무 형태가 집중 개발에 맞는가",
+        commute: "출퇴근 부담이 지속 가능한가",
+        benefits: "장비/학습/복지 지원이 충분한가",
+        contractStability: "고용/계약 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 기술 스택과 역량에 맞는가",
+        learningDirection: "배우고 싶은 기술 방향과 맞는가",
+        interviewSignal: "면접에서 기술 대화가 건강했는가",
+        growthCurve: "장기적으로 기술 성장 곡선이 있는가",
+      },
+    },
+  },
+  ux_researcher: {
+    businessProduct: {
+      title: "제품/사용자 문제",
+      shortTitle: "문제",
+      items: {
+        solvesProblem: "리서치할 만한 사용자 문제가 명확한가",
+        sustainable: "사용자 이해에 투자할 사업 여력이 있는가",
+        marketStability: "시장과 사용자군이 충분히 의미 있는가",
+        productQuality: "리서치가 제품 품질 개선으로 이어질 수 있는가",
+      },
+    },
+    organizationCulture: {
+      title: "리서치 수용 문화",
+      shortTitle: "문화",
+      items: {
+        reviewQuality: "사용자 중심 문화에 대한 평판이 괜찮은가",
+        burnoutRisk: "리서처에게 과도한 일정/정치 부담이 없을 것 같은가",
+        decisionClarity: "리서치 결과가 의사결정에 반영되는 구조인가",
+        retention: "리서치/제품 인력이 안정적으로 유지되는가",
+      },
+    },
+    designGrowth: {
+      title: "리서치 환경",
+      shortTitle: "리서치",
+      items: {
+        strategicRole: "리서치가 전략/로드맵에 영향을 줄 수 있는가",
+        systemOpportunity: "정성/정량 리서치 체계를 만들 기회가 있는가",
+        collaboration: "PM/디자인/데이터와 협업 구조가 있는가",
+        portfolioProblem: "케이스 스터디로 남길 사용자 문제가 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "인터뷰/분석 업무에 맞는 근무 형태인가",
+        commute: "출퇴근 부담이 지속 가능한가",
+        benefits: "리서치 툴/참여자 모집 지원이 충분한가",
+        contractStability: "고용/계약 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 리서치 역량과 역할이 맞는가",
+        learningDirection: "배우고 싶은 리서치 방향과 맞는가",
+        interviewSignal: "면접에서 리서치에 대한 이해가 느껴졌는가",
+        growthCurve: "장기적으로 전문성을 확장할 수 있는가",
+      },
+    },
+  },
+  marketer: {
+    businessProduct: {
+      title: "시장/성장 기회",
+      shortTitle: "시장",
+      items: {
+        solvesProblem: "고객 문제와 구매 동기가 명확한가",
+        sustainable: "성장 채널과 수익 모델이 지속 가능해 보이는가",
+        marketStability: "시장 규모와 경쟁 구도가 매력적인가",
+        productQuality: "마케팅이 전환시킬 만한 제품 품질인가",
+      },
+    },
+    organizationCulture: {
+      title: "마케팅 협업 문화",
+      shortTitle: "문화",
+      items: {
+        reviewQuality: "브랜드/마케팅 조직 평판이 괜찮은가",
+        burnoutRisk: "성과 압박과 실행량이 과도하지 않은가",
+        decisionClarity: "목표/예산/권한이 명확한가",
+        retention: "마케팅/세일즈 인력이 안정적으로 유지되는가",
+      },
+    },
+    designGrowth: {
+      title: "마케팅 임팩트",
+      shortTitle: "임팩트",
+      items: {
+        strategicRole: "마케팅이 성장 전략에 실질적으로 관여하는가",
+        systemOpportunity: "퍼널/콘텐츠/브랜드를 개선할 기회가 있는가",
+        collaboration: "제품/세일즈/데이터 협업 구조가 있는가",
+        portfolioProblem: "성과로 설명 가능한 캠페인 문제가 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "캠페인/콘텐츠 업무 방식과 맞는 근무 형태인가",
+        commute: "출퇴근 부담이 지속 가능한가",
+        benefits: "예산/툴/교육 지원이 충분한가",
+        contractStability: "고용/계약 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 마케팅 역량과 역할 난이도가 맞는가",
+        learningDirection: "배우고 싶은 성장/브랜드 방향과 맞는가",
+        interviewSignal: "면접에서 목표와 협업 방식이 명확했는가",
+        growthCurve: "장기적으로 마케팅 커리어에 도움이 되는가",
+      },
+    },
+  },
+};
+
+export function getRoleScoreCategories(
+  userRole: UserRole = "designer",
+): ScoreCategoryDefinition[] {
+  const roleText = ROLE_SCORE_TEXT[userRole] ?? ROLE_SCORE_TEXT.designer;
+  return SCORE_CATEGORIES.map((category) => {
+    const text = roleText[category.key];
+    return {
+      ...category,
+      title: text.title,
+      shortTitle: text.shortTitle,
+      items: category.items.map((item) => ({
+        ...item,
+        label: text.items[item.id] ?? item.label,
+      })),
+    };
+  });
+}
 
 export const RISK_CHECKLIST = [
   "채용공고가 지나치게 모호함",

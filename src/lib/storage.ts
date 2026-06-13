@@ -101,6 +101,7 @@ export function normalizeCompany(company: Company): Company {
         { includeDataQualityReasons: true },
       ),
     privateSensitiveNote: company.privateSensitiveNote ?? "",
+    privateSensitiveNotes: company.privateSensitiveNotes ?? [],
     scoreEvidence: company.scoreEvidence ?? makeDefaultScoreEvidence(1),
     signals: company.signals ?? makeDefaultSignals(),
     designerFit: company.designerFit ?? makeDefaultDesignerFit(),

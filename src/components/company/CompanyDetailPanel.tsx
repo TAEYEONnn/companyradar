@@ -22,7 +22,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
@@ -30,7 +30,6 @@ import { getApiErrorMessage } from "@/lib/api-error";
 import { getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
-  DESIGNER_FIT_LABELS,
   DISCOVERY_REASON_LABELS,
   EVIDENCE_LEVEL_LABELS,
   EVIDENCE_LEVEL_OPTIONS,
@@ -40,6 +39,7 @@ import {
   PRIORITY_LABELS,
   ROLE_FIT_CHECKLIST_TITLE,
   ROLE_FIT_LABELS,
+  getRoleScoreCategories,
   ROUND_RESULT_LABELS,
   ROUND_RESULT_OPTIONS,
   STATUS_LABELS,
@@ -62,7 +62,6 @@ import {
   encryptNote,
   exportEncryptionKey,
   getEncryptionKey,
-  getKeyFingerprint,
   importAndSaveEncryptionKey,
 } from "@/lib/crypto";
 import { getSupabaseClient } from "@/lib/supabase-client";
@@ -95,6 +94,7 @@ export function CompanyDetailPanel({
   const userRole = settings?.userRole ?? "designer";
   const fitLabels = ROLE_FIT_LABELS[userRole];
   const fitTitle = ROLE_FIT_CHECKLIST_TITLE[userRole];
+  const scoreCategories = getRoleScoreCategories(userRole);
   const [panelKey, setPanelKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
@@ -472,47 +472,23 @@ export function CompanyDetailPanel({
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         {activeTab === "summary" ? (
           <>
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Metric label="회사핏" value={formatScore(score.companyFitScore)} />
-          <Metric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
-          <Metric label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
+        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
+          <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
+          <Metric compact label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
         </section>
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           <Metric
+            compact
             label="리스크"
             tone={score.highRisk ? "red" : "slate"}
             value={`${score.riskCount}개`}
           />
-          <Metric label="공고 상태" value={JOB_STATUS_LABELS[company.jobStatus]} />
-          <Metric label="관심도" value={`${company.interestLevel}/5`} />
+          <Metric compact label="공고 상태" value={JOB_STATUS_LABELS[company.jobStatus]} />
+          <Metric compact label="관심도" value={`${company.interestLevel}/5`} />
         </section>
 
         <NextActionBanner company={company} />
-
-        {validationReasons.length > 0 ? (
-          <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-amber-900">
-                확인 필요한 내용
-              </h3>
-              <Button
-                onClick={() => onPatch(company.id, getValidationCompletePatch(today()))}
-                size="sm"
-                variant="secondary"
-              >
-                <ClipboardCheck className="h-3.5 w-3.5" />
-                검증 완료
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {validationReasons.map((reason) => (
-                <Badge key={reason} tone="amber">
-                  {reason}
-                </Badge>
-              ))}
-            </div>
-          </section>
-        ) : null}
 
         <section className="space-y-2">
           <div className="flex items-center justify-between">
@@ -538,9 +514,9 @@ export function CompanyDetailPanel({
             label="근거 수준"
             value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "재검증 필요" : "최신"}`}
           />
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <h4 className="mb-2 text-xs font-semibold text-slate-600">기록 날짜</h4>
-            <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+            <h4 className="mb-1.5 text-xs font-semibold text-slate-600">기록 날짜</h4>
+            <div className="grid gap-1.5 sm:grid-cols-3">
             <DateStampButton
               label="확인"
               onStamp={() => onPatch(company.id, { lastCheckedAt: today() })}
@@ -599,10 +575,13 @@ export function CompanyDetailPanel({
         {activeTab === "summary" ? (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">평가 점수</h3>
-          {score.categoryScores.map((category) => (
+          {score.categoryScores.map((category) => {
+            const displayCategory =
+              scoreCategories.find((item) => item.key === category.key) ?? category;
+            return (
             <div className="space-y-1" key={category.key}>
               <div className="flex justify-between text-sm">
-                <span>{category.title}</span>
+                <span>{displayCategory.title}</span>
                 <span className="font-semibold">{formatScore(category.average)}</span>
               </div>
               <div className="h-2 rounded-full bg-slate-100">
@@ -612,7 +591,8 @@ export function CompanyDetailPanel({
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </section>
         ) : null}
 
@@ -1264,9 +1244,10 @@ function EncryptedNoteSection({
   userId: string;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
 }) {
-  const [decrypted, setDecrypted] = useState("");
-  const [fingerprint, setFingerprint] = useState("");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [encKey, setEncKey] = useState<CryptoKey | null>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -1276,29 +1257,60 @@ function EncryptedNoteSection({
     getEncryptionKey(userId).then(async (key) => {
       if (cancelled) return;
       keyRef.current = key;
-      const plain = await decryptNote(key, company.privateSensitiveNote);
-      const fp = await getKeyFingerprint(key);
-      if (!cancelled) {
-        setDecrypted(plain);
-        setFingerprint(fp);
-      }
+      setEncKey(key);
     });
     return () => {
       cancelled = true;
     };
-  }, [userId, company.privateSensitiveNote]);
+  }, [userId]);
 
-  const handleChange = useCallback(
-    async (text: string) => {
-      setDecrypted(text);
-      if (!keyRef.current) return;
-      setSaving(true);
-      const ct = await encryptNote(keyRef.current, text);
-      onPatch(company.id, { privateSensitiveNote: ct });
-      setSaving(false);
-    },
-    [company.id, onPatch],
-  );
+  const notes = [
+    ...(company.privateSensitiveNotes ?? []),
+    ...(company.privateSensitiveNote
+      ? [
+          {
+            id: "legacy-private-sensitive-note",
+            title: "이전 민감 메모",
+            content: company.privateSensitiveNote,
+            createdAt: company.updatedAt || company.createdAt,
+          },
+        ]
+      : []),
+  ];
+
+  async function addPrivateNote() {
+    if (!content.trim()) return;
+    setSaving(true);
+    const encryptedContent = keyRef.current
+      ? await encryptNote(keyRef.current, content.trim())
+      : content.trim();
+    onPatch(company.id, {
+      privateSensitiveNotes: [
+        {
+          id: createId("private-note"),
+          title: title.trim() || "민감 메모",
+          content: encryptedContent,
+          createdAt: today(),
+        },
+        ...(company.privateSensitiveNotes ?? []),
+      ],
+    });
+    setTitle("");
+    setContent("");
+    setSaving(false);
+  }
+
+  function removePrivateNote(noteId: string) {
+    if (noteId === "legacy-private-sensitive-note") {
+      onPatch(company.id, { privateSensitiveNote: "" });
+      return;
+    }
+    onPatch(company.id, {
+      privateSensitiveNotes: (company.privateSensitiveNotes ?? []).filter(
+        (note) => note.id !== noteId,
+      ),
+    });
+  }
 
   async function handleDownload() {
     if (!keyRef.current) return;
@@ -1307,7 +1319,7 @@ function EncryptedNoteSection({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `enc-key-${fingerprint}.txt`;
+    a.download = "sensitive-note-key-backup.txt";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1318,54 +1330,88 @@ function EncryptedNoteSection({
     const b64 = (await file.text()).trim();
     const key = await importAndSaveEncryptionKey(userId, b64);
     keyRef.current = key;
-    const plain = await decryptNote(key, company.privateSensitiveNote);
-    const fp = await getKeyFingerprint(key);
-    setDecrypted(plain);
-    setFingerprint(fp);
+    setEncKey(key);
     if (importInputRef.current) importInputRef.current.value = "";
   }
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold">
         <Lock className="h-4 w-4" />
         민감 메모
-        <span className="ml-auto flex items-center gap-1 font-mono text-xs font-normal text-slate-400">
-          키 지문: {fingerprint || "…"}
-          {saving && <RefreshCw className="h-3 w-3 animate-spin" />}
-        </span>
+        {saving && <RefreshCw className="ml-auto h-3 w-3 animate-spin text-slate-400" />}
       </h3>
-      <p className="text-xs text-slate-500">
-        AES-GCM 256-bit 암호화 — 이 기기의 브라우저 localStorage에만 키가 저장됩니다.
+      <p className="text-sm leading-6 text-slate-500">
+        연봉 협상, 처우 조건, 내부자에게 들은 내용, 소개자 정보처럼 공개 목록에 섞이면 곤란한 내용을 따로 남겨두세요.
       </p>
-      <Textarea
-        aria-label="민감 메모 (암호화 저장)"
-        onChange={(e) => void handleChange(e.target.value)}
-        placeholder="연봉/처우 협상 내용, 내부자 정보, 인맥 연결 등 민감한 메모"
-        rows={4}
-        value={decrypted}
-      />
-      <div className="flex gap-2">
-        <Button onClick={handleDownload} size="sm" variant="secondary">
-          <Download className="mr-1 h-3 w-3" />
-          키 백업
-        </Button>
-        <Button
-          onClick={() => importInputRef.current?.click()}
-          size="sm"
-          variant="secondary"
-        >
-          <Upload className="mr-1 h-3 w-3" />
-          키 가져오기
-        </Button>
-        <input
-          accept=".txt"
-          className="hidden"
-          onChange={(e) => void handleImport(e)}
-          ref={importInputRef}
-          type="file"
+
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <Input
+          aria-label="민감 메모 제목"
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="제목 예: 연봉 협상 메모"
+          value={title}
         />
+        <Textarea
+          aria-label="민감 메모 내용"
+          onChange={(event) => setContent(event.target.value)}
+          placeholder="내용을 입력하세요. 예: 희망 연봉, 협상 포인트, 확인해야 할 민감한 조건"
+          rows={4}
+          value={content}
+        />
+        <div className="flex justify-end">
+          <Button disabled={!content.trim() || saving} onClick={() => void addPrivateNote()} size="sm">
+            저장
+          </Button>
+        </div>
       </div>
+
+      {notes.length > 0 ? (
+        <div className="space-y-2">
+          {notes.map((note) => (
+            <PrivateSensitiveNoteItem
+              encKey={encKey}
+              key={note.id}
+              note={note}
+              onRemove={removePrivateNote}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-400">
+          저장된 민감 메모가 없습니다.
+        </p>
+      )}
+
+      <details className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+        <summary className="cursor-pointer font-medium text-slate-600">
+          고급 복구 옵션
+        </summary>
+        <p className="mt-2 leading-5">
+          다른 브라우저나 기기에서 기존 민감 메모가 열리지 않을 때만 사용하세요.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button onClick={handleDownload} size="sm" variant="secondary">
+            <Download className="mr-1 h-3 w-3" />
+            복구 키 내보내기
+          </Button>
+          <Button
+            onClick={() => importInputRef.current?.click()}
+            size="sm"
+            variant="secondary"
+          >
+            <Upload className="mr-1 h-3 w-3" />
+            복구 키 가져오기
+          </Button>
+          <input
+            accept=".txt"
+            className="hidden"
+            onChange={(event) => void handleImport(event)}
+            ref={importInputRef}
+            type="file"
+          />
+        </div>
+      </details>
     </section>
   );
 }
@@ -1382,15 +1428,81 @@ function DateStampButton({
 }) {
   return (
     <button
-      className="flex min-h-16 items-start justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+      className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
       onClick={onStamp}
       title={`오늘 날짜로 갱신`}
       type="button"
     >
-      <RefreshCw className="h-3 w-3 text-slate-400" />
-      {label}
-      <span className="text-slate-400">{value || "미기록"}</span>
+      <span className="min-w-0">
+        <span className="block truncate font-medium text-slate-700">{label}</span>
+        <span className="block text-[11px] text-slate-400">{formatShortDate(value)}</span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">
+        <RefreshCw className="h-3 w-3" />
+        오늘
+      </span>
     </button>
+  );
+}
+
+function formatShortDate(value: string) {
+  if (!value) return "미기록";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1].slice(2)}.${match[2]}.${match[3]}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const year = String(date.getFullYear()).slice(2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+function PrivateSensitiveNoteItem({
+  note,
+  encKey,
+  onRemove,
+}: {
+  note: { id: string; title: string; content: string; createdAt: string };
+  encKey: CryptoKey | null;
+  onRemove: (id: string) => void;
+}) {
+  const [plaintext, setPlaintext] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    if (!encKey) return () => {
+      canceled = true;
+    };
+    decryptNote(encKey, note.content).then((value) => {
+      if (!canceled) setPlaintext(value);
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [encKey, note.content]);
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-semibold text-slate-800">
+            {note.title}
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {formatShortDate(note.createdAt)}
+          </p>
+        </div>
+        <Button onClick={() => onRemove(note.id)} size="sm" variant="ghost">
+          <Trash2 className="h-3.5 w-3.5" />
+          삭제
+        </Button>
+      </div>
+      <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+        {plaintext ?? <span className="animate-pulse text-slate-400">불러오는 중...</span>}
+      </p>
+    </div>
   );
 }
 
