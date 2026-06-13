@@ -479,6 +479,7 @@ export function CompanyTrackerApp() {
     }
     void deleteRemoteCompany(companyId, userId);
     setPendingDeleteId(null);
+    setDrawerOpen(false);
   }
 
   function confirmSelectedDeleteCompanies() {
@@ -1157,7 +1158,6 @@ export function CompanyTrackerApp() {
         onClose={() => setDrawerOpen(false)}
         onDelete={(id) => {
           setPendingDeleteId(id);
-          setDrawerOpen(false);
         }}
         onEdit={(company) => {
           startEdit(company);

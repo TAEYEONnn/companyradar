@@ -194,8 +194,9 @@ export function Toolbar({
 
         {devToolsEnabled ? (
         <div className="flex items-center gap-1">
-          <Button aria-label="직군 샘플로 초기화" onClick={onReset} size="icon" title="직군 샘플로 초기화" variant="ghost">
-            <RotateCcw className="h-4 w-4" />
+          <Button aria-label="직군 샘플로 초기화" onClick={onReset} size="sm" title="직군 샘플로 초기화" variant="ghost">
+            <RotateCcw className="h-3.5 w-3.5" />
+            샘플 초기화
           </Button>
         </div>
         ) : null}

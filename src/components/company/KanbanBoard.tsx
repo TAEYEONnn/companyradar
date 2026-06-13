@@ -91,7 +91,13 @@ export function KanbanBoard({
                         <span className="truncate text-sm font-medium text-slate-950">
                           {company.name}
                         </span>
-                        <span className="shrink-0 text-sm font-semibold text-slate-700">
+                        <span className={[
+                          "shrink-0 text-sm font-semibold",
+                          (score?.companyFitScore ?? 0) >= 4.3 ? "text-emerald-600"
+                          : (score?.companyFitScore ?? 0) >= 3.7 ? "text-sky-600"
+                          : (score?.companyFitScore ?? 0) >= 3.0 ? "text-amber-600"
+                          : "text-slate-400"
+                        ].join(" ")}>
                           {formatScore(score?.companyFitScore ?? 0)}
                         </span>
                       </div>

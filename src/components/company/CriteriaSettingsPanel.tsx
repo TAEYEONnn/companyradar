@@ -62,6 +62,8 @@ export function CriteriaSettingsPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCriteria, setShowCriteria] = useState(false);
+  const [sliderSaved, setSliderSaved] = useState(false);
+  const sliderSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showBackup, setShowBackup] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -209,6 +211,12 @@ export function CriteriaSettingsPanel({
     setSubmitting(null);
   }
 
+  function flashSaved() {
+    if (sliderSavedTimer.current) clearTimeout(sliderSavedTimer.current);
+    setSliderSaved(true);
+    sliderSavedTimer.current = setTimeout(() => setSliderSaved(false), 1500);
+  }
+
   function changeRole(role: UserRole) {
     onChange({
       ...settings,
@@ -290,6 +298,12 @@ export function CriteriaSettingsPanel({
 
         {showCriteria ? (
           <div className="grid grid-cols-1 gap-6 rounded-md border border-slate-100 bg-slate-50 p-4 lg:grid-cols-[minmax(0,520px)_1fr]">
+            {sliderSaved && (
+              <div className="col-span-full -mb-2 flex items-center gap-1 text-xs text-emerald-600">
+                <Check className="h-3.5 w-3.5" />
+                저장됨
+              </div>
+            )}
             <div className="space-y-3">
               {SCORE_CATEGORIES.map((category) => (
                 <div
@@ -307,15 +321,16 @@ export function CriteriaSettingsPanel({
                     className="accent-slate-900"
                     max={50}
                     min={0}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       onChange({
                         ...settings,
                         weights: {
                           ...settings.weights,
                           [category.key]: Number(event.target.value) / 100,
                         },
-                      })
-                    }
+                      });
+                      flashSaved();
+                    }}
                     type="range"
                     value={Math.round(settings.weights[category.key] * 100)}
                   />
@@ -323,15 +338,16 @@ export function CriteriaSettingsPanel({
                     aria-label={`${category.title} 가중치 숫자`}
                     max={50}
                     min={0}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       onChange({
                         ...settings,
                         weights: {
                           ...settings.weights,
                           [category.key]: Number(event.target.value) / 100,
                         },
-                      })
-                    }
+                      });
+                      flashSaved();
+                    }}
                     type="number"
                     value={Math.round(settings.weights[category.key] * 100)}
                   />

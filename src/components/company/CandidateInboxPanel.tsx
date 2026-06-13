@@ -131,7 +131,7 @@ export function CandidateInboxPanel({
               onChange={(event) =>
                 setDraft((current) => ({ ...current, rawText: event.target.value }))
               }
-              placeholder="v0.3.4 전까지는 필요한 공고 텍스트를 직접 붙여넣어 보관합니다."
+              placeholder="채용공고 내용, 직무 요건, 메모 등을 자유롭게 붙여넣어 보관하세요."
               value={draft.rawText}
             />
           </Field>

@@ -145,6 +145,7 @@ export function CompanyDetailPanel({
   const validationReasons = getCompanyValidationReasons(company);
   const [activeTab, setActiveTab] = useState<DrawerDetailTab>(focusTarget?.tab ?? "summary");
   const [headerCompact, setHeaderCompact] = useState(false);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const detailTabs: { id: DrawerDetailTab; label: string; count?: number }[] = [
     { id: "summary", label: "요약" },
     {
@@ -1038,7 +1039,7 @@ export function CompanyDetailPanel({
               추가
             </Button>
           </div>
-          {company.followUpTasks.map((task) => (
+          {company.followUpTasks.filter((t) => !t.completed).map((task) => (
             <div
               className="flex items-start gap-2 rounded-md border border-slate-200 p-3 text-sm"
               key={task.id}
@@ -1064,11 +1065,7 @@ export function CompanyDetailPanel({
                 }
                 type="checkbox"
               />
-              <span
-                className={
-                  task.completed ? "flex-1 text-slate-400 line-through" : "flex-1"
-                }
-              >
+              <span className="flex-1">
                 {task.title}
                 <span className="ml-2 text-xs text-slate-500">{task.dueDate}</span>
               </span>
@@ -1082,6 +1079,58 @@ export function CompanyDetailPanel({
               </button>
             </div>
           ))}
+          {company.followUpTasks.filter((t) => t.completed).length > 0 && (
+            <div>
+              <button
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
+                onClick={() => setShowCompletedTasks((v) => !v)}
+                type="button"
+              >
+                <X className={["h-3 w-3 transition-transform", showCompletedTasks ? "" : "rotate-45"].join(" ")} />
+                완료됨 {company.followUpTasks.filter((t) => t.completed).length}개
+              </button>
+              {showCompletedTasks && company.followUpTasks.filter((t) => t.completed).map((task) => (
+                <div
+                  className="mt-1.5 flex items-start gap-2 rounded-md border border-slate-100 p-3 text-sm"
+                  key={task.id}
+                >
+                  <input
+                    aria-label={`${task.title} 완료`}
+                    checked={task.completed}
+                    className="mt-1 accent-slate-900"
+                    onChange={(event) =>
+                      onPatch(company.id, {
+                        followUpTasks: company.followUpTasks.map((item) =>
+                          item.id === task.id
+                            ? {
+                                ...item,
+                                completed: event.target.checked,
+                                completedAt: event.target.checked
+                                  ? new Date().toISOString()
+                                  : undefined,
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  <span className="flex-1 text-slate-400 line-through">
+                    {task.title}
+                    <span className="ml-2 text-xs text-slate-500">{task.dueDate}</span>
+                  </span>
+                  <button
+                    aria-label="할일 삭제"
+                    className="text-slate-400 hover:text-red-600"
+                    onClick={() => removeFollowUpTask(task.id)}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
         ) : null}
 
