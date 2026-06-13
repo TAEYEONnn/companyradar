@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { requireAllowedSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -41,32 +41,9 @@ interface ParsedJobPost {
 }
 
 export async function POST(request: Request) {
-  // 1. Auth — require valid Supabase session token
-  const authHeader = request.headers.get("authorization") ?? "";
-  const accessToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : null;
-
-  if (!accessToken) {
-    return apiError("로그인이 필요합니다.", "auth_required", 401);
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (supabaseUrl && supabaseAnonKey) {
-    try {
-      const client = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
-        auth: { persistSession: false },
-      });
-      const { data, error: authError } = await client.auth.getUser();
-      if (authError || !data.user) {
-        return apiError("로그인이 필요합니다.", "auth_required", 401);
-      }
-    } catch {
-      return apiError("인증 확인에 실패했습니다.", "auth_required", 401);
-    }
-  }
+  // 1. Auth — require valid Supabase session token from an allowlisted user
+  const auth = await requireAllowedSupabaseUser(request);
+  if (auth.response) return auth.response;
 
   // 2. Parse body
   let url = "";

@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { requireAllowedSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -21,22 +21,8 @@ interface CompanySnapshot {
 }
 
 export async function POST(request: Request) {
-  const accessToken = request.headers
-    .get("Authorization")
-    ?.replace("Bearer ", "")
-    .trim();
-  if (!accessToken) return apiError(401, "auth_required", "로그인이 필요합니다.");
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (supabaseUrl && supabaseAnonKey) {
-    const client = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    });
-    const { data, error } = await client.auth.getUser();
-    if (error || !data.user)
-      return apiError(401, "auth_required", "유효하지 않은 세션입니다.");
-  }
+  const auth = await requireAllowedSupabaseUser(request);
+  if (auth.response) return auth.response;
 
   let body: { companies?: CompanySnapshot[] };
   try {
