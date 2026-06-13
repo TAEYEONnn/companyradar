@@ -144,6 +144,7 @@ export function CompanyDetailPanel({
   const [aiResearchError, setAiResearchError] = useState("");
   const validationReasons = getCompanyValidationReasons(company);
   const [activeTab, setActiveTab] = useState<DrawerDetailTab>(focusTarget?.tab ?? "summary");
+  const [headerCompact, setHeaderCompact] = useState(false);
   const detailTabs: { id: DrawerDetailTab; label: string; count?: number }[] = [
     { id: "summary", label: "요약" },
     {
@@ -367,7 +368,8 @@ export function CompanyDetailPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="shrink-0 border-b border-slate-200 p-3">
+      <div className="shrink-0 border-b border-slate-200 px-3 pt-3 transition-[padding-bottom] duration-200" style={{ paddingBottom: headerCompact ? "8px" : "12px" }}>
+        {/* 항상 보임: 내비 + 회사명 + 상태 + 액션 */}
         <div className="flex items-center justify-between gap-2">
           {onBack ? (
             <Button aria-label="뒤로가기" onClick={onBack} size="sm" variant="ghost">
@@ -413,6 +415,13 @@ export function CompanyDetailPanel({
             {score.needsValidation ? <Badge tone="amber">확인 필요</Badge> : null}
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
+        </div>
+
+        {/* 스크롤 시 접히는 영역 */}
+        <div
+          className="overflow-hidden transition-[max-height,opacity] duration-200"
+          style={{ maxHeight: headerCompact ? "0px" : "300px", opacity: headerCompact ? 0 : 1 }}
+        >
           <p className="mt-0.5 text-xs leading-5 text-slate-500">
             {company.industry || "업종 미입력"} · {PRIORITY_LABELS[company.applicationPriority]} · 회사핏 {formatScore(score.companyFitScore)}
           </p>
@@ -486,13 +495,20 @@ export function CompanyDetailPanel({
         </div>
       </nav>
 
-      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-4 pb-8 pt-5">
+      <div
+        className="min-h-0 flex-1 space-y-7 overflow-y-auto px-4 pb-8 pt-5"
+        onScroll={(e) => {
+          const y = e.currentTarget.scrollTop;
+          if (y > 60 && !headerCompact) setHeaderCompact(true);
+          else if (y < 10 && headerCompact) setHeaderCompact(false);
+        }}
+      >
         {activeTab === "summary" ? (
           <>
         <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-drawer-section="summary">
           <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
-          <Metric compact label="정보 신뢰" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
+          <Metric compact label="정보 깊이" value={`${Math.round(score.averageEvidenceLevel)} / 5`} />
         </section>
         <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           <Metric
@@ -520,7 +536,7 @@ export function CompanyDetailPanel({
             value={`${PRIORITY_LABELS[company.applicationPriority]} · ${company.priorityReason}`}
           />
           <InfoRow
-            label="발견 이유"
+            label="관심 갖게 된 계기"
             value={`${DISCOVERY_REASON_LABELS[company.discoveryReason]} · ${company.firstImpressionNote || "첫인상 메모 없음"}`}
           />
           <InfoRow
@@ -528,12 +544,12 @@ export function CompanyDetailPanel({
             value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"}`}
           />
           <InfoRow
-            label="정보 믿을만함"
-            value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "다시 확인 필요" : "확인됨"}`}
+            label="정보 출처"
+            value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "오래됐어요" : "최근에 확인했어요"}`}
           />
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
-          <InfoRow label="후보 이유" value={company.candidateReason || "없음"} />
+          <InfoRow label="관심 이유" value={company.candidateReason || "없음"} />
           <InfoRow label="메모" value={company.memo || "없음"} />
           <div className="flex gap-2 pt-1">
             {company.homepageUrl ? (

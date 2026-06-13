@@ -45,7 +45,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin = getSupabaseAdminClient();
+    let admin;
+    try {
+      admin = getSupabaseAdminClient();
+    } catch {
+      return NextResponse.json(
+        {
+          error: {
+            code: "config_error",
+            message: "서비스를 일시적으로 이용할 수 없습니다. companysignal.app@gmail.com으로 문의해 주세요.",
+          },
+        },
+        { status: 503 },
+      );
+    }
     const { data, error } = await admin
       .from("refund_requests")
       .insert({

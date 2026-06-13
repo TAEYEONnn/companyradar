@@ -61,11 +61,11 @@ export const PRIORITY_OPTIONS = Object.entries(PRIORITY_LABELS).map(
 );
 
 export const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevel, string> = {
-  1: "추측",
-  2: "채용공고 기반",
-  3: "회사/기사/후기 기반",
-  4: "면접에서 확인",
-  5: "재직자/퇴사자 직접 확인",
+  1: "아직 추측 수준",
+  2: "채용공고만 봤어요",
+  3: "뉴스·후기 찾아봤어요",
+  4: "면접에서 직접 들었어요",
+  5: "재직자·퇴사자에게 들었어요",
 };
 
 export const EVIDENCE_LEVEL_OPTIONS = Object.entries(EVIDENCE_LEVEL_LABELS).map(
@@ -96,7 +96,7 @@ export const DISCOVERY_REASON_LABELS: Record<DiscoveryReason, string> = {
   salary: "보상",
   remote: "원격/유연근무",
   referral: "추천/소개",
-  manual: "수동 추가",
+  manual: "직접 추가",
 };
 
 export const DISCOVERY_REASON_OPTIONS = Object.entries(

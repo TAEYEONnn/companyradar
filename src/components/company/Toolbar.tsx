@@ -79,6 +79,14 @@ export function Toolbar({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const active = isFilterActive(advancedFilter);
+  const activeFilterCount = [
+    advancedFilter.hasGreenFlag,
+    advancedFilter.hasRedFlag,
+    advancedFilter.hasRisk,
+    advancedFilter.hasInterviews,
+    advancedFilter.needsValidation,
+    advancedFilter.minScore > 0,
+  ].filter(Boolean).length;
 
   function toggleChip(key: keyof Omit<AdvancedFilter, "minScore">) {
     onAdvancedFilterChange?.({ ...advancedFilter, [key]: !advancedFilter[key] });
@@ -175,7 +183,12 @@ export function Toolbar({
             type="button"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            필터{active ? " ●" : ""}
+            필터
+            {activeFilterCount > 0 && (
+              <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold leading-none text-white">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
         )}
 
