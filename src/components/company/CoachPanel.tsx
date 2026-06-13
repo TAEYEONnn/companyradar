@@ -4,6 +4,7 @@ import { ArrowLeft, BrainCircuit, ChevronDown, ChevronUp, RefreshCw, Target } fr
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import type { Company, CompanyScoreResult } from "@/lib/types";
@@ -125,10 +126,10 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
 
       const data = (await res.json()) as
         | { ok: true; strategy: string }
-        | { error: { message: string } };
+        | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        setError("error" in data ? data.error.message : "전략 생성에 실패했습니다.");
+        setError(getApiErrorMessage(res, data, "전략 생성에 실패했습니다."));
         return;
       }
       setStrategy(data.strategy);

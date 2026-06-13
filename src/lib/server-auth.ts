@@ -13,8 +13,12 @@ interface RequireAllowedUserResult {
   user?: {
     id: string;
     email?: string;
+    accessToken: string;
+    role?: "owner" | "beta_user" | "blocked";
   };
 }
+
+type ProfileRole = "owner" | "beta_user" | "blocked";
 
 const AUTH_REQUIRED_MESSAGE = "로그인이 필요합니다.";
 const CONFIG_MISSING_MESSAGE = "인증 설정이 누락되었습니다.";
@@ -56,9 +60,17 @@ export async function requireAllowedSupabaseUser(
   );
   const allowedUserIds = parseAllowlist(process.env.AI_ALLOWED_USER_IDS);
   const userEmail = data.user.email?.toLowerCase();
-  const userAllowed =
+  const { data: profile } = await client
+    .from("profiles")
+    .select("role")
+    .maybeSingle<{ role: ProfileRole }>();
+  const profileRole = profile?.role;
+  const userInAllowlist =
     (userEmail ? allowedEmails.includes(userEmail) : false) ||
     allowedUserIds.includes(data.user.id);
+  const userAllowed =
+    profileRole !== "blocked" &&
+    (userInAllowlist || profileRole === "owner" || profileRole === "beta_user");
 
   if (!userAllowed) {
     return {
@@ -70,6 +82,8 @@ export async function requireAllowedSupabaseUser(
     user: {
       id: data.user.id,
       email: data.user.email,
+      accessToken,
+      role: profileRole,
     },
   };
 }

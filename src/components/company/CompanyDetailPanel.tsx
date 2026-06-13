@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
@@ -154,9 +155,9 @@ export function CompanyDetailPanel({
       });
       const data = (await res.json()) as
         | { ok: true; result: { source: string; link: string; positiveSignals: string; negativeSignals: string; questions: string } }
-        | { error: { message: string } };
+        | { error: { code?: string; message: string } };
       if (!("ok" in data) || !data.ok) {
-        setAiResearchError("error" in data ? data.error.message : "AI 리서치 생성에 실패했습니다.");
+        setAiResearchError(getApiErrorMessage(res, data, "AI 리서치 생성에 실패했습니다."));
         return;
       }
       onPatch(company.id, {
@@ -1322,10 +1323,10 @@ function PrepQuestionSection({
       });
       const data = (await res.json()) as
         | { ok: true; questions: { category: string; question: string }[] }
-        | { error: { message: string } };
+        | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        const msg = "error" in data ? data.error.message : "AI 질문 생성에 실패했습니다.";
+        const msg = getApiErrorMessage(res, data, "AI 질문 생성에 실패했습니다.");
         setGenError(msg);
         return;
       }
@@ -1591,9 +1592,9 @@ function DraftEmailSection({ company }: { company: Company }) {
         }),
       });
 
-      const json = (await res.json()) as { draft?: string; error?: { message: string } };
+      const json = (await res.json()) as { draft?: string; error?: { code?: string; message: string } };
       if (!res.ok || !json.draft) {
-        setDraft(`오류: ${json.error?.message ?? "초안 생성 실패"}`);
+        setDraft(`오류: ${getApiErrorMessage(res, json, "초안 생성 실패")}`);
       } else {
         setDraft(json.draft);
       }
@@ -1737,10 +1738,10 @@ function CompanySummarySection({
 
       const data = (await res.json()) as
         | { ok: true; summary: string }
-        | { error: { message: string } };
+        | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        const msg = "error" in data ? data.error.message : "AI 요약 생성에 실패했습니다.";
+        const msg = getApiErrorMessage(res, data, "AI 요약 생성에 실패했습니다.");
         setError(msg);
         return;
       }

@@ -188,7 +188,7 @@ const standardScores = {
   },
 };
 
-export const SAMPLE_COMPANIES: Company[] = [
+const ALL_SAMPLE_COMPANIES: Company[] = [
   company({
     id: "company_toss",
     name: "토스",
@@ -626,3 +626,5 @@ export const SAMPLE_COMPANIES: Company[] = [
     scores: standardScores,
   }),
 ];
+
+export const SAMPLE_COMPANIES: Company[] = ALL_SAMPLE_COMPANIES.slice(0, 1);

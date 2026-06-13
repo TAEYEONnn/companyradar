@@ -1,3 +1,4 @@
+import { logAiRequest } from "@/lib/server-ai-usage";
 import { requireAllowedSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
 
@@ -142,6 +143,7 @@ export async function POST(request: Request) {
       questions: parsed.questions ?? "",
     };
 
+    await logAiRequest(auth.user, "research-company", "success");
     return NextResponse.json({ ok: true, result });
   } catch {
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");

@@ -4,6 +4,7 @@ import { ArrowLeft, GitCompareArrows, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { PRIORITY_LABELS, SCORE_CATEGORIES, STATUS_LABELS } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { Company, CompanyScoreResult } from "@/lib/types";
@@ -64,9 +65,9 @@ export function ComparePanel({
       });
       const data = (await res.json()) as
         | { ok: true; comparison: string }
-        | { error: { message: string } };
+        | { error: { code?: string; message: string } };
       if (!("ok" in data) || !data.ok) {
-        setAiError("error" in data ? data.error.message : "AI 비교 생성에 실패했습니다.");
+        setAiError(getApiErrorMessage(res, data, "AI 비교 생성에 실패했습니다."));
         return;
       }
       setAiComparison(data.comparison);

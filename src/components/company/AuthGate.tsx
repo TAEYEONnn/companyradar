@@ -1,27 +1,25 @@
 "use client";
 
-import { KeyRound, Mail } from "lucide-react";
+import { KeyRound, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
-import { cn } from "@/lib/utils";
 import { getAuthRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
 
-type AuthMode = "magic" | "password";
-
 export function AuthGate() {
-  const [mode, setMode] = useState<AuthMode>("magic");
   const [email, setEmail] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [adminOpen, setAdminOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const supabase = getSupabaseClient();
 
-  function switchMode(next: AuthMode) {
-    setMode(next);
+  function toggleAdminLogin() {
+    setAdminOpen((open) => !open);
     setError("");
     setMessage("");
   }
@@ -32,7 +30,8 @@ export function AuthGate() {
       setError("Supabase 환경변수가 설정되지 않았습니다.");
       return;
     }
-    if (!email.trim()) {
+    const nextEmail = email.trim();
+    if (!nextEmail) {
       setError("이메일을 입력해주세요.");
       return;
     }
@@ -41,7 +40,7 @@ export function AuthGate() {
     setError("");
     setMessage("");
     const { error: signInError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
+      email: nextEmail,
       options: {
         emailRedirectTo: getAuthRedirectUrl(),
       },
@@ -52,7 +51,7 @@ export function AuthGate() {
       setError(signInError.message);
       return;
     }
-    setMessage("Magic Link를 보냈습니다. 메일함에서 로그인 링크를 열어주세요.");
+    setMessage(`${nextEmail}로 로그인 링크를 보냈습니다. 메일에서 링크를 열면 바로 이어서 사용할 수 있어요.`);
   }
 
   async function signInWithPassword(event: FormEvent<HTMLFormElement>) {
@@ -61,8 +60,9 @@ export function AuthGate() {
       setError("Supabase 환경변수가 설정되지 않았습니다.");
       return;
     }
-    if (!email.trim()) {
-      setError("이메일을 입력해주세요.");
+    const nextEmail = adminEmail.trim();
+    if (!nextEmail) {
+      setError("관리자 이메일을 입력해주세요.");
       return;
     }
     if (!password) {
@@ -74,7 +74,7 @@ export function AuthGate() {
     setError("");
     setMessage("");
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: nextEmail,
       password,
     });
     setLoading(false);
@@ -87,80 +87,75 @@ export function AuthGate() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 text-slate-950">
-      <section className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-          <Mail className="h-4 w-4" />
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 text-slate-950">
+      <section className="w-full max-w-[460px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
           Career Company Tracker
         </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-normal">
-          로그인 후 데이터를 불러옵니다
+        <h1 className="mt-3 text-2xl font-semibold tracking-normal">
+          지원할 회사를 안전하게 정리하세요
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          v0.3.1부터 회사 데이터는 Supabase Auth 사용자별 row로 저장됩니다.
-          이메일 Magic Link 또는 비밀번호로 로그인해주세요.
+          채용 공고, 회사 리서치, 면접 준비 기록을 로그인한 계정별로 저장하는 개인용 지원 관리 도구입니다.
         </p>
 
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1">
-          <button
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition",
-              mode === "magic"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700",
-            )}
-            onClick={() => switchMode("magic")}
-            type="button"
-          >
-            <Mail className="h-3.5 w-3.5" />
-            Magic Link
-          </button>
-          <button
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition",
-              mode === "password"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700",
-            )}
-            onClick={() => switchMode("password")}
-            type="button"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            Email + Password
-          </button>
+        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
+          <div className="flex gap-2">
+            <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+            <p>
+              비밀번호 없이 이메일 링크로 로그인합니다. 같은 이메일로 접속하면 내 회사 목록과 설정만 불러옵니다.
+            </p>
+          </div>
         </div>
 
-        {mode === "magic" ? (
-          <form className="mt-5 space-y-3" onSubmit={requestMagicLink}>
+        <form className="mt-5 space-y-3" onSubmit={requestMagicLink}>
+          <div className="space-y-1.5">
+            <Label htmlFor="magic-email">이메일</Label>
             <Input
               autoComplete="email"
+              id="magic-email"
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
               type="email"
               value={email}
             />
-            <Button className="w-full" disabled={loading} type="submit">
-              {loading ? "전송 중..." : "Magic Link 받기"}
-            </Button>
-          </form>
-        ) : (
-          <form className="mt-5 space-y-3" onSubmit={signInWithPassword}>
+          </div>
+          <Button className="w-full" disabled={loading} type="submit">
+            <Mail className="h-4 w-4" />
+            {loading ? "링크 보내는 중..." : "로그인 링크 받기"}
+          </Button>
+        </form>
+
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <button
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700"
+            onClick={toggleAdminLogin}
+            type="button"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            관리자 로그인
+          </button>
+        </div>
+
+        {adminOpen ? (
+          <form className="mt-3 space-y-3 rounded-md border border-slate-200 bg-white p-3" onSubmit={signInWithPassword}>
             <div className="space-y-1.5">
-              <Label htmlFor="auth-email">이메일</Label>
+              <Label htmlFor="admin-email">관리자 이메일</Label>
               <Input
                 autoComplete="email"
-                id="auth-email"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                id="admin-email"
+                onChange={(event) => setAdminEmail(event.target.value)}
+                placeholder="admin@example.com"
                 type="email"
-                value={email}
+                value={adminEmail}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="auth-password">비밀번호</Label>
+              <Label htmlFor="admin-password">비밀번호</Label>
               <Input
                 autoComplete="current-password"
-                id="auth-password"
+                id="admin-password"
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
                 type="password"
@@ -171,7 +166,7 @@ export function AuthGate() {
               {loading ? "로그인 중..." : "로그인"}
             </Button>
           </form>
-        )}
+        ) : null}
 
         {message ? (
           <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">

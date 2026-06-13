@@ -1,3 +1,4 @@
+import { logAiRequest } from "@/lib/server-ai-usage";
 import { requireAllowedSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
 
@@ -124,6 +125,7 @@ export async function POST(request: Request) {
       (q) => q.category && q.question && validCategories.has(q.category),
     );
 
+    await logAiRequest(auth.user, "gen-prep-questions", "success");
     return NextResponse.json({ ok: true, questions });
   } catch {
     return apiError(502, "ai_failed", "AI 질문 생성 중 오류가 발생했습니다.");

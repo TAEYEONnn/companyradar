@@ -161,8 +161,7 @@ export function CompanyTrackerApp() {
 
       const userScopedCompanies = readUserScopedCompanies(userId);
       const legacyCompanies = readLegacyCompanies();
-      const loadedCompanies =
-        userScopedCompanies.length > 0 ? userScopedCompanies : legacyCompanies;
+      const loadedCompanies = userScopedCompanies;
       const loadedSettings = localStorageRepository.loadSettings(userId);
       const migrationCompletedAt = getMigrationCompletedAt(userId);
       setSettings(loadedSettings);
@@ -180,12 +179,14 @@ export function CompanyTrackerApp() {
       if (isRemoteSyncEnabled()) {
         const remote = await pullRemoteCompanies(userId);
         if (remote === null) {
-          setCompanies(loadedCompanies);
-          setSelectedId(loadedCompanies[0]?.id ?? "");
+          const fallbackCompanies =
+            loadedCompanies.length > 0 ? loadedCompanies : cloneSampleCompaniesForUser();
+          setCompanies(fallbackCompanies);
+          setSelectedId(fallbackCompanies[0]?.id ?? "");
           setRemotePushEnabled(false);
           setStorageWriteEnabled(true);
           setIsReady(true);
-          showToast("Supabase 데이터를 불러오지 못해 로컬 데이터만 표시합니다.");
+          showToast("Supabase 데이터를 불러오지 못해 이 기기 저장소에 임시 저장합니다.");
           return;
         }
         remoteCompanies = remote ?? [];
@@ -193,16 +194,17 @@ export function CompanyTrackerApp() {
 
       if (
         !migrationCompletedAt &&
-        hasUserCompanies(loadedCompanies)
+        userScopedCompanies.length === 0 &&
+        hasUserCompanies(legacyCompanies)
       ) {
         const displayCompanies =
-          remoteCompanies.length > 0 ? remoteCompanies : loadedCompanies;
+          remoteCompanies.length > 0 ? remoteCompanies : legacyCompanies;
         setCompanies(displayCompanies);
         setSelectedId(displayCompanies[0]?.id ?? "");
         setRemotePushEnabled(false);
         setStorageWriteEnabled(false);
         setMigrationPrompt({
-          localCompanies: loadedCompanies,
+          localCompanies: legacyCompanies,
           remoteCompanies,
         });
         setIsReady(true);

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { AI_FORBIDDEN_MESSAGE } from "@/lib/api-error";
 import { VALIDATION_REASON_LABELS } from "@/lib/company-validation";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { ScoreSlider } from "@/components/ui/score-slider";
@@ -141,11 +142,30 @@ export function CompanyForm({ company, onCancel, onSubmit }: CompanyFormProps) {
 
     function doFetch(body: object): Promise<ParsedJobPost> {
       return fetch("/api/parse-job", { method: "POST", headers, body: JSON.stringify(body) })
-        .then((r) => r.json() as Promise<{ ok: true; result: ParsedJobPost } | { ok: false; error: string; errorCode?: string }>)
+        .then(async (r) => {
+          const d = (await r.json()) as
+            | { ok: true; result: ParsedJobPost }
+            | { ok: false; error: string; errorCode?: string }
+            | { error: { code?: string; message?: string } };
+
+          if (r.status === 403 || ("error" in d && typeof d.error === "object" && d.error.code === "forbidden")) {
+            const err = new Error(AI_FORBIDDEN_MESSAGE) as Error & { errorCode?: string };
+            err.errorCode = "forbidden";
+            throw err;
+          }
+          return d;
+        })
         .then((d) => {
-          if (!d.ok) {
-            const err = new Error(d.error) as Error & { errorCode?: string };
-            err.errorCode = d.errorCode;
+          if (!("ok" in d) || !d.ok) {
+            let message = "자동 채우기 요청에 실패했습니다.";
+            if ("error" in d) {
+              message =
+                typeof d.error === "string"
+                  ? d.error
+                  : d.error.message ?? message;
+            }
+            const err = new Error(message ?? "자동 채우기 요청에 실패했습니다.") as Error & { errorCode?: string };
+            err.errorCode = "errorCode" in d ? d.errorCode : undefined;
             throw err;
           }
           return d.result;

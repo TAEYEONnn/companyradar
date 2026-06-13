@@ -57,7 +57,7 @@ export function CompanyTable({
       <div className="md:hidden">
         <div className="space-y-3 px-3 py-3">
           {onToggleSelected && (
-            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
               <input
                 aria-label="현재 목록 전체 선택"
                 checked={allSelected}
@@ -80,7 +80,7 @@ export function CompanyTable({
               <article
                 aria-pressed={isSelected}
                 className={cn(
-                  "cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-50",
+                  "cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-50",
                   isSelected && "border-slate-300 bg-slate-50",
                   isChecked && "border-sky-200 bg-sky-50 ring-1 ring-inset ring-sky-200",
                 )}

@@ -1,3 +1,4 @@
+import { logAiRequest } from "@/lib/server-ai-usage";
 import { requireAllowedSupabaseUser } from "@/lib/server-auth";
 import { NextResponse } from "next/server";
 
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
     if (!comparison)
       return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
 
+    await logAiRequest(auth.user, "compare-companies", "success");
     return NextResponse.json({ ok: true, comparison });
   } catch {
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
