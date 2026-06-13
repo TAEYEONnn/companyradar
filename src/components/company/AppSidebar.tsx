@@ -137,7 +137,7 @@ export function AppSidebar({
   onSignOut,
 }: AppSidebarProps) {
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[200px] md:border-b-0 md:border-r">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 border-b border-slate-100 px-4">
         <Building2 className="h-4 w-4 text-slate-500" />
@@ -145,7 +145,7 @@ export function AppSidebar({
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+      <nav className="flex gap-1 overflow-x-auto p-2 md:block md:flex-1 md:space-y-0.5 md:overflow-y-auto">
         {NAV_ITEMS.map(({ id, icon: Icon, label, badgeKey }) => {
           const count = badgeKey ? (badges[badgeKey] ?? 0) : 0;
           const isActive =
@@ -155,7 +155,7 @@ export function AppSidebar({
             <button
               key={id}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                "flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors md:w-full",
                 isActive
                   ? "bg-slate-900 font-medium text-white"
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
@@ -184,7 +184,7 @@ export function AppSidebar({
 
       {/* Alert badges — 마감 임박만 표시 */}
       {badges.deadline > 0 && (
-        <div className="space-y-1 border-t border-slate-100 p-3">
+        <div className="hidden space-y-1 border-t border-slate-100 p-3 md:block">
           <button
             className="flex w-full items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-left text-xs text-amber-700 hover:bg-amber-100"
             onClick={() => onNavigate("today")}
@@ -197,7 +197,7 @@ export function AppSidebar({
       )}
 
       {/* Monthly goal + User */}
-      <div className="space-y-2 border-t border-slate-100 p-3">
+      <div className="hidden space-y-2 border-t border-slate-100 p-3 md:block">
         <MonthlyGoalWidget appliedCount={appliedCount} />
         <p className="truncate text-xs text-slate-400">{userEmail}</p>
         <button
