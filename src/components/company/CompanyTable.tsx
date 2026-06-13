@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
+  PRIORITY_LABELS,
   STATUS_LABELS,
 } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { Company, CompanyScoreResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { STATUS_TONE } from "./shared";
+import { getPriorityTone, STATUS_TONE } from "./shared";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -53,7 +54,128 @@ export function CompanyTable({
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className="md:hidden">
+        <div className="space-y-3 px-3 py-3">
+          {onToggleSelected && (
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+              <input
+                aria-label="현재 목록 전체 선택"
+                checked={allSelected}
+                className="h-4 w-4 cursor-pointer accent-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={allCompanyIds.length === 0}
+                onChange={() => onSetSelectedIds?.(allSelected ? [] : allCompanyIds)}
+                type="checkbox"
+              />
+              현재 목록 전체 선택
+            </label>
+          )}
+          {pageCompanies.map((company) => {
+            const score = scoreMap.get(company.id);
+            const isSelected = selectedId === company.id;
+            const isChecked = selectedIds.includes(company.id);
+            const validationReasons = getCompanyValidationReasons(company);
+            const coreTags = getCoreTags(company, validationReasons);
+
+            return (
+              <article
+                aria-pressed={isSelected}
+                className={cn(
+                  "cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-50",
+                  isSelected && "border-slate-300 bg-slate-50",
+                  isChecked && "border-sky-200 bg-sky-50 ring-1 ring-inset ring-sky-200",
+                )}
+                key={company.id}
+                onClick={() => onSelect(company.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(company.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-950">
+                      {company.name}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Badge tone={STATUS_TONE[company.status]}>
+                        {STATUS_LABELS[company.status]}
+                      </Badge>
+                      <Badge tone={getPriorityTone(company.applicationPriority)}>
+                        {PRIORITY_LABELS[company.applicationPriority]}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div
+                    className="flex shrink-0 items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    {onToggleSelected && (
+                      <input
+                        aria-label={`${company.name} 선택`}
+                        checked={isChecked}
+                        className="h-4 w-4 cursor-pointer accent-sky-600"
+                        onChange={() => onToggleSelected(company.id)}
+                        type="checkbox"
+                      />
+                    )}
+                    <Button
+                      aria-label={`${company.name} 수정`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(company);
+                      }}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs font-medium text-slate-500">점수</dt>
+                    <dd className="mt-0.5 text-lg font-semibold leading-tight text-slate-950">
+                      {formatScore(score?.companyFitScore ?? 0)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-slate-500">마감일</dt>
+                    <dd className="mt-1 font-medium text-slate-700">
+                      {company.jobDeadline || "미확인"}
+                    </dd>
+                  </div>
+                </dl>
+
+                {coreTags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {coreTags.map((tag) => (
+                      <Badge key={tag} tone="slate">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <ChecklistDots checklist={company.applicationChecklist} />
+              </article>
+            );
+          })}
+        </div>
+        {companies.length === 0 && (
+          <div className="flex h-64 items-center justify-center text-sm text-slate-500">
+            조건에 맞는 회사가 없습니다.
+          </div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table
           aria-label="회사 목록"
           className="w-full min-w-[560px] border-collapse text-left text-sm"
@@ -251,6 +373,16 @@ export function CompanyTable({
       )}
     </div>
   );
+}
+
+function getCoreTags(company: Company, validationReasons: string[]): string[] {
+  return Array.from(
+    new Set([
+      ...validationReasons,
+      ...company.riskFlags,
+      company.industry,
+    ].filter(Boolean)),
+  ).slice(0, 3);
 }
 
 const CHECKLIST_KEYS: (keyof ApplicationChecklist)[] = [
