@@ -1719,6 +1719,7 @@ function PrepQuestionSection({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState("");
+  const [pendingDeleteQuestion, setPendingDeleteQuestion] = useState<string | null>(null);
 
   async function generateAiQuestions() {
     setGenLoading(true);
@@ -1896,7 +1897,7 @@ function PrepQuestionSection({
                   item={item}
                   key={item.id}
                   onAnswerChange={(text) => void patchAnswer(item.id, text)}
-                  onRemove={() => removeQuestion(item.id)}
+                  onRemove={() => setPendingDeleteQuestion(item.id)}
                   onToggle={() =>
                     setActiveId(activeId === item.id ? null : item.id)
                   }
@@ -1906,6 +1907,16 @@ function PrepQuestionSection({
           </div>
         ))
       )}
+      <ConfirmDialog
+        description="이 작업은 되돌릴 수 없습니다."
+        onCancel={() => setPendingDeleteQuestion(null)}
+        onConfirm={() => {
+          if (pendingDeleteQuestion) removeQuestion(pendingDeleteQuestion);
+          setPendingDeleteQuestion(null);
+        }}
+        open={pendingDeleteQuestion !== null}
+        title="준비 질문을 삭제할까요?"
+      />
     </section>
   );
 }

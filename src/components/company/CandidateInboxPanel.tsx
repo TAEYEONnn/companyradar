@@ -4,6 +4,7 @@ import { CheckCircle2, ExternalLink, Inbox, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import {
   DISCOVERY_REASON_LABELS,
@@ -52,6 +53,7 @@ export function CandidateInboxPanel({
     discoveryReason: "manual",
     firstImpressionNote: "",
   });
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   function submitCandidate() {
     if (!draft.sourceUrl.trim() && !draft.rawText.trim()) return;
@@ -180,7 +182,7 @@ export function CandidateInboxPanel({
                   </Button>
                   <Button
                     aria-label="후보 삭제"
-                    onClick={() => onDelete(candidate.id)}
+                    onClick={() => setPendingDeleteId(candidate.id)}
                     size="icon"
                     variant="ghost"
                   >
@@ -226,6 +228,16 @@ export function CandidateInboxPanel({
           ) : null}
         </div>
       </div>
+      <ConfirmDialog
+        description="이 작업은 되돌릴 수 없습니다."
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) onDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+        open={pendingDeleteId !== null}
+        title="후보를 삭제할까요?"
+      />
     </section>
   );
 }

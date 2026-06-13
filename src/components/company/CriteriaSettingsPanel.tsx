@@ -288,7 +288,7 @@ export function CriteriaSettingsPanel({
           <span>
             <span className="block text-sm font-medium">세부 평가 기준</span>
             <span className="block text-xs text-slate-500">
-              가중치 합계 {Math.round(weightSum * 100)}%. 계산 시 자동 정규화됩니다.
+              합계 {Math.round(weightSum * 100)}%. 100%를 넘으면 비율에 맞게 자동 조정됩니다.
             </span>
           </span>
           <ChevronDown
@@ -355,9 +355,9 @@ export function CriteriaSettingsPanel({
               ))}
               <div className="grid grid-cols-[1fr_120px] items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
                 <div>
-                  <div className="text-sm font-medium">리스크 높음 기준</div>
+                  <div className="text-sm font-medium">리스크 경고 기준</div>
                   <div className="text-xs text-slate-500">
-                    걱정되는 점이 이 개수 이상이면 리스크 뱃지를 표시합니다.
+                    걱정되는 항목이 이 수 이상이면 카드에 리스크 경고를 표시합니다.
                   </div>
                 </div>
                 <Input
@@ -446,9 +446,9 @@ export function CriteriaSettingsPanel({
           type="button"
         >
           <span>
-            <span className="block text-sm font-medium">고급 백업</span>
+            <span className="block text-sm font-medium">데이터 백업 · 복원</span>
             <span className="block text-xs text-slate-500">
-              JSON 가져오기/내보내기는 계정 저장의 보조 수단입니다.
+              JSON으로 내보내거나 가져와 데이터를 백업하고 복원합니다.
             </span>
           </span>
           <ChevronDown
@@ -524,7 +524,7 @@ export function CriteriaSettingsPanel({
             />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
-                긴급 문의는 companysignal.app@gmail.com 으로도 받을 수 있습니다.
+                긴급 문의는 companyradar.app@gmail.com 으로도 받을 수 있습니다.
               </p>
               <Button
                 disabled={submitting === "support"}
