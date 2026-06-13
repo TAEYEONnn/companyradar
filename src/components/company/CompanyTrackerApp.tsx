@@ -756,8 +756,6 @@ export function CompanyTrackerApp() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top header */}
         <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 sm:px-5">
-          <span className="text-sm font-semibold text-slate-700">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-5">
           <Button
             aria-label="메뉴 열기"
             className="md:hidden"
@@ -792,7 +790,6 @@ export function CompanyTrackerApp() {
 
         {/* Summary bar */}
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 sm:px-5">
-        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 md:gap-3 md:px-5">
           <span className="font-medium text-slate-800">{companies.length}개 회사</span>
           <span>·</span>
           <span>진행중 {summary.active}</span>

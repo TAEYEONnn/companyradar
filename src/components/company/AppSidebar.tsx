@@ -139,10 +139,9 @@ export function AppSidebar({
   onSignOut,
 }: AppSidebarProps) {
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[200px] md:border-b-0 md:border-r">
     <aside
       className={cn(
-        "flex w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white",
+        "flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[200px] md:border-b-0 md:border-r",
         className,
       )}
     >
