@@ -215,6 +215,7 @@ export function CriteriaSettingsPanel({
       userRole: role,
       weights: ROLE_WEIGHT_PRESETS[role],
     });
+    onToast(`${ROLE_LABELS[role]} 직군으로 변경했어요. 평가 기준이 맞게 조정됐습니다.`);
   }
 
   return (

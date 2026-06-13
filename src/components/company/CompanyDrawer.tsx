@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
@@ -33,10 +33,14 @@ interface CompanyDrawerProps {
   userId: string;
   focusTarget?: DrawerFocusTarget;
   settings?: CriteriaSettings;
+  hasPrev?: boolean;
+  hasNext?: boolean;
   onClose: () => void;
   onDelete: (id: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (id: string, patch: Partial<Company>) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
   onToast?: (message: string) => void;
 }
 
@@ -47,20 +51,26 @@ export function CompanyDrawer({
   userId,
   focusTarget,
   settings,
+  hasPrev = false,
+  hasNext = false,
   onClose,
   onDelete,
   onEdit,
   onPatch,
+  onPrev,
+  onNext,
   onToast,
 }: CompanyDrawerProps) {
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && onPrev) onPrev();
+      if (e.key === "ArrowRight" && onNext) onNext();
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+  }, [open, onClose, onPrev, onNext]);
 
   return (
     <>
@@ -85,6 +95,30 @@ export function CompanyDrawer({
         {company && score ? (
           <>
             <DeadlineAlert company={company} />
+            {(onPrev || onNext) && (
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-1.5">
+                <button
+                  aria-label="이전 회사"
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-slate-500 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30"
+                  disabled={!hasPrev}
+                  onClick={onPrev}
+                  type="button"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  이전
+                </button>
+                <button
+                  aria-label="다음 회사"
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs text-slate-500 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30"
+                  disabled={!hasNext}
+                  onClick={onNext}
+                  type="button"
+                >
+                  다음
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <CompanyDetailPanel
               company={company}
               focusTarget={focusTarget}

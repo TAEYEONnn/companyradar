@@ -9,7 +9,7 @@ import {
   DISCOVERY_REASON_LABELS,
   DISCOVERY_REASON_OPTIONS,
 } from "@/lib/criteria";
-import type { CandidateInboxItem, DiscoveryReason } from "@/lib/types";
+import type { CandidateInboxItem, Company, DiscoveryReason } from "@/lib/types";
 
 interface CandidateDraft {
   sourceUrl: string;
@@ -20,10 +20,12 @@ interface CandidateDraft {
 
 interface CandidateInboxPanelProps {
   candidates: CandidateInboxItem[];
+  companies: Company[];
   onBack: () => void;
   onCreate: (draft: CandidateDraft) => void;
   onDelete: (candidateId: string) => void;
   onPromote: (candidate: CandidateInboxItem) => void;
+  onSelectCompany?: (id: string) => void;
 }
 
 const PARSE_STATUS_LABELS: Record<CandidateInboxItem["parseStatus"], string> = {
@@ -37,10 +39,12 @@ const PARSE_STATUS_LABELS: Record<CandidateInboxItem["parseStatus"], string> = {
 
 export function CandidateInboxPanel({
   candidates,
+  companies,
   onBack,
   onCreate,
   onDelete,
   onPromote,
+  onSelectCompany,
 }: CandidateInboxPanelProps) {
   const [draft, setDraft] = useState<CandidateDraft>({
     sourceUrl: "",
@@ -197,7 +201,18 @@ export function CandidateInboxPanel({
               ) : null}
               {candidate.promotedCompanyId ? (
                 <p className="mt-2 text-xs text-emerald-700">
-                  회사 목록으로 승격됨: {candidate.promotedCompanyId}
+                  회사 목록으로 승격됨:{" "}
+                  {onSelectCompany ? (
+                    <button
+                      className="font-medium underline hover:text-emerald-900"
+                      onClick={() => onSelectCompany(candidate.promotedCompanyId!)}
+                      type="button"
+                    >
+                      {companies.find((c) => c.id === candidate.promotedCompanyId)?.name ?? candidate.promotedCompanyId}
+                    </button>
+                  ) : (
+                    (companies.find((c) => c.id === candidate.promotedCompanyId)?.name ?? candidate.promotedCompanyId)
+                  )}
                 </p>
               ) : null}
             </article>

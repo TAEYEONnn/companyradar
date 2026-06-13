@@ -970,10 +970,15 @@ export function CompanyTrackerApp() {
             ) : viewMode === "inbox" ? (
               <CandidateInboxPanel
                 candidates={candidates}
+                companies={companies}
                 onBack={() => setViewMode("dashboard")}
                 onCreate={createCandidate}
                 onDelete={removeCandidate}
                 onPromote={promoteCandidate}
+                onSelectCompany={(id) => {
+                  setViewMode("dashboard");
+                  openCompanyDrawer(id);
+                }}
               />
             ) : viewMode === "stats" ? (
               <StatsPanel
@@ -1099,7 +1104,13 @@ export function CompanyTrackerApp() {
                 ) : (
                   <CompanyTable
                     companies={filteredCompanies}
+                    onAddCompany={startCreate}
                     onEdit={startEdit}
+                    onResetFilter={() => {
+                      setQuery("");
+                      setStatusFilter("all");
+                      setAdvancedFilter(EMPTY_ADVANCED_FILTER);
+                    }}
                     onSelect={openCompanyDrawer}
                     onSetSelectedIds={setSelectedCompanyIds}
                     onToggleSelected={(id) =>
@@ -1133,7 +1144,16 @@ export function CompanyTrackerApp() {
       <CompanyDrawer
         company={selectedCompany ?? null}
         focusTarget={drawerFocusTarget}
-        settings={settings}
+        hasNext={
+          selectedCompany
+            ? filteredCompanies.findIndex((c) => c.id === selectedCompany.id) < filteredCompanies.length - 1
+            : false
+        }
+        hasPrev={
+          selectedCompany
+            ? filteredCompanies.findIndex((c) => c.id === selectedCompany.id) > 0
+            : false
+        }
         onClose={() => setDrawerOpen(false)}
         onDelete={(id) => {
           setPendingDeleteId(id);
@@ -1143,10 +1163,23 @@ export function CompanyTrackerApp() {
           startEdit(company);
           setDrawerOpen(false);
         }}
+        onNext={() => {
+          if (!selectedCompany) return;
+          const idx = filteredCompanies.findIndex((c) => c.id === selectedCompany.id);
+          const next = filteredCompanies[idx + 1];
+          if (next) openCompanyDrawer(next.id);
+        }}
         onPatch={patchCompany}
+        onPrev={() => {
+          if (!selectedCompany) return;
+          const idx = filteredCompanies.findIndex((c) => c.id === selectedCompany.id);
+          const prev = filteredCompanies[idx - 1];
+          if (prev) openCompanyDrawer(prev.id);
+        }}
         onToast={showToast}
         open={drawerOpen}
         score={selectedScore ?? null}
+        settings={settings}
         userId={userId}
       />
 

@@ -28,6 +28,8 @@ interface CompanyTableProps {
   onSelect: (id: string) => void;
   onSetSelectedIds?: (ids: string[]) => void;
   onToggleSelected?: (id: string) => void;
+  onResetFilter?: () => void;
+  onAddCompany?: () => void;
 }
 
 export function CompanyTable({
@@ -39,6 +41,8 @@ export function CompanyTable({
   onSelect,
   onSetSelectedIds,
   onToggleSelected,
+  onResetFilter,
+  onAddCompany,
 }: CompanyTableProps) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
@@ -169,8 +173,20 @@ export function CompanyTable({
           })}
         </div>
         {companies.length === 0 && (
-          <div className="flex h-64 items-center justify-center text-sm text-slate-500">
-            조건에 맞는 회사가 없습니다.
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
+            <span>조건에 맞는 회사가 없습니다.</span>
+            <div className="flex gap-2">
+              {onResetFilter && (
+                <Button onClick={onResetFilter} size="sm" variant="secondary">
+                  필터 초기화
+                </Button>
+              )}
+              {onAddCompany && (
+                <Button onClick={onAddCompany} size="sm">
+                  회사 추가
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -300,8 +316,20 @@ export function CompanyTable({
           </tbody>
         </table>
         {companies.length === 0 && (
-          <div className="flex h-64 items-center justify-center text-sm text-slate-500">
-            조건에 맞는 회사가 없습니다.
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
+            <span>조건에 맞는 회사가 없습니다.</span>
+            <div className="flex gap-2">
+              {onResetFilter && (
+                <Button onClick={onResetFilter} size="sm" variant="secondary">
+                  필터 초기화
+                </Button>
+              )}
+              {onAddCompany && (
+                <Button onClick={onAddCompany} size="sm">
+                  회사 추가
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
