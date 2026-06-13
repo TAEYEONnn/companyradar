@@ -336,13 +336,25 @@ export function CompanyDetailPanel({
           </div>
           <p className="mt-1 text-sm text-slate-500">{company.industry}</p>
           {validationReasons.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {validationReasons.map((reason) => (
-                <Badge key={reason} tone="amber">
-                  {reason}
-                </Badge>
-              ))}
-            </div>
+            <>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {validationReasons.map((reason) => (
+                  <Badge key={reason} tone="amber">
+                    {reason}
+                  </Badge>
+                ))}
+              </div>
+              <div className="mt-2">
+                <Button
+                  onClick={() => onPatch(company.id, getValidationCompletePatch(today()))}
+                  size="sm"
+                  variant="secondary"
+                >
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  검증 완료
+                </Button>
+              </div>
+            </>
           )}
         </div>
         <div className="flex gap-1">

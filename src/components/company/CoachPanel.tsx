@@ -108,6 +108,9 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         applicationPriority: c.applicationPriority,
         fitScore: scoreMap.get(c.id)?.companyFitScore,
         jobDeadline: c.jobDeadline,
+        followUpDueDates: c.followUpTasks
+          .filter((t) => !t.completed && t.dueDate)
+          .map((t) => t.dueDate),
         interviewCount: c.interviewRounds.length,
         validationReasons: getCompanyValidationReasons(c),
       }));

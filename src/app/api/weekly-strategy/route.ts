@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     .slice(0, 20)
     .map(
       (c) =>
-        `- ${c.name}: 상태=${c.status}, 우선순위=${c.applicationPriority ?? "?"}, 핏=${c.fitScore?.toFixed(1) ?? "?"}, 마감=${c.jobDeadline || "없음"}, 면접=${c.interviewCount ?? 0}회, 검증사유=${(c.validationReasons ?? []).join(",") || "없음"}`,
+        `- ${c.name}: 상태=${c.status}, 우선순위=${c.applicationPriority ?? "?"}, 핏=${c.fitScore?.toFixed(1) ?? "?"}, 마감=${c.jobDeadline || "없음"}, 면접=${c.interviewCount ?? 0}회, 할일마감=${(c.followUpDueDates ?? []).join(",") || "없음"}, 검증사유=${(c.validationReasons ?? []).join(",") || "없음"}`,
     )
     .join("\n");
 

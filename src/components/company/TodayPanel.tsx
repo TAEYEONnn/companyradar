@@ -49,6 +49,12 @@ const URGENCY_CONFIG: Record<Urgency, { dot: string; label: string; meta: string
   low: { dot: "bg-slate-300", label: "text-slate-600", meta: "text-slate-400" },
 };
 
+const SECTION_GROUPS: { label: string; urgencies: Urgency[] }[] = [
+  { label: "기한 초과", urgencies: ["overdue"] },
+  { label: "이번 주", urgencies: ["high"] },
+  { label: "나머지", urgencies: ["medium", "low"] },
+];
+
 interface TodayPanelProps {
   companies: Company[];
   onCompleteFollowUpTask: (companyId: string, taskId: string) => void;
@@ -262,86 +268,111 @@ export function TodayPanel({
           <p className="text-sm">오늘 할 일이 없습니다. 잘 하고 계세요!</p>
         </div>
       ) : (
-        <ul className="divide-y divide-slate-100 py-1">
-          {items.map((item) => {
-            const cfg = URGENCY_CONFIG[item.urgency];
+        <div className="py-1">
+          {SECTION_GROUPS.map(({ label, urgencies }) => {
+            const groupItems = items.filter((i) => urgencies.includes(i.urgency));
+            if (groupItems.length === 0) return null;
             return (
-              <li
-                key={item.id}
-                className="flex items-start gap-3 px-4 py-3"
-              >
-                {item.canCompleteDirectly && item.taskId ? (
-                  <button
-                    aria-label={`${item.action} 완료`}
-                    className="mt-0.5 shrink-0"
-                    onClick={() => onCompleteFollowUpTask(item.companyId, item.taskId!)}
-                    type="button"
-                  >
-                    <div className="flex h-4 w-4 items-center justify-center rounded border-2 border-slate-300 transition-colors hover:border-emerald-500 hover:bg-emerald-50" />
-                  </button>
-                ) : (
-                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50">
-                    {item.type === "validation" ? (
-                      <ShieldCheck className="h-3 w-3 text-amber-500" />
-                    ) : (
-                      <ArrowRight className="h-3 w-3 text-slate-400" />
-                    )}
-                  </div>
-                )}
-
-                {/* 긴급도 도트 */}
-                <div className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", cfg.dot)} />
-
-                {/* 내용 */}
-                <div className="min-w-0 flex-1">
-                  <button
-                    className={cn(
-                      "w-full text-left text-sm leading-snug transition-colors hover:text-slate-950",
-                      cfg.label,
-                    )}
-                    onClick={() => onSelectCompany(item.companyId)}
-                    type="button"
-                  >
-                    <span className="font-medium">{item.companyName}</span>{" "}
-                    {item.action}
-                  </button>
-                  {item.meta && (
-                    <p className={cn("mt-0.5 text-xs", cfg.meta)}>
-                      {item.meta}
-                    </p>
-                  )}
-                  {item.validationReasons && item.validationReasons.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {item.validationReasons.slice(0, 4).map((reason) => (
-                        <Badge key={reason} tone="amber">
-                          {reason}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {item.type === "validation" && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        onClick={() => onSelectCompany(item.companyId)}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        상세 확인
-                      </Button>
-                      <Button
-                        onClick={() => onMarkVerified(item.companyId)}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        검증 완료
-                      </Button>
-                    </div>
-                  )}
+              <div key={label}>
+                <div className="px-4 pb-1 pt-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {label}
+                  </span>
                 </div>
-              </li>
+                <ul className="divide-y divide-slate-100">
+                  {groupItems.map((item) => {
+                    const cfg = URGENCY_CONFIG[item.urgency];
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-start gap-3 px-4 py-3"
+                      >
+                        {item.canCompleteDirectly && item.taskId ? (
+                          <button
+                            aria-label={`${item.action} 완료`}
+                            className="mt-0.5 shrink-0"
+                            onClick={() => onCompleteFollowUpTask(item.companyId, item.taskId!)}
+                            type="button"
+                          >
+                            <div className="flex h-4 w-4 items-center justify-center rounded border-2 border-slate-300 transition-colors hover:border-emerald-500 hover:bg-emerald-50" />
+                          </button>
+                        ) : (
+                          <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50">
+                            {item.type === "validation" ? (
+                              <ShieldCheck className="h-3 w-3 text-amber-500" />
+                            ) : (
+                              <ArrowRight className="h-3 w-3 text-slate-400" />
+                            )}
+                          </div>
+                        )}
+
+                        {/* 긴급도 도트 */}
+                        <div className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", cfg.dot)} />
+
+                        {/* 내용 */}
+                        <div className="min-w-0 flex-1">
+                          <button
+                            className={cn(
+                              "w-full text-left text-sm leading-snug transition-colors hover:text-slate-950",
+                              cfg.label,
+                            )}
+                            onClick={() => onSelectCompany(item.companyId)}
+                            type="button"
+                          >
+                            <span className="font-medium">{item.companyName}</span>{" "}
+                            {item.action}
+                          </button>
+                          {item.meta && (
+                            <p className={cn("mt-0.5 text-xs", cfg.meta)}>
+                              {item.meta}
+                            </p>
+                          )}
+                          {item.validationReasons && item.validationReasons.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {item.validationReasons.slice(0, 4).map((reason) => (
+                                <Badge key={reason} tone="amber">
+                                  {reason}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {item.type === "validation" ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button
+                                onClick={() => onSelectCompany(item.companyId)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                상세 확인
+                              </Button>
+                              <Button
+                                onClick={() => onMarkVerified(item.companyId)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                검증 완료
+                              </Button>
+                            </div>
+                          ) : !item.canCompleteDirectly && (
+                            <div className="mt-2">
+                              <Button
+                                onClick={() => onSelectCompany(item.companyId)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                처리하기
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
     </section>
   );
