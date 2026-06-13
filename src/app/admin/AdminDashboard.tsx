@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseClient } from "@/lib/supabase-client";
+
+const REPLY_SIGNATURE = `\n\n---\nCompanyRadar 운영팀\ncompanyradar.app@gmail.com`;
 
 type SupportRequest = {
   id: string;
@@ -168,9 +171,18 @@ export function AdminDashboard({
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-slate-900">운영자 대시보드</h1>
-          <p className="mt-1 text-sm text-slate-500">문의·환불·탈퇴 요청을 관리합니다.</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">운영자 대시보드</h1>
+            <p className="mt-1 text-sm text-slate-500">문의·환불·탈퇴 요청을 관리합니다.</p>
+          </div>
+          <a
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            href="/"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            앱으로 돌아가기
+          </a>
         </div>
 
         {/* 탭 */}
@@ -249,8 +261,8 @@ export function AdminDashboard({
                       className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       href={buildMailtoLink(
                         req.email,
-                        `Re: [Company Signal] ${req.subject}`,
-                        `안녕하세요.\n\n문의해 주셔서 감사합니다.\n\n---\n원문: ${req.message}`,
+                        `Re: [CompanyRadar] ${req.subject}`,
+                        `안녕하세요.\n\n문의해 주셔서 감사합니다.\n\n---\n원문: ${req.message}${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기
@@ -306,8 +318,8 @@ export function AdminDashboard({
                       className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       href={buildMailtoLink(
                         req.email,
-                        `Re: [Company Signal] 환불 요청 확인`,
-                        `안녕하세요.\n\n환불 요청을 확인했습니다.\n\n---\n사유: ${req.reason}`,
+                        `Re: [CompanyRadar] 환불 요청 확인`,
+                        `안녕하세요.\n\n환불 요청을 확인했습니다.\n\n---\n사유: ${req.reason}${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기
@@ -357,8 +369,8 @@ export function AdminDashboard({
                       className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       href={buildMailtoLink(
                         req.email,
-                        `Re: [Company Signal] 회원탈퇴 요청 확인`,
-                        `안녕하세요.\n\n탈퇴 요청을 확인했습니다. 처리 후 안내 드리겠습니다.\n\n---\n사유: ${req.reason}`,
+                        `Re: [CompanyRadar] 회원탈퇴 요청 확인`,
+                        `안녕하세요.\n\n탈퇴 요청을 확인했습니다. 처리 후 안내 드리겠습니다.\n\n---\n사유: ${req.reason}${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기

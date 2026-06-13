@@ -181,23 +181,23 @@ export function CompanyTrackerApp() {
 
   // 초기 로드: 사용자별 localStorage → Supabase user-owned rows → user-owned seed
   useEffect(() => {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     queueMicrotask(async () => {
       setIsReady(false);
       setRemotePushEnabled(true);
 
-      const userScopedCompanies = readUserScopedCompanies(userId);
+      const userScopedCompanies = readUserScopedCompanies(effectiveUserId);
       const legacyCompanies = readLegacyCompanies();
       const loadedCompanies = userScopedCompanies;
-      const loadedSettings = localStorageRepository.loadSettings(userId);
-      const preferredRole = loadedSettings.userRole ?? loadUserRole(userId) ?? "designer";
-      const migrationCompletedAt = getMigrationCompletedAt(userId);
+      const loadedSettings = localStorageRepository.loadSettings(effectiveUserId);
+      const preferredRole = loadedSettings.userRole ?? loadUserRole(effectiveUserId) ?? "designer";
+      const migrationCompletedAt = getMigrationCompletedAt(effectiveUserId);
       setSettings(loadedSettings);
       if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
         setShowOnboarding(true);
       }
 
-      const remoteCandidates = await pullCandidateInboxItems(userId);
+      const remoteCandidates = userId ? await pullCandidateInboxItems(userId) : [];
       if (remoteCandidates === null) {
         setCandidates([]);
         showToast("Candidate Inbox 테이블을 불러오지 못했습니다. migration 적용을 확인하세요.");
@@ -207,7 +207,7 @@ export function CompanyTrackerApp() {
 
       let remoteCompanies: Company[] = [];
 
-      if (isRemoteSyncEnabled()) {
+      if (isRemoteSyncEnabled() && userId) {
         const remote = await pullRemoteCompanies(userId);
         if (remote === null) {
           const fallbackCompanies = normalizeSamplesForRole(
@@ -259,7 +259,7 @@ export function CompanyTrackerApp() {
         setStorageWriteEnabled(true);
         setIsReady(true);
 
-        if (isRemoteSyncEnabled() && mergedDiffersFromRemote) {
+        if (isRemoteSyncEnabled() && userId && mergedDiffersFromRemote) {
           void pushRemoteCompanies(merged, userId);
         }
 
@@ -278,7 +278,7 @@ export function CompanyTrackerApp() {
         setRemotePushEnabled(true);
         setStorageWriteEnabled(true);
         setIsReady(true);
-        if (isRemoteSyncEnabled()) {
+        if (isRemoteSyncEnabled() && userId) {
           void pushRemoteCompanies(normalizedCompanies, userId);
         }
         return;
@@ -292,14 +292,14 @@ export function CompanyTrackerApp() {
       if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
         setShowOnboarding(true);
       }
-      if (isRemoteSyncEnabled()) {
+      if (isRemoteSyncEnabled() && userId) {
         void pushRemoteCompanies(ownedSeed, userId);
       }
     });
-  }, [devToolsEnabled, userEmail, userId]);
+  }, [devToolsEnabled, userEmail, userId, effectiveUserId]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     queueMicrotask(async () => {
       const token = session?.access_token;
       if (!token) return;
@@ -317,17 +317,17 @@ export function CompanyTrackerApp() {
 
   // 저장: localStorage 즉시 + Supabase 디바운스 push
   useEffect(() => {
-    if (!isReady || !userId) return;
+    if (!isReady || !effectiveUserId) return;
     if (storageWriteEnabled) {
-      localStorageRepository.saveCompanies(companies, userId);
+      localStorageRepository.saveCompanies(companies, effectiveUserId);
     }
-    if (remotePushEnabled) debouncedPushRef.current(companies, userId);
-  }, [companies, isReady, remotePushEnabled, storageWriteEnabled, userId]);
+    if (remotePushEnabled && userId) debouncedPushRef.current(companies, userId);
+  }, [companies, isReady, remotePushEnabled, storageWriteEnabled, userId, effectiveUserId]);
 
   useEffect(() => {
-    if (!isReady || !userId) return;
-    localStorageRepository.saveSettings(settings, userId);
-  }, [settings, isReady, userId]);
+    if (!isReady || !effectiveUserId) return;
+    localStorageRepository.saveSettings(settings, effectiveUserId);
+  }, [settings, isReady, userId, effectiveUserId]);
 
   function showToast(message: string) {
     setToast(message);
@@ -476,7 +476,7 @@ export function CompanyTrackerApp() {
   }
 
   function confirmDeleteCompany() {
-    if (!pendingDeleteId || !userId) return;
+    if (!pendingDeleteId || !effectiveUserId) return;
     const companyId = pendingDeleteId;
     setCompanies((current) =>
       current.filter((company) => company.id !== companyId),
@@ -486,21 +486,23 @@ export function CompanyTrackerApp() {
         companies.find((company) => company.id !== companyId)?.id ?? "",
       );
     }
-    void deleteRemoteCompany(companyId, userId);
+    if (userId) void deleteRemoteCompany(companyId, userId);
     setPendingDeleteId(null);
     setDrawerOpen(false);
   }
 
   function confirmSelectedDeleteCompanies() {
-    if (selectedCompanyIds.length === 0 || !userId) return;
+    if (selectedCompanyIds.length === 0 || !effectiveUserId) return;
     const ids = new Set(selectedCompanyIds);
     setCompanies((current) => current.filter((company) => !ids.has(company.id)));
     if (ids.has(selectedId)) {
       setSelectedId(companies.find((company) => !ids.has(company.id))?.id ?? "");
       setDrawerOpen(false);
     }
-    for (const id of selectedCompanyIds) {
-      void deleteRemoteCompany(id, userId);
+    if (userId) {
+      for (const id of selectedCompanyIds) {
+        void deleteRemoteCompany(id, userId);
+      }
     }
     setSelectedCompanyIds([]);
     setSelectedDeleteOpen(false);
@@ -597,15 +599,15 @@ export function CompanyTrackerApp() {
   }
 
   function resetSampleData() {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     const ownedSeed = cloneSampleCompaniesForUser(settings.userRole ?? "designer");
-    localStorageRepository.reset(userId);
+    localStorageRepository.reset(effectiveUserId);
     setCompanies(ownedSeed);
     setSettings(DEFAULT_CRITERIA_SETTINGS);
     setSelectedId(ownedSeed[0]?.id ?? "");
     setSelectedCompanyIds([]);
     setRemotePushEnabled(true);
-    if (isRemoteSyncEnabled()) {
+    if (isRemoteSyncEnabled() && userId) {
       void pushRemoteCompanies(ownedSeed, userId);
     }
     setSampleResetOpen(false);
@@ -617,7 +619,7 @@ export function CompanyTrackerApp() {
     discoveryReason: DiscoveryReason;
     firstImpressionNote: string;
   }) {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     const now = new Date().toISOString();
     const candidate: CandidateInboxItem = {
       id: createId("candidate"),
@@ -633,23 +635,27 @@ export function CompanyTrackerApp() {
       updatedAt: now,
     };
     setCandidates((current) => [candidate, ...current]);
-    void upsertCandidateInboxItem(candidate, userId).then((saved) => {
-      if (!saved) showToast("Candidate Inbox 저장에 실패했습니다.");
-    });
+    if (userId) {
+      void upsertCandidateInboxItem(candidate, userId).then((saved) => {
+        if (!saved) showToast("후보 저장에 실패했습니다.");
+      });
+    }
   }
 
   function removeCandidate(candidateId: string) {
-    if (!userId) return;
+    if (!effectiveUserId) return;
     setCandidates((current) =>
       current.filter((candidate) => candidate.id !== candidateId),
     );
-    void deleteCandidateInboxItem(candidateId, userId).then((deleted) => {
-      if (!deleted) showToast("Candidate Inbox 삭제에 실패했습니다.");
-    });
+    if (userId) {
+      void deleteCandidateInboxItem(candidateId, userId).then((deleted) => {
+        if (!deleted) showToast("후보 삭제에 실패했습니다.");
+      });
+    }
   }
 
   function promoteCandidate(candidate: CandidateInboxItem) {
-    if (!userId || candidate.promotedCompanyId) return;
+    if (!effectiveUserId || candidate.promotedCompanyId) return;
     const company = createCompanyFromCandidate(candidate);
     upsertCompany(company);
     const updatedCandidate = {
@@ -663,10 +669,12 @@ export function CompanyTrackerApp() {
         item.id === candidate.id ? updatedCandidate : item,
       ),
     );
-    void upsertCandidateInboxItem(updatedCandidate, userId).then((saved) => {
-      if (!saved) showToast("승격 상태 저장에 실패했습니다.");
-    });
-    showToast(`${company.name} 후보를 회사 목록으로 승격했습니다.`);
+    if (userId) {
+      void upsertCandidateInboxItem(updatedCandidate, userId).then((saved) => {
+        if (!saved) showToast("추가 상태 저장에 실패했습니다.");
+      });
+    }
+    showToast(`${company.name}을 회사 목록에 추가했습니다.`);
   }
 
   async function signOut() {
@@ -715,8 +723,8 @@ export function CompanyTrackerApp() {
       } = await parseBackupFile(file);
       setCompanies((current) => mergeCompanies(current, incoming));
       if (importedSettings) setSettings(importedSettings);
-      if (encryptionKey && userId) {
-        await importAndSaveEncryptionKey(userId, encryptionKey);
+      if (encryptionKey && effectiveUserId) {
+        await importAndSaveEncryptionKey(effectiveUserId, encryptionKey);
       }
       const keyMsg = encryptionKey ? " (암호화 키 복원 완료)" : "";
       showToast(`${incoming.length}개 회사를 가져왔습니다.${keyMsg}`);
@@ -971,7 +979,7 @@ export function CompanyTrackerApp() {
                 onBack={() => setViewMode("dashboard")}
                 onChange={updateSettings}
                 onDeleteAccount={deleteAccount}
-                onExport={() => void exportBackup(companies, settings, userId)}
+                onExport={() => void exportBackup(companies, settings, effectiveUserId)}
                 onImportFile={handleImportFile}
                 onResetPassword={() => void resetPassword()}
                 onSignOut={() => void signOut()}

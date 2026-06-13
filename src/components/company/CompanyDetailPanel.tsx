@@ -167,8 +167,8 @@ export function CompanyDetailPanel({
       label: "면접",
       count: company.interviewRounds.length + company.interviewNotes.length,
     },
-    { id: "private", label: "민감 메모" },
-    { id: "ai", label: "AI" },
+    { id: "private", label: "비공개 메모" },
+    { id: "ai", label: "AI 분석" },
   ];
 
   useEffect(() => {
@@ -696,7 +696,7 @@ export function CompanyDetailPanel({
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-7 text-slate-500">체크된 걱정되는 점이 없습니다.</p>
+            <p className="text-sm leading-7 text-slate-500">걱정되는 항목이 없습니다.</p>
           )}
         </section>
 
@@ -1028,7 +1028,7 @@ export function CompanyDetailPanel({
               value={taskDraft.title}
             />
             <Input
-              aria-label="할일 기한"
+              aria-label="기한"
               onChange={(event) =>
                 setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
               }

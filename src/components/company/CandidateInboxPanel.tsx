@@ -148,7 +148,7 @@ export function CandidateInboxPanel({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={candidate.needsReview ? "amber" : "green"}>
-                      {candidate.needsReview ? "검토 필요" : "승격됨"}
+                      {candidate.needsReview ? "확인 필요" : "추가됨"}
                     </Badge>
                     <Badge tone="slate">
                       {PARSE_STATUS_LABELS[candidate.parseStatus]}
@@ -170,7 +170,7 @@ export function CandidateInboxPanel({
                 </div>
                 <div className="flex gap-1">
                   <Button
-                    aria-label="회사로 승격"
+                    aria-label="회사 목록에 추가"
                     disabled={Boolean(candidate.promotedCompanyId)}
                     onClick={() => onPromote(candidate)}
                     size="icon"
@@ -201,7 +201,7 @@ export function CandidateInboxPanel({
               ) : null}
               {candidate.promotedCompanyId ? (
                 <p className="mt-2 text-xs text-emerald-700">
-                  회사 목록으로 승격됨:{" "}
+                  회사 목록에 추가됨:{" "}
                   {onSelectCompany ? (
                     <button
                       className="font-medium underline hover:text-emerald-900"
@@ -219,8 +219,9 @@ export function CandidateInboxPanel({
           ))}
 
           {candidates.length === 0 ? (
-            <div className="flex min-h-64 items-center justify-center rounded-md border border-dashed border-slate-300 text-sm text-slate-500">
-              저장된 후보가 없습니다.
+            <div className="flex min-h-64 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-500">
+              <p>아직 후보가 없습니다.</p>
+              <p className="text-xs text-slate-400">공고 URL이나 메모를 위에서 추가해 보세요.</p>
             </div>
           ) : null}
         </div>

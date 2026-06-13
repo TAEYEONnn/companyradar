@@ -53,7 +53,7 @@ const URGENCY_CONFIG: Record<Urgency, { dot: string; label: string; meta: string
 const SECTION_GROUPS: { label: string; urgencies: Urgency[] }[] = [
   { label: "기한 초과", urgencies: ["overdue"] },
   { label: "이번 주", urgencies: ["high"] },
-  { label: "나머지", urgencies: ["medium", "low"] },
+  { label: "이후 예정", urgencies: ["medium", "low"] },
 ];
 
 interface TodayPanelProps {
@@ -451,7 +451,7 @@ export function TodayPanel({
                                 size="sm"
                                 variant="secondary"
                               >
-                                처리하기
+                                확인하기
                               </Button>
                             </div>
                           )}
