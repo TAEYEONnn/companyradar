@@ -310,8 +310,8 @@ export function CompanyDetailPanel({
   }
 
   return (
-    <aside className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+    <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-4">
         <div className="min-w-0 flex-1">
           {onBack ? (
             <button
@@ -367,7 +367,7 @@ export function CompanyDetailPanel({
         </div>
       </div>
 
-      <div className="max-h-[790px] space-y-5 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         <section className="grid grid-cols-3 gap-2">
           <Metric label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />

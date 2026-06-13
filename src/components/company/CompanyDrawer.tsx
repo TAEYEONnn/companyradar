@@ -71,7 +71,7 @@ export function CompanyDrawer({
       <aside
         aria-label="회사 상세"
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-full w-[520px] flex-col bg-white shadow-2xl transition-transform duration-200 ease-in-out",
+          "fixed right-0 top-0 z-50 flex h-full w-full flex-col bg-white shadow-2xl transition-transform duration-200 ease-in-out sm:w-[520px]",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >
@@ -81,15 +81,15 @@ export function CompanyDrawer({
             <CompanyDetailPanel
               company={company}
               onBack={onClose}
-            onDelete={(id) => {
-              onDelete(id);
-              onClose();
-            }}
-            onEdit={onEdit}
-            onPatch={onPatch}
-            score={score}
-            userId={userId}
-          />
+              onDelete={(id) => {
+                onDelete(id);
+                onClose();
+              }}
+              onEdit={onEdit}
+              onPatch={onPatch}
+              score={score}
+              userId={userId}
+            />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
