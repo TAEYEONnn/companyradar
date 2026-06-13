@@ -8,9 +8,10 @@ import { saveUserRole } from "@/lib/storage";
 import type { CriteriaSettings, UserRole } from "@/lib/types";
 
 interface OnboardingModalProps {
+  allowSkip?: boolean;
   userId?: string;
   onComplete: (role: UserRole, settingsPatch: Partial<CriteriaSettings>) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
 }
 
 const ROLE_CONFIG: {
@@ -25,7 +26,12 @@ const ROLE_CONFIG: {
   { role: "marketer", icon: Megaphone, description: "그로스, 콘텐츠, 브랜드 마케팅" },
 ];
 
-export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalProps) {
+export function OnboardingModal({
+  allowSkip = false,
+  userId,
+  onComplete,
+  onSkip,
+}: OnboardingModalProps) {
   const [selected, setSelected] = useState<UserRole | null>(null);
 
   function handleStart() {
@@ -49,6 +55,7 @@ export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalP
               평가 기준이 직군에 맞게 자동 설정됩니다
             </p>
           </div>
+          {allowSkip ? (
           <button
             aria-label="닫기"
             className="ml-4 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -57,6 +64,7 @@ export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalP
           >
             <X className="h-4 w-4" />
           </button>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-2 px-6 sm:grid-cols-2">
@@ -99,6 +107,7 @@ export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalP
         </div>
 
         <div className="flex justify-between p-6 pt-4">
+          {allowSkip ? (
           <button
             className="text-sm text-slate-400 hover:text-slate-600"
             onClick={onSkip}
@@ -106,6 +115,9 @@ export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalP
           >
             나중에 설정
           </button>
+          ) : (
+            <span className="text-sm text-slate-400" />
+          )}
           <Button disabled={!selected} onClick={handleStart}>
             시작하기 →
           </Button>

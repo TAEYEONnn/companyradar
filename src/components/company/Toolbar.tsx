@@ -48,6 +48,7 @@ function isFilterActive(f: AdvancedFilter) {
 }
 
 interface ToolbarProps {
+  devToolsEnabled?: boolean;
   listMode: ListMode;
   query: string;
   sortMode: SortMode;
@@ -62,6 +63,7 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
+  devToolsEnabled = false,
   listMode,
   query,
   sortMode,
@@ -177,11 +179,13 @@ export function Toolbar({
           </button>
         )}
 
+        {devToolsEnabled ? (
         <div className="flex items-center gap-1">
           <Button aria-label="직군 샘플로 초기화" onClick={onReset} size="icon" title="직군 샘플로 초기화" variant="ghost">
             <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
+        ) : null}
       </div>
 
       {showAdvanced && onAdvancedFilterChange && (

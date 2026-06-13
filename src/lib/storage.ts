@@ -254,3 +254,12 @@ export function cloneSampleCompaniesForUser(role: UserRole = "designer"): Compan
     }),
   );
 }
+
+export function normalizeSamplesForRole(
+  companies: Company[],
+  role: UserRole = "designer",
+): Company[] {
+  const userCompanies = companies.filter((company) => !company.isSampleData);
+  const [sampleCompany] = cloneSampleCompaniesForUser(role);
+  return sampleCompany ? [...userCompanies, sampleCompany] : userCompanies;
+}

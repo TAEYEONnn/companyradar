@@ -19,6 +19,7 @@ import {
 import { importAndSaveEncryptionKey } from "@/lib/crypto";
 import { createEmptyCompany } from "@/lib/company-factory";
 import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
+import { isDevToolsEnabled } from "@/lib/dev-tools";
 import { planCompanyMigration } from "@/lib/migration";
 import {
   createDebouncedPush,
@@ -37,6 +38,7 @@ import {
   loadUserRole,
   localStorageRepository,
   markMigrationCompleted,
+  normalizeSamplesForRole,
   readLegacyCompanies,
   readUserScopedCompanies,
 } from "@/lib/storage";
@@ -117,12 +119,19 @@ export function CompanyTrackerApp() {
     lastAt: "",
   });
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [browserOrigin] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin,
+  );
 
   const debouncedPushRef = useRef(
     createDebouncedPush(1500, (status) => setSyncStatus(status)),
   );
   const userId = session?.user.id ?? "";
   const userEmail = session?.user.email ?? "";
+  const devToolsEnabled = useMemo(
+    () => isDevToolsEnabled({ origin: browserOrigin, userEmail }),
+    [browserOrigin, userEmail],
+  );
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -187,8 +196,10 @@ export function CompanyTrackerApp() {
       if (isRemoteSyncEnabled()) {
         const remote = await pullRemoteCompanies(userId);
         if (remote === null) {
-          const fallbackCompanies =
-            loadedCompanies.length > 0 ? loadedCompanies : cloneSampleCompaniesForUser(preferredRole);
+          const fallbackCompanies = normalizeSamplesForRole(
+            loadedCompanies.length > 0 ? loadedCompanies : [],
+            preferredRole,
+          );
           setCompanies(fallbackCompanies);
           setSelectedId(fallbackCompanies[0]?.id ?? "");
           setRemotePushEnabled(false);
@@ -220,7 +231,10 @@ export function CompanyTrackerApp() {
       }
 
       if (remoteCompanies.length > 0) {
-        const merged = mergeByUpdatedAt(loadedCompanies, remoteCompanies);
+        const merged = normalizeSamplesForRole(
+          mergeByUpdatedAt(loadedCompanies, remoteCompanies),
+          preferredRole,
+        );
         const localHasUserCompanies = hasUserCompanies(loadedCompanies);
         const remoteHasUserCompanies = hasUserCompanies(remoteCompanies);
         const mergedDiffersFromRemote =
@@ -244,23 +258,24 @@ export function CompanyTrackerApp() {
       }
 
       if (hasUserCompanies(loadedCompanies)) {
-        setCompanies(loadedCompanies);
-        setSelectedId(loadedCompanies[0]?.id ?? "");
+        const normalizedCompanies = normalizeSamplesForRole(loadedCompanies, preferredRole);
+        setCompanies(normalizedCompanies);
+        setSelectedId(normalizedCompanies[0]?.id ?? "");
         setRemotePushEnabled(true);
         setStorageWriteEnabled(true);
         setIsReady(true);
         if (isRemoteSyncEnabled()) {
-          void pushRemoteCompanies(loadedCompanies, userId);
+          void pushRemoteCompanies(normalizedCompanies, userId);
         }
         return;
       }
 
-      const ownedSeed = cloneSampleCompaniesForUser(preferredRole);
+      const ownedSeed = normalizeSamplesForRole([], preferredRole);
       setCompanies(ownedSeed);
       setSelectedId(ownedSeed[0]?.id ?? "");
       setStorageWriteEnabled(true);
       setIsReady(true);
-      if (!loadedSettings.userRole && loadUserRole(userId) === null) {
+      if (!loadedSettings.userRole) {
         setShowOnboarding(true);
       }
       if (isRemoteSyncEnabled()) {
@@ -551,6 +566,14 @@ export function CompanyTrackerApp() {
   function startEdit(company: Company) {
     setEditingCompany(company);
     setViewMode("form");
+  }
+
+  function updateSettings(nextSettings: CriteriaSettings) {
+    const previousRole = settings.userRole;
+    setSettings(nextSettings);
+    if (nextSettings.userRole && nextSettings.userRole !== previousRole) {
+      setCompanies((current) => normalizeSamplesForRole(current, nextSettings.userRole));
+    }
   }
 
   function resetSampleData() {
@@ -924,7 +947,7 @@ export function CompanyTrackerApp() {
               <CriteriaSettingsPanel
                 deletionRequested={deletionRequested}
                 onBack={() => setViewMode("dashboard")}
-                onChange={setSettings}
+                onChange={updateSettings}
                 onDeleteAccount={deleteAccount}
                 onExport={() => void exportBackup(companies, settings, userId)}
                 onImportFile={handleImportFile}
@@ -1007,6 +1030,7 @@ export function CompanyTrackerApp() {
                 ) : null}
                 <Toolbar
                   advancedFilter={advancedFilter}
+                  devToolsEnabled={devToolsEnabled}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
                   onListModeChange={setListMode}
@@ -1176,9 +1200,11 @@ export function CompanyTrackerApp() {
 
       {showOnboarding && (
         <OnboardingModal
+          allowSkip={devToolsEnabled}
           userId={userId}
           onComplete={(role, patch) => {
             setSettings((prev) => ({ ...prev, ...patch }));
+            setCompanies((current) => normalizeSamplesForRole(current, role));
             setShowOnboarding(false);
           }}
           onSkip={() => setShowOnboarding(false)}

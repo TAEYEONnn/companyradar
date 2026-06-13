@@ -47,6 +47,9 @@ TOSS_WEBHOOK_SECRET=
 
 # 서버 전용. 클라이언트에 노출 금지
 SUPABASE_SERVICE_ROLE_KEY=
+
+# dev@example.com 외 테스트 도구를 노출할 개발 호스트/오리진(선택)
+NEXT_PUBLIC_DEV_TOOL_ORIGINS=
 ```
 
 `service_role` key와 `TOSS_SECRET_KEY`는 서버 API route에서만 사용합니다. `NEXT_PUBLIC_` prefix가 붙은 값만 브라우저에 노출됩니다.

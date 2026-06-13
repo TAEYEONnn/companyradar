@@ -80,9 +80,9 @@ export function Metric({
 
 export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[86px_1fr] gap-3 text-sm">
+    <div className="grid grid-cols-[86px_1fr] items-start gap-3 text-sm leading-6">
       <span className="text-slate-500">{label}</span>
-      <span className="text-slate-800">{value}</span>
+      <span className="whitespace-pre-line text-slate-800">{value}</span>
     </div>
   );
 }

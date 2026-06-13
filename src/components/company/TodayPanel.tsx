@@ -74,7 +74,7 @@ export function TodayPanel({
   onReopenFollowUpTask,
   onSelectCompany,
 }: TodayPanelProps) {
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(true);
   const today = useCurrentDate();
   const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
   const weekEnd = useMemo(
@@ -284,6 +284,71 @@ export function TodayPanel({
         )}
       </div>
 
+      {completedItems.length > 0 ? (
+        <div className="border-b border-emerald-100 bg-emerald-50/50">
+          <button
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
+            onClick={() => setShowCompleted((value) => !value)}
+            type="button"
+          >
+            <span>완료한 일 {completedItems.length}개</span>
+            <span className="text-xs font-medium text-emerald-700">
+              {showCompleted ? "접기" : "보기"}
+            </span>
+          </button>
+          {showCompleted ? (
+            <ul className="divide-y divide-emerald-100 bg-white/70">
+              {completedItems.map(({ companyId, companyName, task }) => (
+                <li
+                  className="flex flex-wrap items-start gap-3 px-4 py-3"
+                  key={`${companyId}-${task.id}`}
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div className="min-w-0 flex-1">
+                    <button
+                      className="text-left text-sm leading-6 text-slate-700 hover:text-slate-950"
+                      onClick={() => onSelectCompany(companyId)}
+                      type="button"
+                    >
+                      <span className="font-medium">{companyName}</span>{" "}
+                      <span className="line-through decoration-slate-300">{task.title}</span>
+                    </button>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      완료 {task.completedAt ? new Date(task.completedAt).toLocaleString("ko-KR") : task.dueDate || task.createdAt}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => onReopenFollowUpTask(companyId, task.id)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      다시 열기
+                    </Button>
+                    <Button
+                      onClick={() => onSelectCompany(companyId)}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      회사 보기
+                    </Button>
+                    <Button
+                      onClick={() => onDeleteFollowUpTask(companyId, task.id)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      삭제
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
           <CheckCircle2 className="h-8 w-8" />
@@ -400,70 +465,6 @@ export function TodayPanel({
         </div>
       )}
 
-      {completedItems.length > 0 ? (
-        <div className="border-t border-slate-200">
-          <button
-            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
-            onClick={() => setShowCompleted((value) => !value)}
-            type="button"
-          >
-            <span>완료됨 {completedItems.length}개</span>
-            <span className="text-xs text-slate-400">
-              {showCompleted ? "접기" : "보기"}
-            </span>
-          </button>
-          {showCompleted ? (
-            <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60">
-              {completedItems.map(({ companyId, companyName, task }) => (
-                <li
-                  className="flex flex-wrap items-start gap-3 px-4 py-3"
-                  key={`${companyId}-${task.id}`}
-                >
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                  <div className="min-w-0 flex-1">
-                    <button
-                      className="text-left text-sm text-slate-700 hover:text-slate-950"
-                      onClick={() => onSelectCompany(companyId)}
-                      type="button"
-                    >
-                      <span className="font-medium">{companyName}</span>{" "}
-                      <span className="line-through decoration-slate-300">{task.title}</span>
-                    </button>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      완료 {task.completedAt ? new Date(task.completedAt).toLocaleString("ko-KR") : task.dueDate || task.createdAt}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() => onReopenFollowUpTask(companyId, task.id)}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      다시 열기
-                    </Button>
-                    <Button
-                      onClick={() => onSelectCompany(companyId)}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      회사 보기
-                    </Button>
-                    <Button
-                      onClick={() => onDeleteFollowUpTask(companyId, task.id)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      삭제
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }
