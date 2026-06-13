@@ -6,6 +6,7 @@ import { cn, parseLocalDate } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
 import type { Company, CompanyScoreResult, CriteriaSettings } from "@/lib/types";
 import { CompanyDetailPanel } from "./CompanyDetailPanel";
+import type { DrawerFocusTarget } from "./shared";
 
 function DeadlineAlert({ company }: { company: Company }) {
   const today = useCurrentDate();
@@ -30,6 +31,7 @@ interface CompanyDrawerProps {
   company: Company | null;
   score: CompanyScoreResult | null;
   userId: string;
+  focusTarget?: DrawerFocusTarget;
   settings?: CriteriaSettings;
   onClose: () => void;
   onDelete: (id: string) => void;
@@ -42,6 +44,7 @@ export function CompanyDrawer({
   company,
   score,
   userId,
+  focusTarget,
   settings,
   onClose,
   onDelete,
@@ -82,6 +85,8 @@ export function CompanyDrawer({
             <DeadlineAlert company={company} />
             <CompanyDetailPanel
               company={company}
+              focusTarget={focusTarget}
+              key={`${company.id}:${focusTarget?.tab ?? "summary"}:${focusTarget?.section ?? ""}`}
               settings={settings}
               onBack={onClose}
               onDelete={(id) => {

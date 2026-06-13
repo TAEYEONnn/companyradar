@@ -3,6 +3,12 @@ import { cn } from "@/lib/utils";
 
 export type ViewMode = "dashboard" | "form" | "settings" | "stats" | "inbox" | "timeline" | "compare" | "today" | "coach";
 export type ListMode = "table" | "kanban";
+export type DrawerDetailTab = "summary" | "prep" | "research" | "interview" | "private" | "ai";
+
+export interface DrawerFocusTarget {
+  tab: DrawerDetailTab;
+  section?: string;
+}
 
 export const STATUS_TONE: Record<
   ApplicationStatus,

@@ -23,12 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/field";
 import {
   DEFAULT_CRITERIA_SETTINGS,
+  DEFAULT_SCORE_THRESHOLDS,
   ROLE_LABELS,
   ROLE_WEIGHT_PRESETS,
   SCORE_CATEGORIES,
 } from "@/lib/criteria";
+import { normalizeScoreThresholds } from "@/lib/scoring";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import type { CriteriaSettings, UserRole } from "@/lib/types";
+import type { CriteriaSettings, ScoreThresholdSettings, UserRole } from "@/lib/types";
 
 interface CriteriaSettingsPanelProps {
   settings: CriteriaSettings;
@@ -64,6 +66,17 @@ export function CriteriaSettingsPanel({
   const [deleteReason, setDeleteReason] = useState("");
   const [submitting, setSubmitting] = useState<"support" | "refund" | "delete" | null>(null);
   const [notice, setNotice] = useState("");
+  const scoreThresholds = normalizeScoreThresholds(settings.scoreThresholds);
+
+  function updateScoreThreshold(key: keyof ScoreThresholdSettings, value: number) {
+    onChange({
+      ...settings,
+      scoreThresholds: normalizeScoreThresholds({
+        ...scoreThresholds,
+        [key]: value,
+      }),
+    });
+  }
 
   const weightSum = Object.values(settings.weights).reduce(
     (sum, weight) => sum + weight,
@@ -413,16 +426,49 @@ export function CriteriaSettingsPanel({
                 <PanelRightOpen className="h-4 w-4" />
                 점수 라벨
               </h3>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                문구는 고정하고, 각 라벨로 분류되는 기준 점수만 조정합니다.
+              </p>
               <div className="mt-4 space-y-2 text-sm">
-                <LabelRow label="4.3 이상" tone="green" value="적극 지원" />
-                <LabelRow label="3.7 이상" tone="blue" value="지원 고려" />
-                <LabelRow label="3.0 이상" tone="amber" value="정보 추가 필요" />
-                <LabelRow label="3.0 미만" tone="slate" value="보류" />
+                <ThresholdRow
+                  label="적극 지원"
+                  onChange={(value) => updateScoreThreshold("strong", value)}
+                  thresholdLabel="이상"
+                  tone="green"
+                  value={scoreThresholds.strong}
+                />
+                <ThresholdRow
+                  label="지원 고려"
+                  onChange={(value) => updateScoreThreshold("consider", value)}
+                  thresholdLabel="이상"
+                  tone="blue"
+                  value={scoreThresholds.consider}
+                />
+                <ThresholdRow
+                  label="정보 추가 필요"
+                  onChange={(value) => updateScoreThreshold("needsInfo", value)}
+                  thresholdLabel="이상"
+                  tone="amber"
+                  value={scoreThresholds.needsInfo}
+                />
+                <LabelRow label={`${scoreThresholds.needsInfo.toFixed(1)} 미만`} tone="slate" value="보류" />
               </div>
               <div className="mt-4 flex justify-end gap-2">
+                <Button
+                  onClick={() =>
+                    onChange({
+                      ...settings,
+                      scoreThresholds: DEFAULT_SCORE_THRESHOLDS,
+                    })
+                  }
+                  variant="secondary"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  점수 기준 복원
+                </Button>
                 <Button onClick={() => onChange(DEFAULT_CRITERIA_SETTINGS)} variant="secondary">
                   <RotateCcw className="h-4 w-4" />
-                  기본값 복원
+                  전체 기본값
                 </Button>
                 <Button onClick={() => setShowCriteria(false)}>
                   <Check className="h-4 w-4" />
@@ -590,6 +636,37 @@ function LabelRow({
     <div className="flex items-center justify-between rounded-md border border-slate-200 p-3">
       <span className="text-slate-500">{label}</span>
       <Badge tone={tone}>{value}</Badge>
+    </div>
+  );
+}
+
+function ThresholdRow({
+  label,
+  onChange,
+  thresholdLabel,
+  tone,
+  value,
+}: {
+  label: string;
+  onChange: (value: number) => void;
+  thresholdLabel: string;
+  tone: "green" | "amber" | "blue";
+  value: number;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_112px] items-center gap-3 rounded-md border border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Badge tone={tone}>{label}</Badge>
+        <span className="text-xs text-slate-500">{thresholdLabel}</span>
+      </div>
+      <Input
+        max={5}
+        min={0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        step={0.1}
+        type="number"
+        value={value.toFixed(1)}
+      />
     </div>
   );
 }

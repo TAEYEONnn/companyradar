@@ -1,4 +1,4 @@
-import { DEFAULT_CRITERIA_SETTINGS, SCORE_CATEGORIES } from "@/lib/criteria";
+import { DEFAULT_CRITERIA_SETTINGS, DEFAULT_SCORE_THRESHOLDS, SCORE_CATEGORIES } from "@/lib/criteria";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
 import { getSampleCompaniesForRole } from "@/lib/sample-data";
 import type {
@@ -45,9 +45,14 @@ export const localStorageRepository: CompanyRepository = {
     if (!raw) return DEFAULT_CRITERIA_SETTINGS;
 
     try {
+      const parsed = JSON.parse(raw) as CriteriaSettings;
       return {
         ...DEFAULT_CRITERIA_SETTINGS,
-        ...(JSON.parse(raw) as CriteriaSettings),
+        ...parsed,
+        scoreThresholds: {
+          ...DEFAULT_SCORE_THRESHOLDS,
+          ...parsed.scoreThresholds,
+        },
       };
     } catch {
       return DEFAULT_CRITERIA_SETTINGS;

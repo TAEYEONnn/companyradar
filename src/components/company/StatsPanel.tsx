@@ -7,11 +7,12 @@ import {
   INTERVIEW_ROUND_TYPE_LABELS,
   STATUS_LABELS,
 } from "@/lib/criteria";
-import { formatScore } from "@/lib/scoring";
+import { formatScore, normalizeScoreThresholds } from "@/lib/scoring";
 import type {
   ApplicationStatus,
   Company,
   CompanyScoreResult,
+  CriteriaSettings,
   InterviewRoundType,
 } from "@/lib/types";
 import { Metric } from "./shared";
@@ -45,11 +46,13 @@ const ROUND_TYPE_ORDER: InterviewRoundType[] = [
 interface StatsPanelProps {
   companies: Company[];
   scoreMap: Map<string, CompanyScoreResult>;
+  settings: CriteriaSettings;
   onBack: () => void;
 }
 
-export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
+export function StatsPanel({ companies, scoreMap, settings, onBack }: StatsPanelProps) {
   const stats = useMemo(() => {
+    const thresholds = normalizeScoreThresholds(settings.scoreThresholds);
     const total = companies.length;
     const applied = companies.filter((c) =>
       ["applied", "interviewing", "offer", "rejected"].includes(c.status),
@@ -66,10 +69,10 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
     }));
 
     const scoreBuckets = [
-      { label: "4.3+", min: 4.3, max: 5.01 },
-      { label: "3.7-4.2", min: 3.7, max: 4.3 },
-      { label: "3.0-3.6", min: 3.0, max: 3.7 },
-      { label: "3.0 미만", min: 0.01, max: 3.0 },
+      { label: `${formatThreshold(thresholds.strong)}+`, min: thresholds.strong, max: 5.01 },
+      { label: `${formatThreshold(thresholds.consider)}+`, min: thresholds.consider, max: thresholds.strong },
+      { label: `${formatThreshold(thresholds.needsInfo)}+`, min: thresholds.needsInfo, max: thresholds.consider },
+      { label: `${formatThreshold(thresholds.needsInfo)} 미만`, min: 0.01, max: thresholds.needsInfo },
       { label: "미평가", min: 0, max: 0.01 },
     ].map((bucket) => ({
       ...bucket,
@@ -183,7 +186,7 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
       roundTypeStats,
       scoreByStatus,
     };
-  }, [companies, scoreMap]);
+  }, [companies, scoreMap, settings.scoreThresholds]);
 
   const funnelCounts = FUNNEL_STEPS.map((step) => ({
     label: step.label,
@@ -354,6 +357,10 @@ export function StatsPanel({ companies, scoreMap, onBack }: StatsPanelProps) {
       </div>
     </section>
   );
+}
+
+function formatThreshold(value: number): string {
+  return value.toFixed(1);
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {

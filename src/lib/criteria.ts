@@ -9,6 +9,7 @@ import type {
   JobStatus,
   ScoreCategoryKey,
   ScoreCategoryDefinition,
+  ScoreThresholdSettings,
   UserRole,
 } from "@/lib/types";
 
@@ -517,6 +518,12 @@ export const RISK_CHECKLIST = [
   "온보딩 체계가 없어 보임",
 ];
 
+export const DEFAULT_SCORE_THRESHOLDS: ScoreThresholdSettings = {
+  strong: 4.3,
+  consider: 3.7,
+  needsInfo: 3.0,
+};
+
 export const DEFAULT_CRITERIA_SETTINGS: CriteriaSettings = {
   weights: {
     businessProduct: 0.2,
@@ -526,6 +533,7 @@ export const DEFAULT_CRITERIA_SETTINGS: CriteriaSettings = {
     personalFit: 0.1,
   },
   highRiskThreshold: 3,
+  scoreThresholds: DEFAULT_SCORE_THRESHOLDS,
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

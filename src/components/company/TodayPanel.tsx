@@ -9,6 +9,7 @@ import type { Company } from "@/lib/types";
 import { INTERVIEW_ROUND_TYPE_LABELS } from "@/lib/criteria";
 import { addDays, cn, parseLocalDate, today as formatToday } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
+import type { DrawerFocusTarget } from "./shared";
 
 type Urgency = "overdue" | "high" | "medium" | "low";
 
@@ -62,7 +63,7 @@ interface TodayPanelProps {
   onMarkVerified: (companyId: string) => void;
   onOpenCompanyList: () => void;
   onReopenFollowUpTask: (companyId: string, taskId: string) => void;
-  onSelectCompany: (id: string) => void;
+  onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }
 
 export function TodayPanel({
@@ -74,7 +75,7 @@ export function TodayPanel({
   onReopenFollowUpTask,
   onSelectCompany,
 }: TodayPanelProps) {
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
   const today = useCurrentDate();
   const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
   const weekEnd = useMemo(
@@ -307,7 +308,7 @@ export function TodayPanel({
                   <div className="min-w-0 flex-1">
                     <button
                       className="text-left text-sm leading-6 text-slate-700 hover:text-slate-950"
-                      onClick={() => onSelectCompany(companyId)}
+                      onClick={() => onSelectCompany(companyId, { tab: "prep" })}
                       type="button"
                     >
                       <span className="font-medium">{companyName}</span>{" "}
@@ -327,7 +328,7 @@ export function TodayPanel({
                       다시 열기
                     </Button>
                     <Button
-                      onClick={() => onSelectCompany(companyId)}
+                      onClick={() => onSelectCompany(companyId, { tab: "prep" })}
                       size="sm"
                       variant="secondary"
                     >
@@ -406,7 +407,7 @@ export function TodayPanel({
                               "w-full text-left text-sm leading-snug transition-colors hover:text-slate-950",
                               cfg.label,
                             )}
-                            onClick={() => onSelectCompany(item.companyId)}
+                            onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
                             type="button"
                           >
                             <span className="font-medium">{item.companyName}</span>{" "}
@@ -429,7 +430,7 @@ export function TodayPanel({
                           {item.type === "validation" ? (
                             <div className="mt-2 flex flex-wrap gap-2">
                               <Button
-                                onClick={() => onSelectCompany(item.companyId)}
+                                onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
                                 size="sm"
                                 variant="secondary"
                               >
@@ -446,7 +447,7 @@ export function TodayPanel({
                           ) : !item.canCompleteDirectly && (
                             <div className="mt-2">
                               <Button
-                                onClick={() => onSelectCompany(item.companyId)}
+                                onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
                                 size="sm"
                                 variant="secondary"
                               >
@@ -467,4 +468,14 @@ export function TodayPanel({
 
     </section>
   );
+}
+
+function getTodayDrawerTarget(item: ActionItem): DrawerFocusTarget {
+  if (item.type === "interview" || item.type === "pending-result") {
+    return { tab: "interview" };
+  }
+  if (item.type === "validation") {
+    return { tab: "summary" };
+  }
+  return { tab: "prep" };
 }

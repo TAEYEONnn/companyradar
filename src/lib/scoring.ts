@@ -1,10 +1,11 @@
-import { SCORE_CATEGORIES } from "@/lib/criteria";
+import { DEFAULT_SCORE_THRESHOLDS, SCORE_CATEGORIES } from "@/lib/criteria";
 import { needsCompanyValidation } from "@/lib/company-validation";
 import type {
   Company,
   CompanyScoreResult,
   CriteriaSettings,
   EvidenceLevel,
+  ScoreThresholdSettings,
 } from "@/lib/types";
 
 export function calculateAverage(values: number[]): number {
@@ -18,11 +19,32 @@ export function calculateAverage(values: number[]): number {
 
 export function getRecommendationLabel(
   score: number,
+  thresholds?: Partial<ScoreThresholdSettings>,
 ): CompanyScoreResult["recommendationLabel"] {
-  if (score >= 4.3) return "적극 지원";
-  if (score >= 3.7) return "지원 고려";
-  if (score >= 3.0) return "정보 추가 필요";
+  const normalizedThresholds = normalizeScoreThresholds(thresholds);
+  if (score >= normalizedThresholds.strong) return "적극 지원";
+  if (score >= normalizedThresholds.consider) return "지원 고려";
+  if (score >= normalizedThresholds.needsInfo) return "정보 추가 필요";
   return "보류";
+}
+
+export function normalizeScoreThresholds(
+  thresholds?: Partial<ScoreThresholdSettings>,
+): ScoreThresholdSettings {
+  const fallback = DEFAULT_SCORE_THRESHOLDS ?? {
+    strong: 4.3,
+    consider: 3.7,
+    needsInfo: 3.0,
+  };
+  const needsInfo = clampThreshold(thresholds?.needsInfo ?? fallback.needsInfo, 0, 4.8);
+  const consider = clampThreshold(thresholds?.consider ?? fallback.consider, needsInfo + 0.1, 4.9);
+  const strong = clampThreshold(thresholds?.strong ?? fallback.strong, consider + 0.1, 5);
+
+  return {
+    strong: roundThreshold(strong),
+    consider: roundThreshold(consider),
+    needsInfo: roundThreshold(needsInfo),
+  };
 }
 
 export function evaluateCompany(
@@ -66,7 +88,7 @@ export function evaluateCompany(
     categoryScores,
     companyFitScore,
     totalScore: companyFitScore,
-    recommendationLabel: getRecommendationLabel(companyFitScore),
+    recommendationLabel: getRecommendationLabel(companyFitScore, settings.scoreThresholds),
     highRisk: riskCount >= settings.highRiskThreshold,
     needsValidation: needsCompanyValidation(company),
     averageEvidenceLevel,
@@ -109,4 +131,13 @@ function getAverageEvidenceLevel(company: Company): number {
 
 function clampScore(score: number): number {
   return Math.min(5, Math.max(1, score));
+}
+
+function clampThreshold(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundThreshold(value: number): number {
+  return Math.round(value * 10) / 10;
 }

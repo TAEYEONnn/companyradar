@@ -258,8 +258,15 @@ export interface CompanyScoreResult {
 
 export type UserRole = "designer" | "pm" | "frontend" | "ux_researcher" | "marketer";
 
+export interface ScoreThresholdSettings {
+  strong: number;
+  consider: number;
+  needsInfo: number;
+}
+
 export interface CriteriaSettings {
   weights: Record<ScoreCategoryKey, number>;
   highRiskThreshold: number;
   userRole?: UserRole;
+  scoreThresholds?: ScoreThresholdSettings;
 }

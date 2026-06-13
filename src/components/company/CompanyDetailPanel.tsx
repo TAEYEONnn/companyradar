@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  ArrowLeft,
   BookOpenText,
   CalendarClock,
   ClipboardCheck,
@@ -66,12 +67,13 @@ import {
 } from "@/lib/crypto";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { createId, today } from "@/lib/utils";
-import { InfoRow, Metric, STATUS_TONE } from "./shared";
+import { InfoRow, Metric, STATUS_TONE, type DrawerDetailTab, type DrawerFocusTarget } from "./shared";
 
 interface CompanyDetailPanelProps {
   company: Company;
   score: CompanyScoreResult;
   userId: string;
+  focusTarget?: DrawerFocusTarget;
   settings?: CriteriaSettings;
   onBack?: () => void;
   onDelete: (companyId: string) => void;
@@ -79,12 +81,11 @@ interface CompanyDetailPanelProps {
   onPatch: (companyId: string, patch: Partial<Company>) => void;
 }
 
-type DetailTab = "summary" | "prep" | "research" | "interview" | "private" | "ai";
-
 export function CompanyDetailPanel({
   company,
   score,
   userId,
+  focusTarget,
   settings,
   onBack,
   onDelete,
@@ -139,8 +140,8 @@ export function CompanyDetailPanel({
   const [aiResearchLoading, setAiResearchLoading] = useState(false);
   const [aiResearchError, setAiResearchError] = useState("");
   const validationReasons = getCompanyValidationReasons(company);
-  const [activeTab, setActiveTab] = useState<DetailTab>("summary");
-  const detailTabs: { id: DetailTab; label: string; count?: number }[] = [
+  const [activeTab, setActiveTab] = useState<DrawerDetailTab>(focusTarget?.tab ?? "summary");
+  const detailTabs: { id: DrawerDetailTab; label: string; count?: number }[] = [
     { id: "summary", label: "요약" },
     {
       id: "prep",
@@ -164,6 +165,16 @@ export function CompanyDetailPanel({
     { id: "private", label: "비공개" },
     { id: "ai", label: "AI" },
   ];
+
+  useEffect(() => {
+    if (!focusTarget?.section) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-drawer-section="${focusTarget.section}"]`)
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, focusTarget]);
 
   async function generateAiResearchLog() {
     setAiResearchLoading(true);
@@ -348,19 +359,43 @@ export function CompanyDetailPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-3">
-        <div className="min-w-0 flex-1">
+      <div className="shrink-0 border-b border-slate-200 p-3">
+        <div className="flex items-center justify-between gap-2">
           {onBack ? (
-            <button
-              className="mb-2 flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 xl:hidden"
-              onClick={onBack}
-              type="button"
+            <Button aria-label="뒤로가기" onClick={onBack} size="sm" variant="ghost">
+              <ArrowLeft className="h-4 w-4" />
+              뒤로가기
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-1">
+            <Button aria-label="수정" onClick={() => onEdit(company)} size="icon" variant="ghost">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              aria-label="PDF/인쇄"
+              onClick={() => window.print()}
+              size="icon"
+              variant="ghost"
             >
-              ← 목록으로
-            </button>
-          ) : null}
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              aria-label="삭제"
+              onClick={() => onDelete(company.id)}
+              size="icon"
+              variant="ghost"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-2 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold sm:text-lg">{company.name}</h2>
+            <h2 className="text-base font-semibold leading-6 sm:text-lg">{company.name}</h2>
+            <Badge tone={STATUS_TONE[company.status]}>{STATUS_LABELS[company.status]}</Badge>
             {score.highRisk ? (
               <Badge tone="red">
                 <AlertTriangle className="mr-1 h-3 w-3" />
@@ -370,13 +405,10 @@ export function CompanyDetailPanel({
             {score.needsValidation ? <Badge tone="amber">검증 필요</Badge> : null}
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">{company.industry}</p>
-          <div className="mt-2 hidden grid-cols-3 gap-2 text-xs sm:max-w-md">
-            <CompactMetric label="회사핏" value={formatScore(score.companyFitScore)} />
-            <CompactMetric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
-            <CompactMetric label="상태" value={STATUS_LABELS[company.status]} />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+            {company.industry || "업종 미입력"} · {PRIORITY_LABELS[company.applicationPriority]} · 회사핏 {formatScore(score.companyFitScore)}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {company.homepageUrl ? (
               <a
                 className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -398,48 +430,40 @@ export function CompanyDetailPanel({
               </a>
             ) : null}
           </div>
-          {validationReasons.length > 0 && (
-            <>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {validationReasons.map((reason) => (
-                  <Badge key={reason} tone="amber">
-                    {reason}
-                  </Badge>
-                ))}
-              </div>
-              <div className="hidden">
-                <Button
-                  onClick={() => onPatch(company.id, getValidationCompletePatch(today()))}
-                  size="sm"
-                  variant="secondary"
-                >
-                  <ClipboardCheck className="h-3.5 w-3.5" />
-                  검증 완료
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="flex gap-1">
-          <Button aria-label="수정" onClick={() => onEdit(company)} size="icon" variant="ghost">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            aria-label="인쇄/PDF"
-            onClick={() => window.print()}
-            size="icon"
-            variant="ghost"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button
-            aria-label="삭제"
-            onClick={() => onDelete(company.id)}
-            size="icon"
-            variant="ghost"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {validationReasons.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {validationReasons.map((reason) => (
+                <Badge key={reason} tone="amber">
+                  {reason}
+                </Badge>
+              ))}
+              <Button
+                onClick={() => onPatch(company.id, getValidationCompletePatch(today()))}
+                size="sm"
+                variant="secondary"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                검증 완료
+              </Button>
+            </div>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <DateStampButton
+              label="확인"
+              onStamp={() => onPatch(company.id, { lastCheckedAt: today() })}
+              value={company.lastCheckedAt}
+            />
+            <DateStampButton
+              label="리서치"
+              onStamp={() => onPatch(company.id, { lastResearchedAt: today() })}
+              value={company.lastResearchedAt}
+            />
+            <DateStampButton
+              label="검증"
+              onStamp={() => onPatch(company.id, getValidationCompletePatch(today()))}
+              value={company.lastVerifiedAt}
+            />
+          </div>
         </div>
       </div>
 
@@ -472,7 +496,7 @@ export function CompanyDetailPanel({
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         {activeTab === "summary" ? (
           <>
-        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-drawer-section="summary">
           <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
           <Metric compact label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
@@ -514,28 +538,6 @@ export function CompanyDetailPanel({
             label="근거 수준"
             value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "재검증 필요" : "최신"}`}
           />
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-            <h4 className="mb-1.5 text-xs font-semibold text-slate-600">기록 날짜</h4>
-            <div className="grid gap-1.5 sm:grid-cols-3">
-            <DateStampButton
-              label="확인"
-              onStamp={() => onPatch(company.id, { lastCheckedAt: today() })}
-              value={company.lastCheckedAt}
-            />
-            <DateStampButton
-              label="리서치"
-              onStamp={() => onPatch(company.id, { lastResearchedAt: today() })}
-              value={company.lastResearchedAt}
-            />
-            <DateStampButton
-              label="검증"
-              onStamp={() =>
-                onPatch(company.id, getValidationCompletePatch(today()))
-              }
-              value={company.lastVerifiedAt}
-            />
-            </div>
-          </div>
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
           <InfoRow label="후보 이유" value={company.candidateReason || "없음"} />
@@ -685,7 +687,7 @@ export function CompanyDetailPanel({
           )}
         </section>
 
-        <section className="space-y-3">
+          <section className="space-y-3" data-drawer-section="prep">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" />
             구조화 신호
@@ -776,7 +778,7 @@ export function CompanyDetailPanel({
           />
         </section>
 
-        <section className="space-y-3">
+          <section className="space-y-3" data-drawer-section="research">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <BookOpenText className="h-4 w-4" />
@@ -900,7 +902,7 @@ export function CompanyDetailPanel({
 
         {activeTab === "interview" ? (
           <>
-        <section className="space-y-3">
+          <section className="space-y-3" data-drawer-section="interview">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
             면접 라운드
@@ -1072,11 +1074,13 @@ export function CompanyDetailPanel({
         ) : null}
 
         {activeTab === "private" ? (
+        <div data-drawer-section="private">
         <EncryptedNoteSection
           company={company}
           onPatch={onPatch}
           userId={userId}
         />
+        </div>
         ) : null}
 
         {activeTab === "interview" ? (
@@ -1120,15 +1124,6 @@ export function CompanyDetailPanel({
         {activeTab === "ai" ? <DraftEmailSection company={company} /> : null}
       </div>
     </aside>
-  );
-}
-
-function CompactMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
-      <div className="text-[11px] font-medium text-slate-400">{label}</div>
-      <div className="mt-0.5 truncate font-semibold text-slate-800">{value}</div>
-    </div>
   );
 }
 
@@ -1248,6 +1243,7 @@ function EncryptedNoteSection({
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [encKey, setEncKey] = useState<CryptoKey | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const keyRef = useRef<CryptoKey | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -1279,25 +1275,30 @@ function EncryptedNoteSection({
   ];
 
   async function addPrivateNote() {
-    if (!content.trim()) return;
+    if (!content.trim() || !keyRef.current) return;
+    setFeedback(null);
     setSaving(true);
-    const encryptedContent = keyRef.current
-      ? await encryptNote(keyRef.current, content.trim())
-      : content.trim();
-    onPatch(company.id, {
-      privateSensitiveNotes: [
-        {
-          id: createId("private-note"),
-          title: title.trim() || "민감 메모",
-          content: encryptedContent,
-          createdAt: today(),
-        },
-        ...(company.privateSensitiveNotes ?? []),
-      ],
-    });
-    setTitle("");
-    setContent("");
-    setSaving(false);
+    try {
+      const encryptedContent = await encryptNote(keyRef.current, content.trim());
+      onPatch(company.id, {
+        privateSensitiveNotes: [
+          {
+            id: createId("private-note"),
+            title: title.trim() || "민감 메모",
+            content: encryptedContent,
+            createdAt: today(),
+          },
+          ...(company.privateSensitiveNotes ?? []),
+        ],
+      });
+      setTitle("");
+      setContent("");
+      setFeedback({ tone: "success", message: "민감 메모가 저장되었습니다." });
+    } catch {
+      setFeedback({ tone: "error", message: "민감 메모 저장에 실패했습니다. 잠시 후 다시 시도하세요." });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function removePrivateNote(noteId: string) {
@@ -1360,10 +1361,21 @@ function EncryptedNoteSection({
           value={content}
         />
         <div className="flex justify-end">
-          <Button disabled={!content.trim() || saving} onClick={() => void addPrivateNote()} size="sm">
-            저장
+          <Button disabled={!content.trim() || saving || !encKey} onClick={() => void addPrivateNote()} size="sm">
+            {!encKey ? "준비 중" : saving ? "저장 중" : "저장"}
           </Button>
         </div>
+        {feedback ? (
+          <p
+            className={
+              feedback.tone === "success"
+                ? "text-xs font-medium text-emerald-700"
+                : "text-xs font-medium text-red-600"
+            }
+          >
+            {feedback.message}
+          </p>
+        ) : null}
       </div>
 
       {notes.length > 0 ? (

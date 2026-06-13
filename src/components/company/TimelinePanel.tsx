@@ -11,7 +11,7 @@ import {
   STATUS_LABELS,
 } from "@/lib/criteria";
 import type { Company } from "@/lib/types";
-import { STATUS_TONE } from "./shared";
+import { STATUS_TONE, type DrawerFocusTarget } from "./shared";
 
 type EventKind = "status" | "interview";
 
@@ -40,7 +40,7 @@ const STATUS_DOT: Record<Company["status"], string> = {
 interface TimelinePanelProps {
   companies: Company[];
   onBack: () => void;
-  onSelectCompany: (id: string) => void;
+  onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }
 
 export function TimelinePanel({
@@ -176,7 +176,7 @@ function TimelineSection({
   groups: [string, UnifiedEvent[]][];
   upcoming?: boolean;
   emptyMessage: string;
-  onSelectCompany: (id: string) => void;
+  onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }) {
   if (groups.length === 0 && !emptyMessage) return null;
 
@@ -204,7 +204,7 @@ function TimelineSection({
                   <button
                     className="group flex w-full items-start gap-2 text-left"
                     key={event.id}
-                    onClick={() => onSelectCompany(event.companyId)}
+                    onClick={() => onSelectCompany(event.companyId, getTimelineDrawerTarget(event))}
                     type="button"
                   >
                     {/* 도트 */}
@@ -235,4 +235,10 @@ function TimelineSection({
       )}
     </div>
   );
+}
+
+function getTimelineDrawerTarget(event: UnifiedEvent): DrawerFocusTarget {
+  return {
+    tab: event.kind === "interview" ? "interview" : "summary",
+  };
 }

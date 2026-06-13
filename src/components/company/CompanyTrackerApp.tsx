@@ -68,6 +68,7 @@ import {
   getDeadlineRank,
   getPriorityRank,
   isDeadlineSoon,
+  type DrawerFocusTarget,
   type ListMode,
   type ViewMode,
 } from "./shared";
@@ -102,6 +103,7 @@ export function CompanyTrackerApp() {
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerFocusTarget, setDrawerFocusTarget] = useState<DrawerFocusTarget>({ tab: "summary" });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -182,6 +184,9 @@ export function CompanyTrackerApp() {
       const preferredRole = loadedSettings.userRole ?? loadUserRole(userId) ?? "designer";
       const migrationCompletedAt = getMigrationCompletedAt(userId);
       setSettings(loadedSettings);
+      if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
+        setShowOnboarding(true);
+      }
 
       const remoteCandidates = await pullCandidateInboxItems(userId);
       if (remoteCandidates === null) {
@@ -275,14 +280,14 @@ export function CompanyTrackerApp() {
       setSelectedId(ownedSeed[0]?.id ?? "");
       setStorageWriteEnabled(true);
       setIsReady(true);
-      if (!loadedSettings.userRole) {
+      if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
         setShowOnboarding(true);
       }
       if (isRemoteSyncEnabled()) {
         void pushRemoteCompanies(ownedSeed, userId);
       }
     });
-  }, [userId]);
+  }, [devToolsEnabled, userEmail, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -435,6 +440,12 @@ export function CompanyTrackerApp() {
     [companies, candidates],
   );
 
+  function openCompanyDrawer(id: string, focusTarget: DrawerFocusTarget = { tab: "summary" }) {
+    setSelectedId(id);
+    setDrawerFocusTarget(focusTarget);
+    setDrawerOpen(true);
+  }
+
   function upsertCompany(company: Company) {
     const nextCompany = {
       ...company,
@@ -450,9 +461,8 @@ export function CompanyTrackerApp() {
       }
       return [nextCompany, ...current];
     });
-    setSelectedId(nextCompany.id);
     setViewMode("dashboard");
-    setDrawerOpen(true);
+    openCompanyDrawer(nextCompany.id);
     setEditingCompany(null);
   }
 
@@ -969,15 +979,13 @@ export function CompanyTrackerApp() {
                 companies={companies}
                 onBack={() => setViewMode("dashboard")}
                 scoreMap={scoreMap}
+                settings={settings}
               />
             ) : viewMode === "timeline" ? (
               <TimelinePanel
                 companies={companies}
                 onBack={() => setViewMode("dashboard")}
-                onSelectCompany={(id) => {
-                  setSelectedId(id);
-                  setDrawerOpen(true);
-                }}
+                onSelectCompany={openCompanyDrawer}
               />
             ) : viewMode === "today" ? (
               <TodayPanel
@@ -987,10 +995,7 @@ export function CompanyTrackerApp() {
                 onMarkVerified={markCompanyVerified}
                 onOpenCompanyList={() => setViewMode("dashboard")}
                 onReopenFollowUpTask={reopenFollowUpTask}
-                onSelectCompany={(id) => {
-                  setSelectedId(id);
-                  setDrawerOpen(true);
-                }}
+                onSelectCompany={openCompanyDrawer}
               />
             ) : viewMode === "coach" ? (
               <CoachPanel
@@ -1004,9 +1009,8 @@ export function CompanyTrackerApp() {
                 companies={companies.filter((c) => selectedCompanyIds.includes(c.id))}
                 onBack={() => setViewMode("dashboard")}
                 onSelectCompany={(id) => {
-                  setSelectedId(id);
                   setViewMode("dashboard");
-                  setDrawerOpen(true);
+                  openCompanyDrawer(id);
                 }}
                 scoreMap={scoreMap}
               />
@@ -1084,10 +1088,7 @@ export function CompanyTrackerApp() {
                 {listMode === "kanban" ? (
                   <KanbanBoard
                     companies={filteredCompanies}
-                    onSelect={(id) => {
-                      setSelectedId(id);
-                      setDrawerOpen(true);
-                    }}
+                    onSelect={openCompanyDrawer}
                     onStatusChange={(companyId, status) =>
                       patchCompany(companyId, { status })
                     }
@@ -1098,10 +1099,7 @@ export function CompanyTrackerApp() {
                   <CompanyTable
                     companies={filteredCompanies}
                     onEdit={startEdit}
-                    onSelect={(id) => {
-                      setSelectedId(id);
-                      setDrawerOpen(true);
-                    }}
+                    onSelect={openCompanyDrawer}
                     onSetSelectedIds={setSelectedCompanyIds}
                     onToggleSelected={(id) =>
                       setSelectedCompanyIds((prev) =>
@@ -1133,6 +1131,7 @@ export function CompanyTrackerApp() {
       {/* ─── Company Drawer ─── */}
       <CompanyDrawer
         company={selectedCompany ?? null}
+        focusTarget={drawerFocusTarget}
         settings={settings}
         onClose={() => setDrawerOpen(false)}
         onDelete={(id) => {
@@ -1267,6 +1266,17 @@ function getHostLabel(url: string): string {
   } catch {
     return "";
   }
+}
+
+function shouldShowOnboarding(
+  settings: CriteriaSettings,
+  userEmail: string,
+  devToolsEnabled: boolean,
+): boolean {
+  return (
+    (devToolsEnabled && userEmail.toLowerCase() === "dev@example.com") ||
+    !settings.userRole
+  );
 }
 
 function SyncStatusBadge({
