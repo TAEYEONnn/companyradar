@@ -8,6 +8,7 @@ import { saveUserRole } from "@/lib/storage";
 import type { CriteriaSettings, UserRole } from "@/lib/types";
 
 interface OnboardingModalProps {
+  userId?: string;
   onComplete: (role: UserRole, settingsPatch: Partial<CriteriaSettings>) => void;
   onSkip: () => void;
 }
@@ -24,12 +25,12 @@ const ROLE_CONFIG: {
   { role: "marketer", icon: Megaphone, description: "그로스, 콘텐츠, 브랜드 마케팅" },
 ];
 
-export function OnboardingModal({ onComplete, onSkip }: OnboardingModalProps) {
+export function OnboardingModal({ userId, onComplete, onSkip }: OnboardingModalProps) {
   const [selected, setSelected] = useState<UserRole | null>(null);
 
   function handleStart() {
     if (!selected) return;
-    saveUserRole(selected);
+    saveUserRole(selected, userId);
     onComplete(selected, {
       weights: ROLE_WEIGHT_PRESETS[selected],
       userRole: selected,

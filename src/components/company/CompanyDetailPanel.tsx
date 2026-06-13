@@ -80,6 +80,8 @@ interface CompanyDetailPanelProps {
   onPatch: (companyId: string, patch: Partial<Company>) => void;
 }
 
+type DetailTab = "summary" | "prep" | "research" | "interview" | "private" | "ai";
+
 export function CompanyDetailPanel({
   company,
   score,
@@ -137,6 +139,31 @@ export function CompanyDetailPanel({
   const [aiResearchLoading, setAiResearchLoading] = useState(false);
   const [aiResearchError, setAiResearchError] = useState("");
   const validationReasons = getCompanyValidationReasons(company);
+  const [activeTab, setActiveTab] = useState<DetailTab>("summary");
+  const detailTabs: { id: DetailTab; label: string; count?: number }[] = [
+    { id: "summary", label: "요약" },
+    {
+      id: "prep",
+      label: "지원 준비",
+      count: company.followUpTasks.filter((task) => !task.completed).length,
+    },
+    {
+      id: "research",
+      label: "리서치",
+      count:
+        company.researchLogs.length +
+        company.signals.greenFlags.length +
+        company.signals.redFlags.length +
+        company.signals.unknowns.length,
+    },
+    {
+      id: "interview",
+      label: "면접",
+      count: company.interviewRounds.length + company.interviewNotes.length,
+    },
+    { id: "private", label: "비공개" },
+    { id: "ai", label: "AI" },
+  ];
 
   async function generateAiResearchLog() {
     setAiResearchLoading(true);
@@ -344,6 +371,33 @@ export function CompanyDetailPanel({
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
           <p className="mt-1 text-sm text-slate-500">{company.industry}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-xs sm:max-w-md">
+            <CompactMetric label="회사핏" value={formatScore(score.companyFitScore)} />
+            <CompactMetric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
+            <CompactMetric label="상태" value={STATUS_LABELS[company.status]} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {company.homepageUrl ? (
+              <a
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                href={company.homepageUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                홈페이지 <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+            {company.jobPostUrl ? (
+              <a
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                href={company.jobPostUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                채용공고 <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
           {validationReasons.length > 0 && (
             <>
               <div className="mt-2 flex flex-wrap gap-1">
@@ -392,7 +446,35 @@ export function CompanyDetailPanel({
         </div>
       </div>
 
+      <nav className="shrink-0 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2">
+        <div className="flex min-w-max gap-1">
+          {detailTabs.map((tab) => (
+            <button
+              aria-pressed={activeTab === tab.id}
+              className={[
+                "inline-flex h-8 items-center gap-1 rounded-md px-3 text-xs font-medium transition-colors",
+                activeTab === tab.id
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100",
+              ].join(" ")}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              type="button"
+            >
+              {tab.label}
+              {tab.count ? (
+                <span className={activeTab === tab.id ? "text-white/75" : "text-slate-400"}>
+                  {tab.count}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+        {activeTab === "summary" ? (
+          <>
         <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Metric label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
@@ -482,9 +564,14 @@ export function CompanyDetailPanel({
         </section>
 
         <StatusHistorySection statusHistory={company.statusHistory ?? []} />
+          </>
+        ) : null}
 
-        <CompanySummarySection company={company} userId={userId} />
+        {activeTab === "ai" ? (
+          <CompanySummarySection company={company} userId={userId} />
+        ) : null}
 
+        {activeTab === "summary" ? (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">평가 점수</h3>
           {score.categoryScores.map((category) => (
@@ -502,7 +589,10 @@ export function CompanyDetailPanel({
             </div>
           ))}
         </section>
+        ) : null}
 
+        {activeTab === "prep" ? (
+          <>
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{fitTitle}</h3>
           <div className="grid grid-cols-1 gap-2">
@@ -569,7 +659,11 @@ export function CompanyDetailPanel({
             ))}
           </div>
         </section>
+          </>
+        ) : null}
 
+        {activeTab === "research" ? (
+          <>
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">경고 신호</h3>
           {company.riskFlags.length > 0 ? (
@@ -796,7 +890,11 @@ export function CompanyDetailPanel({
             <p className="text-sm text-slate-400">기록 없음</p>
           ) : null}
         </section>
+          </>
+        ) : null}
 
+        {activeTab === "interview" ? (
+          <>
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
@@ -891,7 +989,10 @@ export function CompanyDetailPanel({
             </div>
           ))}
         </section>
+          </>
+        ) : null}
 
+        {activeTab === "prep" ? (
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <Flag className="h-4 w-4" />
@@ -957,13 +1058,18 @@ export function CompanyDetailPanel({
             </div>
           ))}
         </section>
+        ) : null}
 
+        {activeTab === "private" ? (
         <EncryptedNoteSection
           company={company}
           onPatch={onPatch}
           userId={userId}
         />
+        ) : null}
 
+        {activeTab === "interview" ? (
+          <>
         <section className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
@@ -997,10 +1103,21 @@ export function CompanyDetailPanel({
           settings={settings}
           onPatch={onPatch}
         />
+          </>
+        ) : null}
 
-        <DraftEmailSection company={company} />
+        {activeTab === "ai" ? <DraftEmailSection company={company} /> : null}
       </div>
     </aside>
+  );
+}
+
+function CompactMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+      <div className="text-[11px] font-medium text-slate-400">{label}</div>
+      <div className="mt-0.5 truncate font-semibold text-slate-800">{value}</div>
+    </div>
   );
 }
 

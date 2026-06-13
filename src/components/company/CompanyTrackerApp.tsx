@@ -110,6 +110,7 @@ export function CompanyTrackerApp() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [deletionRequested, setDeletionRequested] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: "idle",
     lastAt: "",
@@ -147,6 +148,7 @@ export function CompanyTrackerApp() {
         setEditingCompany(null);
         setViewMode("dashboard");
         setIsReady(false);
+        setDeletionRequested(false);
       }
     });
 
@@ -167,6 +169,7 @@ export function CompanyTrackerApp() {
       const legacyCompanies = readLegacyCompanies();
       const loadedCompanies = userScopedCompanies;
       const loadedSettings = localStorageRepository.loadSettings(userId);
+      const preferredRole = loadedSettings.userRole ?? loadUserRole(userId) ?? "designer";
       const migrationCompletedAt = getMigrationCompletedAt(userId);
       setSettings(loadedSettings);
 
@@ -184,7 +187,7 @@ export function CompanyTrackerApp() {
         const remote = await pullRemoteCompanies(userId);
         if (remote === null) {
           const fallbackCompanies =
-            loadedCompanies.length > 0 ? loadedCompanies : cloneSampleCompaniesForUser();
+            loadedCompanies.length > 0 ? loadedCompanies : cloneSampleCompaniesForUser(preferredRole);
           setCompanies(fallbackCompanies);
           setSelectedId(fallbackCompanies[0]?.id ?? "");
           setRemotePushEnabled(false);
@@ -237,12 +240,12 @@ export function CompanyTrackerApp() {
         return;
       }
 
-      const ownedSeed = cloneSampleCompaniesForUser();
+      const ownedSeed = cloneSampleCompaniesForUser(preferredRole);
       setCompanies(ownedSeed);
       setSelectedId(ownedSeed[0]?.id ?? "");
       setStorageWriteEnabled(true);
       setIsReady(true);
-      if (loadUserRole() === null) {
+      if (!loadedSettings.userRole && loadUserRole(userId) === null) {
         setShowOnboarding(true);
       }
       if (isRemoteSyncEnabled()) {
@@ -250,6 +253,23 @@ export function CompanyTrackerApp() {
       }
     });
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    queueMicrotask(async () => {
+      const token = session?.access_token;
+      if (!token) return;
+      try {
+        const res = await fetch("/api/account/delete-request", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = (await res.json()) as { ok?: boolean; request?: unknown };
+        if (res.ok && json.ok) setDeletionRequested(Boolean(json.request));
+      } catch {
+        // 탈퇴 요청 상태는 보조 표시이므로 실패해도 앱 사용을 막지 않습니다.
+      }
+    });
+  }, [session?.access_token, userId]);
 
   // 저장: localStorage 즉시 + Supabase 디바운스 push
   useEffect(() => {
@@ -483,7 +503,7 @@ export function CompanyTrackerApp() {
 
   function resetSampleData() {
     if (!userId) return;
-    const ownedSeed = cloneSampleCompaniesForUser();
+    const ownedSeed = cloneSampleCompaniesForUser(settings.userRole ?? "designer");
     localStorageRepository.reset(userId);
     setCompanies(ownedSeed);
     setSettings(DEFAULT_CRITERIA_SETTINGS);
@@ -558,14 +578,23 @@ export function CompanyTrackerApp() {
     await supabase?.auth.signOut();
   }
 
-  async function deleteAccount() {
-    if (!userId) return;
-    localStorageRepository.reset(userId);
-    const supabase = getSupabaseClient();
-    await supabase?.auth.signOut();
-    showToast(
-      "탈퇴 요청이 접수되었습니다. 계정 삭제 완료 시 이메일로 안내드립니다.",
-    );
+  async function deleteAccount(reason: string, confirmText: string) {
+    if (!userId || !session?.access_token) return false;
+    try {
+      const res = await fetch("/api/account/delete-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ reason, confirmText }),
+      });
+      if (!res.ok) return false;
+      setDeletionRequested(true);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function resetPassword() {
@@ -674,7 +703,7 @@ export function CompanyTrackerApp() {
     const nextCompanies =
       migrationPrompt.remoteCompanies.length > 0
         ? migrationPrompt.remoteCompanies
-        : cloneSampleCompaniesForUser();
+        : cloneSampleCompaniesForUser(settings.userRole ?? "designer");
     const pushed =
       migrationPrompt.remoteCompanies.length > 0 || !isRemoteSyncEnabled()
         ? true
@@ -840,10 +869,12 @@ export function CompanyTrackerApp() {
           <div className="p-3 sm:p-4">
             {viewMode === "settings" ? (
               <CriteriaSettingsPanel
+                deletionRequested={deletionRequested}
                 onBack={() => setViewMode("dashboard")}
                 onChange={setSettings}
-                onDeleteAccount={() => void deleteAccount()}
+                onDeleteAccount={deleteAccount}
                 onExport={() => void exportBackup(companies, settings, userId)}
+                onImportFile={handleImportFile}
                 onResetPassword={() => void resetPassword()}
                 onSignOut={() => void signOut()}
                 settings={settings}
@@ -917,8 +948,6 @@ export function CompanyTrackerApp() {
                   advancedFilter={advancedFilter}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
-                  onExport={() => void exportBackup(companies, settings, userId)}
-                  onImportFile={handleImportFile}
                   onListModeChange={setListMode}
                   onQueryChange={setQuery}
                   onReset={resetSampleData}
@@ -1077,6 +1106,7 @@ export function CompanyTrackerApp() {
 
       {showOnboarding && (
         <OnboardingModal
+          userId={userId}
           onComplete={(role, patch) => {
             setSettings((prev) => ({ ...prev, ...patch }));
             setShowOnboarding(false);
@@ -1154,7 +1184,7 @@ function SyncStatusBadge({
     return (
       <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-600">
         <Loader2 className="h-3 w-3 animate-spin" />
-        동기화 중…
+        자동 저장 중
       </span>
     );
   }
@@ -1162,7 +1192,7 @@ function SyncStatusBadge({
     return (
       <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
         <CheckCircle2 className="h-3 w-3" />
-        동기화됨 {timeLabel}
+        자동 저장됨 {timeLabel}
       </span>
     );
   }
@@ -1170,7 +1200,7 @@ function SyncStatusBadge({
     return (
       <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
         <AlertCircle className="h-3 w-3" />
-        동기화 실패
+        임시 저장 중
         <button
           className="ml-0.5 hover:text-red-800"
           onClick={onRetry}
@@ -1185,7 +1215,7 @@ function SyncStatusBadge({
   return (
     <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
       <CloudOff className="h-3 w-3" />
-      Supabase 연결됨
+      자동 저장 대기
     </span>
   );
 }

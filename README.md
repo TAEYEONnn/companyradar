@@ -60,6 +60,7 @@ supabase/migrations/20260612_v031_auth_rls.sql
 supabase/migrations/20260612_v033_candidate_inbox.sql
 supabase/migrations/20260613_v034_profiles_ai_requests.sql
 supabase/migrations/20260613_v035_ai_billing_credits.sql
+supabase/migrations/20260613_v036_support_account_requests.sql
 ```
 
 주요 테이블:
@@ -71,6 +72,9 @@ supabase/migrations/20260613_v035_ai_billing_credits.sql
 - `ai_credit_accounts`: 무료/유료 AI 잔여 횟수
 - `ai_credit_ledger`: 무료 지급, 구매 지급, 성공 차감 기록
 - `payments`: 토스페이먼츠 주문/승인 상태
+- `support_requests`: 서비스 문의, 버그, 기능 제안
+- `refund_requests`: 결제/환불 요청
+- `account_deletion_requests`: 회원탈퇴 요청 상태
 
 ## AI 권한과 과금
 
@@ -94,9 +98,18 @@ supabase/migrations/20260613_v035_ai_billing_credits.sql
 
 정산 계좌는 토스페이먼츠 상점 설정에서 등록합니다. 앱 DB에는 계좌번호를 저장하지 않습니다.
 
+## 서비스 문의, 환불, 탈퇴
+
+- 설정 화면의 `서비스 문의`에서 버그, 기능 제안, 사용 문의를 접수합니다.
+- 설정 화면의 `결제 및 환불`에서 AI 10회권 환불 요청을 접수합니다.
+- 환불 정책은 `결제 후 7일 이내 + 유료 크레딧 미사용`이면 전액 환불 요청 가능입니다.
+- 사용 이력이 있거나 서비스 장애, 중복 결제, 승인 오류가 있는 경우 운영자가 개별 확인합니다.
+- 회원탈퇴는 즉시 삭제가 아니라 요청 접수형입니다. 결제/환불 가능성을 확인한 뒤 운영자가 처리하고 이메일로 안내합니다.
+
 ## 개발 메모
 
-- 샘플 데이터는 최초 진입용 예시 1개만 제공합니다.
-- Supabase 데이터를 불러오지 못해도 로그인 사용자별 localStorage에 임시 저장합니다.
+- 샘플 데이터는 현재 직군 기준 예시 1개만 제공합니다.
+- Supabase 저장이 기본이며, 데이터를 불러오지 못하는 경우 로그인 사용자별 localStorage에 임시 저장합니다.
+- JSON 가져오기/내보내기는 설정의 고급 백업에서만 제공합니다.
 - 결제/크레딧 로직은 `SUPABASE_SERVICE_ROLE_KEY`가 필요합니다.
 - 토스 테스트 키를 사용하면 실제 결제가 발생하지 않습니다.

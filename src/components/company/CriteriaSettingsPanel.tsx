@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -10,409 +10,570 @@ import {
   LogOut,
   Mail,
   PanelRightOpen,
+  ReceiptText,
   RotateCcw,
   Settings2,
   Trash2,
+  Upload,
+  UserRound,
   UserX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
-import { DEFAULT_CRITERIA_SETTINGS, ROLE_LABELS, ROLE_WEIGHT_PRESETS, SCORE_CATEGORIES } from "@/lib/criteria";
+import { Input, Textarea } from "@/components/ui/field";
+import {
+  DEFAULT_CRITERIA_SETTINGS,
+  ROLE_LABELS,
+  ROLE_WEIGHT_PRESETS,
+  SCORE_CATEGORIES,
+} from "@/lib/criteria";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import type { CriteriaSettings, UserRole } from "@/lib/types";
 
 interface CriteriaSettingsPanelProps {
   settings: CriteriaSettings;
   userEmail: string;
+  deletionRequested: boolean;
   onBack: () => void;
   onChange: (settings: CriteriaSettings) => void;
   onSignOut: () => void;
   onExport: () => void;
-  onDeleteAccount: () => void;
+  onImportFile: (file: File) => void;
+  onDeleteAccount: (reason: string, confirmText: string) => Promise<boolean>;
   onResetPassword: () => void;
 }
 
 export function CriteriaSettingsPanel({
   settings,
   userEmail,
-  onBack,
+  deletionRequested,
   onChange,
   onSignOut,
   onExport,
+  onImportFile,
   onDeleteAccount,
   onResetPassword,
 }: CriteriaSettingsPanelProps) {
-  const [deleteInput, setDeleteInput] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCriteria, setShowCriteria] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
+  const [supportMessage, setSupportMessage] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [submitting, setSubmitting] = useState<"support" | "refund" | "delete" | null>(null);
+  const [notice, setNotice] = useState("");
 
   const weightSum = Object.values(settings.weights).reduce(
     (sum, weight) => sum + weight,
     0,
   );
 
-  function handleDeleteConfirm() {
-    if (deleteInput.trim() !== "탈퇴") return;
-    setDeleteInput("");
-    setShowDeleteConfirm(false);
-    onDeleteAccount();
+  async function getAccessToken() {
+    const supabase = getSupabaseClient();
+    return supabase
+      ? (await supabase.auth.getSession()).data.session?.access_token
+      : undefined;
+  }
+
+  async function submitSupportRequest() {
+    if (!supportMessage.trim()) {
+      setNotice("문의 내용을 입력해 주세요.");
+      return;
+    }
+    setSubmitting("support");
+    setNotice("");
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/support/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          requestType: "general",
+          subject: "서비스 문의",
+          message: supportMessage,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setSupportMessage("");
+      setNotice("문의가 접수되었습니다. 확인 후 이메일로 답변드릴게요.");
+    } catch {
+      setNotice("문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function submitRefundRequest() {
+    if (!refundReason.trim()) {
+      setNotice("환불 요청 사유를 입력해 주세요.");
+      return;
+    }
+    setSubmitting("refund");
+    setNotice("");
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/billing/refund-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ reason: refundReason }),
+      });
+      if (!res.ok) throw new Error();
+      setRefundReason("");
+      setNotice("환불 요청이 접수되었습니다. 결제/사용 이력을 확인해 이메일로 안내드릴게요.");
+    } catch {
+      setNotice("환불 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    setSubmitting("delete");
+    setNotice("");
+    const ok = await onDeleteAccount(deleteReason, deleteInput);
+    if (ok) {
+      setDeleteInput("");
+      setDeleteReason("");
+      setShowDeleteConfirm(false);
+      setNotice("탈퇴 요청이 접수되었습니다. 운영자가 확인 후 이메일로 안내드립니다.");
+    } else {
+      setNotice("탈퇴 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    setSubmitting(null);
+  }
+
+  function changeRole(role: UserRole) {
+    onChange({
+      ...settings,
+      userRole: role,
+      weights: ROLE_WEIGHT_PRESETS[role],
+    });
   }
 
   return (
-    <section className="space-y-6">
-      {/* 계정 및 지원 */}
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 p-4">
-          <h2 className="text-lg font-semibold">계정 및 지원</h2>
-          {userEmail && (
-            <p className="mt-1 text-sm text-slate-500">{userEmail}</p>
-          )}
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {/* 비밀번호 재설정 */}
-          <AccountRow
-            description="가입한 이메일로 재설정 링크를 보냅니다"
+    <section className="mx-auto max-w-5xl space-y-4">
+      <SettingsCard
+        description={userEmail || "로그인 계정"}
+        icon={<UserRound className="h-4 w-4" />}
+        title="계정"
+      >
+        <div className="grid gap-3 md:grid-cols-2">
+          <ActionBox
+            description="가입한 이메일로 재설정 링크를 보냅니다."
             icon={<KeyRound className="h-4 w-4" />}
-            label="비밀번호 재설정 메일 받기"
-            onClick={onResetPassword}
-          />
-
-          {/* 내 데이터 내보내기 */}
-          <AccountRow
-            description="모든 회사 데이터를 JSON 파일로 백업합니다"
-            icon={<Download className="h-4 w-4" />}
-            label="내 데이터 내보내기"
-            onClick={onExport}
-          />
-
-          {/* 서비스 문의 */}
-          <AccountRow
-            description="버그 신고, 기능 제안, 일반 문의"
-            icon={<Mail className="h-4 w-4" />}
-            label="서비스 문의"
-            onClick={() => {
-              const subject = encodeURIComponent("[Company Signal] 서비스 문의");
-              const body = encodeURIComponent(
-                `문의 유형:\n사용 중인 브라우저:\n문제가 발생한 화면:\n문의 내용:\n\n계정: ${userEmail}`,
-              );
-              window.location.href = `mailto:companysignal.app@gmail.com?subject=${subject}&body=${body}`;
-            }}
-          />
-
-          {/* 결제/환불 문의 */}
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
-                <Mail className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="text-sm font-medium">결제/환불 문의</div>
-                <div className="text-xs text-slate-500">현재 유료 결제를 제공하지 않습니다</div>
-              </div>
-            </div>
-            <Button
-              onClick={() => {
-                const subject = encodeURIComponent("[Company Signal] 결제/환불 문의");
-                const body = encodeURIComponent(
-                  `가입 이메일: ${userEmail}\n결제일:\n결제 수단:\n환불 요청 사유:`,
-                );
-                window.location.href = `mailto:companysignal.app@gmail.com?subject=${subject}&body=${body}`;
-              }}
-              variant="secondary"
-            >
-              문의하기
+            title="비밀번호 변경"
+          >
+            <Button onClick={onResetPassword} variant="secondary">
+              재설정 메일 받기
             </Button>
-          </div>
-
-          {/* 로그아웃 */}
-          <AccountRow
+          </ActionBox>
+          <ActionBox
+            description="현재 기기에서 로그아웃합니다."
             icon={<LogOut className="h-4 w-4" />}
-            label="로그아웃"
-            onClick={onSignOut}
-          />
-
-          {/* 회원 탈퇴 */}
-          <div className="p-4">
-            {!showDeleteConfirm ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-500">
-                    <UserX className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-red-600">회원 탈퇴</div>
-                    <div className="text-xs text-slate-500">모든 데이터가 삭제되며 복구할 수 없습니다</div>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  variant="secondary"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  탈퇴
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4">
-                <p className="text-sm font-medium text-red-700">
-                  정말 탈퇴하시겠습니까? 모든 데이터가 영구 삭제됩니다.
-                </p>
-                <p className="text-xs text-red-600">
-                  확인하려면 아래에 <strong>탈퇴</strong>를 입력하세요.
-                </p>
-                <input
-                  className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                  onChange={(e) => setDeleteInput(e.target.value)}
-                  placeholder="탈퇴"
-                  type="text"
-                  value={deleteInput}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      setDeleteInput("");
-                    }}
-                    variant="secondary"
-                  >
-                    취소
-                  </Button>
-                  <button
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 hover:bg-red-700"
-                    disabled={deleteInput.trim() !== "탈퇴"}
-                    onClick={handleDeleteConfirm}
-                  >
-                    탈퇴 확인
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            title="로그아웃"
+          >
+            <Button onClick={onSignOut} variant="secondary">
+              로그아웃
+            </Button>
+          </ActionBox>
         </div>
+      </SettingsCard>
 
-        {/* 법적 링크 */}
-        <div className="flex flex-wrap gap-4 border-t border-slate-100 p-4 text-xs text-slate-400">
-          <a
-            className="flex items-center gap-1 hover:text-slate-600"
-            href="/terms"
-            rel="noopener noreferrer"
-            target="_blank"
+      <SettingsCard
+        description="버그, 기능 제안, 사용 중 막힌 부분을 남겨주세요."
+        icon={<Mail className="h-4 w-4" />}
+        title="서비스 문의"
+      >
+        <Textarea
+          aria-label="서비스 문의 내용"
+          onChange={(event) => setSupportMessage(event.target.value)}
+          placeholder="문의 내용을 적어주세요. 문제가 발생한 화면이나 상황을 함께 적으면 더 빨리 확인할 수 있어요."
+          rows={4}
+          value={supportMessage}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">
+            긴급 문의는 companysignal.app@gmail.com 으로도 받을 수 있습니다.
+          </p>
+          <Button
+            disabled={submitting === "support"}
+            onClick={() => void submitSupportRequest()}
           >
-            이용약관
-            <ExternalLink className="h-3 w-3" />
-          </a>
-          <a
-            className="flex items-center gap-1 hover:text-slate-600"
-            href="/privacy"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            개인정보 처리방침
-            <ExternalLink className="h-3 w-3" />
-          </a>
-          <a
-            className="flex items-center gap-1 hover:text-slate-600"
-            href="/refund-policy"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            환불 정책
-            <ExternalLink className="h-3 w-3" />
-          </a>
+            문의 접수
+          </Button>
         </div>
-      </div>
+      </SettingsCard>
 
-      {/* 평가 기준 설정 — 접힘 처리 */}
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <SettingsCard
+        description="AI 10회권은 결제 후 7일 이내 미사용이면 전액 환불을 요청할 수 있습니다."
+        icon={<ReceiptText className="h-4 w-4" />}
+        title="결제 및 환불"
+      >
+        <div className="rounded-md border border-sky-100 bg-sky-50 p-3 text-sm leading-6 text-slate-700">
+          계정당 첫 AI 1회는 무료입니다. 이후 10회권을 구매해 사용하며, 성공한 AI 응답에만
+          크레딧이 차감됩니다. 중복 결제, 서비스 장애, 사용 이력이 있는 환불은 운영자가 개별
+          확인합니다.
+        </div>
+        <Textarea
+          aria-label="환불 요청 사유"
+          onChange={(event) => setRefundReason(event.target.value)}
+          placeholder="환불 요청 사유를 적어주세요. 가능하면 결제일, 결제 수단, Toss 영수증 정보를 함께 적어주세요."
+          rows={3}
+          value={refundReason}
+        />
+        <Button
+          disabled={submitting === "refund"}
+          onClick={() => void submitRefundRequest()}
+          variant="secondary"
+        >
+          환불 요청 접수
+        </Button>
+      </SettingsCard>
+
+      <SettingsCard
+        description="로그인 계정 기준으로 Supabase에 자동 저장됩니다. JSON은 보조 백업입니다."
+        icon={<Download className="h-4 w-4" />}
+        title="데이터"
+      >
         <button
-          className="flex w-full items-center justify-between p-4 text-left"
-          onClick={() => setShowCriteria((v) => !v)}
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
+          onClick={() => setShowBackup((value) => !value)}
           type="button"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
-              <Settings2 className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">평가 기준 설정</div>
-              <div className="text-xs text-slate-500">카테고리 가중치 및 리스크 기준 조정</div>
-            </div>
-          </div>
+          <span>
+            <span className="block text-sm font-medium">고급 백업</span>
+            <span className="block text-xs text-slate-500">
+              JSON 가져오기/내보내기는 계정 저장의 보조 수단입니다.
+            </span>
+          </span>
           <ChevronDown
-            className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${showCriteria ? "rotate-180" : ""}`}
+            className={`h-4 w-4 text-slate-400 transition-transform ${showBackup ? "rotate-180" : ""}`}
+          />
+        </button>
+        {showBackup ? (
+          <div className="grid gap-3 rounded-md border border-slate-100 bg-slate-50 p-3 md:grid-cols-2">
+            <ActionBox
+              description="현재 계정의 회사 데이터를 JSON 파일로 저장합니다."
+              icon={<Download className="h-4 w-4" />}
+              title="JSON 내보내기"
+            >
+              <Button onClick={onExport} variant="secondary">
+                내보내기
+              </Button>
+            </ActionBox>
+            <ActionBox
+              description="기존 JSON 백업을 현재 계정 데이터에 병합합니다."
+              icon={<Upload className="h-4 w-4" />}
+              title="JSON 가져오기"
+            >
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="secondary"
+              >
+                가져오기
+              </Button>
+              <input
+                accept="application/json"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) onImportFile(file);
+                  event.target.value = "";
+                }}
+                ref={fileInputRef}
+                type="file"
+              />
+            </ActionBox>
+          </div>
+        ) : null}
+      </SettingsCard>
+
+      <SettingsCard
+        description="직군을 바꾸면 평가 가중치와 체크리스트가 해당 직군 기준으로 바뀝니다."
+        icon={<Settings2 className="h-4 w-4" />}
+        title="내 직군 및 평가 기준"
+      >
+        <div>
+          <p className="mb-2 text-xs font-medium text-slate-500">내 직군</p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.entries(ROLE_LABELS) as [UserRole, string][]).map(([role, label]) => (
+              <button
+                key={role}
+                className={[
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  settings.userRole === role
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50",
+                ].join(" ")}
+                onClick={() => changeRole(role)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button
+          className="flex w-full items-center justify-between rounded-md border border-slate-200 p-3 text-left"
+          onClick={() => setShowCriteria((value) => !value)}
+          type="button"
+        >
+          <span>
+            <span className="block text-sm font-medium">세부 평가 기준</span>
+            <span className="block text-xs text-slate-500">
+              가중치 합계 {Math.round(weightSum * 100)}%. 계산 시 자동 정규화됩니다.
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 text-slate-400 transition-transform ${showCriteria ? "rotate-180" : ""}`}
           />
         </button>
 
-        {showCriteria && (
-          <>
-            <div className="border-t border-slate-100 p-4">
-              <p className="mb-2 text-xs font-medium text-slate-500">직군 선택</p>
-              <div className="flex flex-wrap gap-2">
-                {(Object.entries(ROLE_LABELS) as [UserRole, string][]).map(([role, label]) => (
-                  <button
-                    key={role}
-                    className={[
-                      "rounded-full border px-3 py-1 text-xs transition-colors",
-                      settings.userRole === role
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50",
-                    ].join(" ")}
-                    onClick={() =>
-                      onChange({
-                        ...settings,
-                        userRole: role,
-                        weights: ROLE_WEIGHT_PRESETS[role],
-                      })
-                    }
-                    type="button"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {settings.userRole && (
-                <p className="mt-1.5 text-xs text-slate-400">
-                  직군 변경 시 가중치가 해당 직군 프리셋으로 업데이트됩니다
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-6 border-t border-slate-100 p-4 lg:grid-cols-[520px_1fr]">
-              <div className="space-y-3">
-                {SCORE_CATEGORIES.map((category) => (
-                  <div
-                    className="grid grid-cols-[180px_1fr_72px] items-center gap-3 rounded-md border border-slate-200 p-3"
-                    key={category.key}
-                  >
-                    <div>
-                      <div className="font-medium">{category.title}</div>
-                      <div className="text-xs text-slate-500">
-                        {category.items.length}개 항목
-                      </div>
-                    </div>
-                    <input
-                      aria-label={`${category.title} 가중치`}
-                      className="accent-slate-900"
-                      max={50}
-                      min={0}
-                      onChange={(event) =>
-                        onChange({
-                          ...settings,
-                          weights: {
-                            ...settings.weights,
-                            [category.key]: Number(event.target.value) / 100,
-                          },
-                        })
-                      }
-                      type="range"
-                      value={Math.round(settings.weights[category.key] * 100)}
-                    />
-                    <Input
-                      aria-label={`${category.title} 가중치 숫자`}
-                      max={50}
-                      min={0}
-                      onChange={(event) =>
-                        onChange({
-                          ...settings,
-                          weights: {
-                            ...settings.weights,
-                            [category.key]: Number(event.target.value) / 100,
-                          },
-                        })
-                      }
-                      type="number"
-                      value={Math.round(settings.weights[category.key] * 100)}
-                    />
-                  </div>
-                ))}
-                <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
-                  현재 합계 {Math.round(weightSum * 100)}%. 합계가 100%가 아니어도 점수
-                  계산 시 자동 정규화됩니다.
-                </div>
-                <div className="grid grid-cols-[1fr_120px] items-center gap-3 rounded-md border border-slate-200 p-3">
+        {showCriteria ? (
+          <div className="grid grid-cols-1 gap-6 rounded-md border border-slate-100 bg-slate-50 p-4 lg:grid-cols-[minmax(0,520px)_1fr]">
+            <div className="space-y-3">
+              {SCORE_CATEGORIES.map((category) => (
+                <div
+                  className="grid grid-cols-[minmax(120px,180px)_1fr_72px] items-center gap-3 rounded-md border border-slate-200 bg-white p-3"
+                  key={category.key}
+                >
                   <div>
-                    <div className="font-medium">리스크 높음 기준</div>
-                    <div className="text-sm text-slate-500">
-                      체크된 경고 신호가 이 개수 이상이면 별도 뱃지를 표시합니다.
+                    <div className="text-sm font-medium">{category.title}</div>
+                    <div className="text-xs text-slate-500">
+                      {category.items.length}개 항목
                     </div>
                   </div>
-                  <Input
-                    max={7}
-                    min={1}
+                  <input
+                    aria-label={`${category.title} 가중치`}
+                    className="accent-slate-900"
+                    max={50}
+                    min={0}
                     onChange={(event) =>
                       onChange({
                         ...settings,
-                        highRiskThreshold: Number(event.target.value),
+                        weights: {
+                          ...settings.weights,
+                          [category.key]: Number(event.target.value) / 100,
+                        },
+                      })
+                    }
+                    type="range"
+                    value={Math.round(settings.weights[category.key] * 100)}
+                  />
+                  <Input
+                    aria-label={`${category.title} 가중치 숫자`}
+                    max={50}
+                    min={0}
+                    onChange={(event) =>
+                      onChange({
+                        ...settings,
+                        weights: {
+                          ...settings.weights,
+                          [category.key]: Number(event.target.value) / 100,
+                        },
                       })
                     }
                     type="number"
-                    value={settings.highRiskThreshold}
+                    value={Math.round(settings.weights[category.key] * 100)}
                   />
                 </div>
+              ))}
+              <div className="grid grid-cols-[1fr_120px] items-center gap-3 rounded-md border border-slate-200 bg-white p-3">
+                <div>
+                  <div className="text-sm font-medium">리스크 높음 기준</div>
+                  <div className="text-xs text-slate-500">
+                    경고 신호가 이 개수 이상이면 리스크 뱃지를 표시합니다.
+                  </div>
+                </div>
+                <Input
+                  max={7}
+                  min={1}
+                  onChange={(event) =>
+                    onChange({
+                      ...settings,
+                      highRiskThreshold: Number(event.target.value),
+                    })
+                  }
+                  type="number"
+                  value={settings.highRiskThreshold}
+                />
               </div>
+            </div>
 
-              <div className="rounded-md border border-slate-200 p-4">
-                <h3 className="flex items-center gap-2 font-semibold">
-                  <PanelRightOpen className="h-4 w-4" />
-                  점수 라벨
-                </h3>
-                <div className="mt-4 space-y-2 text-sm">
-                  <LabelRow label="4.3 이상" tone="green" value="적극 지원" />
-                  <LabelRow label="3.7 이상" tone="blue" value="지원 고려" />
-                  <LabelRow label="3.0 이상" tone="amber" value="정보 추가 필요" />
-                  <LabelRow label="3.0 미만" tone="slate" value="보류" />
-                </div>
-                <div className="mt-6 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
-                  평가 항목은 회사 크기보다 커리어 성장성, 조직 안정성, 제품 품질, 후기
-                  신호, 포지션 적합도를 우선 보도록 구성되어 있습니다.
-                </div>
+            <div className="rounded-md border border-slate-200 bg-white p-4">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <PanelRightOpen className="h-4 w-4" />
+                점수 라벨
+              </h3>
+              <div className="mt-4 space-y-2 text-sm">
+                <LabelRow label="4.3 이상" tone="green" value="적극 지원" />
+                <LabelRow label="3.7 이상" tone="blue" value="지원 고려" />
+                <LabelRow label="3.0 이상" tone="amber" value="정보 추가 필요" />
+                <LabelRow label="3.0 미만" tone="slate" value="보류" />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button onClick={() => onChange(DEFAULT_CRITERIA_SETTINGS)} variant="secondary">
+                  <RotateCcw className="h-4 w-4" />
+                  기본값 복원
+                </Button>
+                <Button onClick={() => setShowCriteria(false)}>
+                  <Check className="h-4 w-4" />
+                  완료
+                </Button>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 p-3">
-              <Button onClick={() => onChange(DEFAULT_CRITERIA_SETTINGS)} variant="secondary">
-                <RotateCcw className="h-4 w-4" />
-                기본값 복원
+          </div>
+        ) : null}
+      </SettingsCard>
+
+      <SettingsCard
+        description="탈퇴는 결제/환불 가능성을 확인한 뒤 운영자가 처리합니다."
+        icon={<UserX className="h-4 w-4" />}
+        title="회원탈퇴"
+      >
+        {deletionRequested ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            탈퇴 요청이 접수되어 검토 중입니다. 처리 완료 시 이메일로 안내드립니다.
+          </div>
+        ) : !showDeleteConfirm ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm leading-6 text-slate-600">
+              탈퇴 요청 후 운영자가 결제/환불 이슈를 확인합니다. 완료 전까지 로그인과 데이터 조회가
+              가능할 수 있습니다.
+            </p>
+            <Button onClick={() => setShowDeleteConfirm(true)} variant="danger">
+              <Trash2 className="h-4 w-4" />
+              탈퇴 요청
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-medium text-red-700">
+              탈퇴 요청을 접수하려면 아래에 <strong>탈퇴</strong>를 입력하세요.
+            </p>
+            <Textarea
+              aria-label="탈퇴 사유"
+              onChange={(event) => setDeleteReason(event.target.value)}
+              placeholder="선택 입력: 탈퇴 사유나 요청 사항"
+              rows={3}
+              value={deleteReason}
+            />
+            <Input
+              aria-label="탈퇴 확인 문구"
+              onChange={(event) => setDeleteInput(event.target.value)}
+              placeholder="탈퇴"
+              type="text"
+              value={deleteInput}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteInput("");
+                  setDeleteReason("");
+                }}
+                variant="secondary"
+              >
+                취소
               </Button>
-              <Button onClick={() => setShowCriteria(false)}>
-                <Check className="h-4 w-4" />
-                완료
+              <Button
+                disabled={deleteInput.trim() !== "탈퇴" || submitting === "delete"}
+                onClick={() => void handleDeleteConfirm()}
+                variant="danger"
+              >
+                탈퇴 요청 접수
               </Button>
             </div>
-          </>
+          </div>
         )}
+      </SettingsCard>
+
+      {notice ? (
+        <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          {notice}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-4 text-xs text-slate-400">
+        <PolicyLink href="/terms" label="이용약관" />
+        <PolicyLink href="/privacy" label="개인정보 처리방침" />
+        <PolicyLink href="/refund-policy" label="환불 정책" />
       </div>
     </section>
   );
 }
 
-function AccountRow({
+function SettingsCard({
   icon,
-  label,
+  title,
   description,
-  onClick,
+  children,
 }: {
   icon: React.ReactNode;
-  label: string;
-  description?: string;
-  onClick: () => void;
+  title: string;
+  description: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
           {icon}
         </div>
         <div>
-          <div className="text-sm font-medium">{label}</div>
-          {description && (
-            <div className="text-xs text-slate-500">{description}</div>
-          )}
+          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
         </div>
       </div>
-      <Button onClick={onClick} variant="secondary">
-        실행
-      </Button>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function ActionBox({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="mt-0.5 text-slate-500">{icon}</div>
+        <div>
+          <div className="text-sm font-medium text-slate-900">{title}</div>
+          <div className="mt-1 text-xs leading-5 text-slate-500">{description}</div>
+        </div>
+      </div>
+      <div className="shrink-0">{children}</div>
     </div>
+  );
+}
+
+function PolicyLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      className="flex items-center gap-1 hover:text-slate-600"
+      href={href}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      {label}
+      <ExternalLink className="h-3 w-3" />
+    </a>
   );
 }
 

@@ -1,6 +1,6 @@
 import { DEFAULT_CRITERIA_SETTINGS, SCORE_CATEGORIES } from "@/lib/criteria";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
-import { SAMPLE_COMPANIES } from "@/lib/sample-data";
+import { getSampleCompaniesForRole } from "@/lib/sample-data";
 import type {
   ApplicationChecklist,
   Company,
@@ -227,20 +227,26 @@ export function hasUserCompanies(companies: Company[]): boolean {
   return companies.some((company) => !company.isSampleData);
 }
 
-export function loadUserRole(): UserRole | null {
+function getRoleKey(userId?: string): string {
+  return userId ? `${ROLE_KEY}:${userId}` : ROLE_KEY;
+}
+
+export function loadUserRole(userId?: string): UserRole | null {
   if (typeof window === "undefined") return null;
-  const stored = window.localStorage.getItem(ROLE_KEY);
+  const stored =
+    window.localStorage.getItem(getRoleKey(userId)) ??
+    window.localStorage.getItem(ROLE_KEY);
   return (stored as UserRole | null) ?? null;
 }
 
-export function saveUserRole(role: UserRole): void {
+export function saveUserRole(role: UserRole, userId?: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(ROLE_KEY, role);
+  window.localStorage.setItem(getRoleKey(userId), role);
 }
 
-export function cloneSampleCompaniesForUser(): Company[] {
+export function cloneSampleCompaniesForUser(role: UserRole = "designer"): Company[] {
   const now = new Date().toISOString();
-  return SAMPLE_COMPANIES.map((company) =>
+  return getSampleCompaniesForRole(role).map((company) =>
     normalizeCompany({
       ...company,
       createdAt: now,
