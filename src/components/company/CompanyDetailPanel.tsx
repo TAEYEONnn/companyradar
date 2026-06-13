@@ -685,7 +685,7 @@ export function CompanyDetailPanel({
         {activeTab === "research" ? (
           <>
         <section className="space-y-4">
-          <h3 className="text-sm font-semibold">걱정되는 점</h3>
+          <h3 className="text-sm font-semibold">리스크 체크리스트</h3>
           {company.riskFlags.length > 0 ? (
             <div className="space-y-1">
               {company.riskFlags.map((flag) => (

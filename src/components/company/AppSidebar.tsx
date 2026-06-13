@@ -9,6 +9,7 @@ import {
   Inbox,
   Pencil,
   Settings2,
+  ShieldCheck,
   Target,
 } from "lucide-react";
 import { useState } from "react";
@@ -120,6 +121,7 @@ interface AppSidebarProps {
   viewMode: ViewMode;
   badges: SidebarBadges;
   appliedCount: number;
+  devToolsEnabled?: boolean;
   onNavigate: (mode: ViewMode) => void;
   onSignOut: () => void;
 }
@@ -130,6 +132,7 @@ export function AppSidebar({
   viewMode,
   badges,
   appliedCount,
+  devToolsEnabled = false,
   onNavigate,
   onSignOut,
 }: AppSidebarProps) {
@@ -218,6 +221,15 @@ export function AppSidebar({
           <Settings2 className="h-4 w-4 shrink-0" />
           <span className="flex-1 truncate">설정</span>
         </button>
+        {devToolsEnabled && (
+          <a
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            href="/admin"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            운영자 대시보드
+          </a>
+        )}
         <div className="space-y-1.5 pt-1">
           <p className="truncate text-xs text-slate-400">{userEmail}</p>
           <button

@@ -18,7 +18,7 @@ import {
 } from "@/lib/company-validation";
 import { importAndSaveEncryptionKey } from "@/lib/crypto";
 import { createEmptyCompany } from "@/lib/company-factory";
-import { DEFAULT_CRITERIA_SETTINGS } from "@/lib/criteria";
+import { DEFAULT_CRITERIA_SETTINGS, ROLE_LABELS } from "@/lib/criteria";
 import { isDevToolsEnabled } from "@/lib/dev-tools";
 import { planCompanyMigration } from "@/lib/migration";
 import {
@@ -84,6 +84,14 @@ interface MigrationPromptState {
   remoteCompanies: Company[];
 }
 
+const ROLE_SAMPLE_NAMES: Record<string, string> = {
+  designer: "토스",
+  pm: "당근",
+  frontend: "채널코퍼레이션",
+  ux_researcher: "LINE Plus",
+  marketer: "카카오스타일",
+};
+
 export function CompanyTrackerApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -134,6 +142,7 @@ export function CompanyTrackerApp() {
     () => isDevToolsEnabled({ origin: browserOrigin, userEmail }),
     [browserOrigin, userEmail],
   );
+  const effectiveUserId = userId || (devToolsEnabled ? "dev_local_user" : "");
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -845,6 +854,7 @@ export function CompanyTrackerApp() {
         }
         badges={sidebarBadges}
         className="hidden md:flex"
+        devToolsEnabled={devToolsEnabled}
         onNavigate={(mode) => {
           setViewMode(mode);
           setEditingCompany(null);
@@ -886,6 +896,7 @@ export function CompanyTrackerApp() {
           }
           badges={sidebarBadges}
           className="h-full w-full border-r-0"
+          devToolsEnabled={devToolsEnabled}
           onNavigate={(mode) => {
             setViewMode(mode);
             setEditingCompany(null);
@@ -1180,7 +1191,7 @@ export function CompanyTrackerApp() {
         open={drawerOpen}
         score={selectedScore ?? null}
         settings={settings}
-        userId={userId}
+        userId={effectiveUserId}
       />
 
       <ConfirmDialog
@@ -1205,12 +1216,17 @@ export function CompanyTrackerApp() {
       />
 
       <ConfirmDialog
-        confirmLabel="직군 샘플로 초기화"
-        description="현재 회사 목록을 지우고 내 직군 기준 샘플 1개만 남깁니다. 기존 데이터는 JSON 백업 후 진행하는 것을 권장합니다."
+        confirmLabel="예시 데이터로 교체"
+        description={(() => {
+          const role = settings.userRole ?? "designer";
+          const sampleName = ROLE_SAMPLE_NAMES[role] ?? "";
+          const roleName = ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role;
+          return `현재 목록을 지우고 ${roleName} 직군 예시 데이터(${sampleName})로 교체합니다. 기존 데이터는 JSON 백업 후 진행하는 것을 권장합니다.`;
+        })()}
         onCancel={() => setSampleResetOpen(false)}
         onConfirm={resetSampleData}
         open={sampleResetOpen}
-        title="회사 목록을 샘플로 초기화할까요?"
+        title="예시 데이터로 교체할까요?"
       />
 
       {toast ? (
