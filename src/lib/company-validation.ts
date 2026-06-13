@@ -8,6 +8,9 @@ export const VALIDATION_REASON_LABELS = {
   aiExtracted: "AI 추출 데이터",
   missingDeadline: "마감일 미확인",
   lowEvidence: "근거 레벨 2 이하",
+  noVerificationHistory: "검증 이력 없음",
+  staleVerification: "30일 이상 미검증",
+  unknownJobStatus: "공고 상태 미확인",
 } as const;
 
 function daysSince(dateStr: string, now: string): number {
@@ -29,12 +32,22 @@ export function getCompanyValidationReasons(
     reasons.add(VALIDATION_REASON_LABELS.staleJobCheck);
   }
 
+  if (!company.lastVerifiedAt) {
+    reasons.add(VALIDATION_REASON_LABELS.noVerificationHistory);
+  } else if (daysSince(company.lastVerifiedAt, now) > VALIDATION_STALE_DAYS) {
+    reasons.add(VALIDATION_REASON_LABELS.staleVerification);
+  }
+
+  if (company.jobStatus === "unknown") {
+    reasons.add(VALIDATION_REASON_LABELS.unknownJobStatus);
+  }
+
   if (includeDataQualityReasons) {
     if (company.sourceConfidence <= 2 || company.discoveryReason !== "manual") {
       reasons.add(VALIDATION_REASON_LABELS.aiExtracted);
     }
 
-    if (company.jobStatus === "unknown" || !company.jobDeadline) {
+    if (!company.jobDeadline) {
       reasons.add(VALIDATION_REASON_LABELS.missingDeadline);
     }
 

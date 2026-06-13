@@ -112,6 +112,25 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         validationReasons: getCompanyValidationReasons(c),
       }));
 
+      const stats = {
+        needsValidation: companies.filter(
+          (c) => getCompanyValidationReasons(c).length > 0,
+        ).length,
+        interviews: companies.filter((c) => c.interviewRounds.length > 0).length,
+        deadline7d: companies.filter((c) => {
+          if (!c.jobDeadline) return false;
+          const diff = Math.ceil(
+            (new Date(c.jobDeadline).getTime() - Date.now()) / 86400000,
+          );
+          return diff >= 0 && diff <= 7;
+        }).length,
+        waitingResponse: companies.filter((c) =>
+          ["applied", "interviewing"].includes(c.status),
+        ).length,
+        highPriority: companies.filter((c) => c.applicationPriority === "high")
+          .length,
+      };
+
       const res = await fetch("/api/weekly-strategy", {
         method: "POST",
         headers: {
@@ -120,6 +139,7 @@ export function CoachPanel({ companies, scoreMap, onBack }: CoachPanelProps) {
         },
         body: JSON.stringify({
           companies: snapshots,
+          stats,
           today,
         }),
       });

@@ -557,6 +557,9 @@ export function CompanyTrackerApp() {
     localStorageRepository.reset(userId);
     const supabase = getSupabaseClient();
     await supabase?.auth.signOut();
+    showToast(
+      "탈퇴 요청이 접수되었습니다. 계정 삭제 완료 시 이메일로 안내드립니다.",
+    );
   }
 
   async function resetPassword() {

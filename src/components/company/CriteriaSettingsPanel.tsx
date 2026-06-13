@@ -203,7 +203,11 @@ export function CriteriaSettingsPanel({
             icon={<Mail className="h-4 w-4" />}
             label="서비스 문의"
             onClick={() => {
-              window.location.href = `mailto:support@company-career-tracker.com?subject=서비스 문의&body=안녕하세요,%0A%0A문의 내용:%0A%0A계정: ${encodeURIComponent(userEmail)}`;
+              const subject = encodeURIComponent("[Company Signal] 서비스 문의");
+              const body = encodeURIComponent(
+                `문의 유형:\n사용 중인 브라우저:\n문제가 발생한 화면:\n문의 내용:\n\n계정: ${userEmail}`,
+              );
+              window.location.href = `mailto:companysignal.app@gmail.com?subject=${subject}&body=${body}`;
             }}
           />
 
@@ -220,7 +224,11 @@ export function CriteriaSettingsPanel({
             </div>
             <Button
               onClick={() => {
-                window.location.href = `mailto:support@company-career-tracker.com?subject=결제/환불 문의&body=안녕하세요,%0A%0A문의 내용:%0A%0A계정: ${encodeURIComponent(userEmail)}`;
+                const subject = encodeURIComponent("[Company Signal] 결제/환불 문의");
+                const body = encodeURIComponent(
+                  `가입 이메일: ${userEmail}\n결제일:\n결제 수단:\n환불 요청 사유:`,
+                );
+                window.location.href = `mailto:companysignal.app@gmail.com?subject=${subject}&body=${body}`;
               }}
               variant="secondary"
             >
