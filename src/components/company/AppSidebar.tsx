@@ -121,6 +121,7 @@ const NAV_ITEMS: NavItem[] = [
 
 interface AppSidebarProps {
   userEmail: string;
+  className?: string;
   viewMode: ViewMode;
   badges: SidebarBadges;
   appliedCount: number;
@@ -130,6 +131,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({
   userEmail,
+  className,
   viewMode,
   badges,
   appliedCount,
@@ -137,7 +139,12 @@ export function AppSidebar({
   onSignOut,
 }: AppSidebarProps) {
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside
+      className={cn(
+        "flex w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white",
+        className,
+      )}
+    >
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 border-b border-slate-100 px-4">
         <Building2 className="h-4 w-4 text-slate-500" />
