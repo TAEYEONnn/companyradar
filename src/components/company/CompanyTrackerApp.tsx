@@ -552,6 +552,26 @@ export function CompanyTrackerApp() {
     await supabase?.auth.signOut();
   }
 
+  async function deleteAccount() {
+    if (!userId) return;
+    localStorageRepository.reset(userId);
+    const supabase = getSupabaseClient();
+    await supabase?.auth.signOut();
+  }
+
+  async function resetPassword() {
+    if (!userEmail) return;
+    const supabase = getSupabaseClient();
+    const { error } = await supabase?.auth.resetPasswordForEmail(userEmail, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    }) ?? { error: null };
+    if (error) {
+      showToast("메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } else {
+      showToast(`${userEmail}로 비밀번호 재설정 메일을 보냈습니다.`);
+    }
+  }
+
   async function handleImportFile(file: File) {
     try {
       const {
@@ -813,7 +833,12 @@ export function CompanyTrackerApp() {
               <CriteriaSettingsPanel
                 onBack={() => setViewMode("dashboard")}
                 onChange={setSettings}
+                onDeleteAccount={() => void deleteAccount()}
+                onExport={() => void exportBackup(companies, settings, userId)}
+                onResetPassword={() => void resetPassword()}
+                onSignOut={() => void signOut()}
                 settings={settings}
+                userEmail={userEmail}
               />
             ) : viewMode === "inbox" ? (
               <CandidateInboxPanel
