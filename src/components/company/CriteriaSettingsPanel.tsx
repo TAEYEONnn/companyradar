@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
+  CircleHelp,
   Download,
   ExternalLink,
   KeyRound,
@@ -124,6 +125,10 @@ export function CriteriaSettingsPanel({
     setSubmitting("support");
     try {
       const token = await getAccessToken();
+      if (!token) {
+        onToast("로그인이 필요합니다.");
+        return;
+      }
       const res = await fetch("/api/support/request", {
         method: "POST",
         headers: {
@@ -136,11 +141,18 @@ export function CriteriaSettingsPanel({
           message: supportMessage,
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } };
+        throw new Error(data.error?.message ?? "문의 접수에 실패했습니다.");
+      }
       setSupportMessage("");
       onToast("문의가 접수되었습니다. 확인 후 이메일로 답변드릴게요.");
-    } catch {
-      onToast("문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } catch (error) {
+      onToast(
+        error instanceof Error
+          ? error.message
+          : "문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(null);
     }
@@ -154,6 +166,10 @@ export function CriteriaSettingsPanel({
     setSubmitting("refund");
     try {
       const token = await getAccessToken();
+      if (!token) {
+        onToast("로그인이 필요합니다.");
+        return;
+      }
       const res = await fetch("/api/billing/refund-request", {
         method: "POST",
         headers: {
@@ -324,7 +340,7 @@ export function CriteriaSettingsPanel({
                 <div>
                   <div className="text-sm font-medium">리스크 높음 기준</div>
                   <div className="text-xs text-slate-500">
-                    경고 신호가 이 개수 이상이면 리스크 뱃지를 표시합니다.
+                    걱정되는 점이 이 개수 이상이면 리스크 뱃지를 표시합니다.
                   </div>
                 </div>
                 <Input
@@ -346,9 +362,10 @@ export function CriteriaSettingsPanel({
               <h3 className="flex items-center gap-2 font-semibold">
                 <PanelRightOpen className="h-4 w-4" />
                 점수 라벨
+                <HelpTip text="회사핏 점수에 따라 어떤 후보를 먼저 볼지 나누는 기준입니다." />
               </h3>
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                문구는 고정하고, 각 라벨로 분류되는 기준 점수만 조정합니다.
+                문구는 그대로 두고, 몇 점부터 해당 라벨로 볼지만 바꿉니다.
               </p>
               <div className="mt-4 space-y-2 text-sm">
                 <ThresholdRow
@@ -472,7 +489,7 @@ export function CriteriaSettingsPanel({
           <span>
             <span className="block text-sm font-medium">서비스 문의 접수</span>
             <span className="block text-xs text-slate-500">
-              버그, 기능 제안, 사용 문의를 남깁니다.
+              오류, 제안, 사용 중 막힌 점을 남깁니다.
             </span>
           </span>
           <ChevronDown
@@ -505,7 +522,7 @@ export function CriteriaSettingsPanel({
       </SettingsCard>
 
       <SettingsCard
-        description="승인된 결제 이력이 있는 계정만 환불 요청을 접수할 수 있습니다."
+        description="결제 기록이 있는 계정만 환불 요청을 남길 수 있습니다."
         icon={<ReceiptText className="h-4 w-4" />}
         title="결제 및 환불"
       >
@@ -515,9 +532,12 @@ export function CriteriaSettingsPanel({
           type="button"
         >
           <span>
-            <span className="block text-sm font-medium">환불 요청</span>
+            <span className="flex items-center gap-1 text-sm font-medium">
+              환불 요청
+              <HelpTip text="결제 기록이 있는 계정만 요청할 수 있어요. 확인한 뒤 이메일로 안내합니다." />
+            </span>
             <span className="block text-xs text-slate-500">
-              결제 후 7일 이내, 유료 크레딧 미사용 건을 운영자가 확인합니다.
+              결제 후 7일 이내이고 유료 이용권을 쓰지 않은 건을 확인합니다.
             </span>
           </span>
           <ChevronDown
@@ -528,7 +548,7 @@ export function CriteriaSettingsPanel({
           hasApprovedPayment ? (
             <div className="space-y-3 rounded-md border border-slate-100 bg-slate-50 p-3">
               <p className="text-sm leading-6 text-slate-600">
-                중복 결제, 서비스 장애, 사용 이력이 있는 환불은 운영자가 개별 확인합니다.
+                중복 결제나 서비스 문제도 여기로 남겨주세요. 확인 후 이메일로 안내드립니다.
               </p>
               <Textarea
                 aria-label="환불 요청 사유"
@@ -554,7 +574,7 @@ export function CriteriaSettingsPanel({
       </SettingsCard>
 
       <SettingsCard
-        description="탈퇴는 결제/환불 가능성을 확인한 뒤 운영자가 처리합니다."
+        description="탈퇴 요청을 남기면 결제와 남은 데이터를 확인한 뒤 처리합니다."
         icon={<UserX className="h-4 w-4" />}
         title="회원탈퇴"
       >
@@ -565,8 +585,7 @@ export function CriteriaSettingsPanel({
         ) : !showDeleteConfirm ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm leading-6 text-slate-600">
-              탈퇴 요청 후 운영자가 결제/환불 이슈를 확인합니다. 완료 전까지 로그인과 데이터 조회가
-              가능할 수 있습니다.
+              요청을 남기면 결제나 남은 데이터를 확인한 뒤 이메일로 안내드립니다.
             </p>
             <Button onClick={() => setShowDeleteConfirm(true)} variant="danger">
               <Trash2 className="h-4 w-4" />
@@ -687,6 +706,23 @@ function PolicyLink({ href, label }: { href: string; label: string }) {
       {label}
       <ExternalLink className="h-3 w-3" />
     </a>
+  );
+}
+
+function HelpTip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        aria-label={text}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:bg-slate-100 focus:text-slate-700 focus:outline-none"
+        type="button"
+      >
+        <CircleHelp className="h-3.5 w-3.5" />
+      </button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg group-focus-within:block group-hover:block">
+        {text}
+      </span>
+    </span>
   );
 }
 

@@ -1153,7 +1153,7 @@ export function CompanyTrackerApp() {
       <ConfirmDialog
         description={
           pendingDeleteCompany
-            ? `"${pendingDeleteCompany.name}"의 평가, 리서치 로그, 면접 기록이 모두 삭제됩니다.`
+            ? `"${pendingDeleteCompany.name}"의 평가, 회사 조사 메모, 면접 기록이 모두 삭제됩니다.`
             : undefined
         }
         onCancel={() => setPendingDeleteId(null)}
@@ -1164,7 +1164,7 @@ export function CompanyTrackerApp() {
 
       <ConfirmDialog
         confirmLabel="선택 삭제"
-        description={`${selectedCompanyIds.length}개 회사의 평가, 리서치 로그, 면접 기록이 모두 삭제됩니다.`}
+        description={`${selectedCompanyIds.length}개 회사의 평가, 회사 조사 메모, 면접 기록이 모두 삭제됩니다.`}
         onCancel={() => setSelectedDeleteOpen(false)}
         onConfirm={confirmSelectedDeleteCompanies}
         open={selectedDeleteOpen}

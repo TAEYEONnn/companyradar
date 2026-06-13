@@ -463,7 +463,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
                 ))}
               </Select>
             </Field>
-            <Field label="근거 수준">
+            <Field label="정보 믿을만함">
               <Select
                 onChange={(event) =>
                   update("evidenceLevel", Number(event.target.value) as EvidenceLevel)
@@ -593,7 +593,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
           </section>
 
           <section className="rounded-md border border-slate-200 p-3">
-            <h3 className="text-sm font-semibold">경고 신호 체크리스트</h3>
+            <h3 className="text-sm font-semibold">걱정되는 점 체크리스트</h3>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {RISK_CHECKLIST.map((flag) => (
                 <label

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server-auth";
+import { isAllowedAiOperator, requireSupabaseUser } from "@/lib/server-auth";
 import { hasApprovedAiPayment } from "@/lib/server-billing";
 import { getSupabaseAdminClient } from "@/lib/server-supabase-admin";
 
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const hasApprovedPayment = await hasApprovedAiPayment(auth.user.id);
+    const operatorTest = isAllowedAiOperator(auth.user);
+    const hasApprovedPayment = operatorTest || (await hasApprovedAiPayment(auth.user.id));
     if (!hasApprovedPayment) {
       return NextResponse.json(
         {
@@ -53,14 +54,18 @@ export async function POST(request: Request) {
         order_id: body.orderId?.trim() || null,
         payment_key: body.paymentKey?.trim() || null,
         reason,
-        metadata: body.metadata ?? {},
+        metadata: {
+          ...(body.metadata ?? {}),
+          ...(operatorTest ? { operatorTest: true } : {}),
+        },
       })
       .select("id,status,created_at")
       .single();
 
     if (error) throw error;
     return NextResponse.json({ ok: true, request: data });
-  } catch {
+  } catch (error) {
+    console.error("[billing/refund-request] failed to save refund request", error);
     return NextResponse.json(
       { error: { code: "save_failed", message: "환불 요청 접수에 실패했습니다." } },
       { status: 500 },

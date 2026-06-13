@@ -61,9 +61,15 @@ export async function POST(request: Request) {
 
     if (error) throw error;
     return NextResponse.json({ ok: true, request: data });
-  } catch {
+  } catch (error) {
+    console.error("[support/request] failed to save support request", error);
     return NextResponse.json(
-      { error: { code: "save_failed", message: "문의 접수에 실패했습니다." } },
+      {
+        error: {
+          code: "save_failed",
+          message: "문의 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        },
+      },
       { status: 500 },
     );
   }

@@ -97,7 +97,7 @@ export function AuthGate() {
           지원할 회사를 안전하게 정리하세요
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          채용 공고, 회사 리서치, 면접 준비 기록을 로그인한 계정별로 저장하는 개인용 지원 관리 도구입니다.
+          채용 공고, 회사 조사, 면접 준비 기록을 로그인한 계정별로 저장하는 개인용 지원 관리 도구입니다.
         </p>
 
         <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">

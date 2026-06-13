@@ -75,7 +75,7 @@ export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanel
     if (validationCandidates.length > 0) {
       list.push({
         title: "공고 확인 후 우선 지원 가능 후보",
-        description: "점수와 우선순위는 충분하지만 검증 사유가 남아 있습니다. 확인만 끝내면 이번 주 지원 후보로 올릴 수 있습니다.",
+        description: "점수와 우선순위는 충분하지만 아직 확인할 내용이 남아 있습니다. 확인만 끝내면 이번 주 지원 후보로 올릴 수 있습니다.",
         companies: validationCandidates.map((company) => company.name),
       });
     }
@@ -85,7 +85,7 @@ export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanel
       : [
           {
             title: "기회 신호 안정",
-            description: "지원 비중, 산업군 쏠림, 검증 대기 후보가 과하게 치우치지 않았습니다. 이번 주에는 현재 분배를 유지하면서 고득점 후보의 근거 품질을 높이세요.",
+            description: "지원 비중, 산업군 쏠림, 확인 대기 후보가 과하게 치우치지 않았습니다. 이번 주에는 현재 분배를 유지하면서 고득점 후보의 정보 품질을 높이세요.",
           },
         ];
   }, [activeCompanies, scoreMap]);

@@ -221,7 +221,7 @@ export function TodayPanel({
           type: "validation",
           companyId: company.id,
           companyName: company.name,
-          action: "정보 검증 필요",
+          action: "정보 확인 필요",
           urgency: company.needsRefresh ? "high" : "low",
           meta: `${validationReasons.length}개 사유`,
           validationReasons,
@@ -355,7 +355,7 @@ export function TodayPanel({
           <CheckCircle2 className="h-8 w-8" />
           <p className="text-sm">오늘 할 일이 없습니다. 잘 하고 계세요!</p>
           <Button onClick={onOpenCompanyList} size="sm" variant="secondary">
-            회사 목록에서 다음 액션 추가
+            회사 목록에서 다음 할 일 추가
           </Button>
         </div>
       ) : (

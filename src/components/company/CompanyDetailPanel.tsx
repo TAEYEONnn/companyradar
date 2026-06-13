@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BookOpenText,
   CalendarClock,
+  CircleHelp,
   ClipboardCheck,
   Clock,
   Copy,
@@ -152,7 +153,7 @@ export function CompanyDetailPanel({
     },
     {
       id: "research",
-      label: "리서치",
+      label: "회사 조사",
       count:
         company.researchLogs.length +
         company.signals.greenFlags.length +
@@ -164,7 +165,7 @@ export function CompanyDetailPanel({
       label: "면접",
       count: company.interviewRounds.length + company.interviewNotes.length,
     },
-    { id: "private", label: "비공개" },
+    { id: "private", label: "민감 메모" },
     { id: "ai", label: "AI" },
   ];
 
@@ -206,7 +207,7 @@ export function CompanyDetailPanel({
         | { ok: true; result: { source: string; link: string; positiveSignals: string; negativeSignals: string; questions: string } }
         | { error: { code?: string; message: string } };
       if (!("ok" in data) || !data.ok) {
-        setAiResearchError(getApiErrorMessage(res, data, "AI 리서치 생성에 실패했습니다."));
+      setAiResearchError(getApiErrorMessage(res, data, "AI 회사 조사에 실패했습니다."));
         return;
       }
       onPatch(company.id, {
@@ -217,7 +218,7 @@ export function CompanyDetailPanel({
         lastResearchedAt: today(),
       });
     } catch {
-      setAiResearchError("AI 리서치 요청에 실패했습니다.");
+      setAiResearchError("AI 회사 조사 요청에 실패했습니다.");
     } finally {
       setAiResearchLoading(false);
     }
@@ -409,7 +410,7 @@ export function CompanyDetailPanel({
                 리스크 높음
               </Badge>
             ) : null}
-            {score.needsValidation ? <Badge tone="amber">검증 필요</Badge> : null}
+            {score.needsValidation ? <Badge tone="amber">확인 필요</Badge> : null}
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
           <p className="mt-0.5 text-xs leading-5 text-slate-500">
@@ -449,6 +450,7 @@ export function CompanyDetailPanel({
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
             <span className="font-medium text-slate-700">
               공고 상태 · 마지막 확인 {formatShortDate(company.lastCheckedAt)}
+              <DrawerHelpTip text="공고가 아직 열려 있는지 직접 확인했을 때 눌러주세요." />
             </span>
             <Button onClick={markJobPostingChecked} size="sm" variant="secondary">
               <ClipboardCheck className="h-3.5 w-3.5" />
@@ -458,7 +460,7 @@ export function CompanyDetailPanel({
         </div>
       </div>
 
-      <nav className="shrink-0 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2">
+      <nav className="shrink-0 overflow-x-auto border-b border-slate-200 bg-white px-3 pb-3 pt-2">
         <div className="flex min-w-max gap-1">
           {detailTabs.map((tab) => (
             <button
@@ -484,13 +486,13 @@ export function CompanyDetailPanel({
         </div>
       </nav>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-4 pb-8 pt-5">
         {activeTab === "summary" ? (
           <>
         <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-drawer-section="summary">
           <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
           <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
-          <Metric compact label="근거" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
+          <Metric compact label="정보 신뢰" value={`Lv.${Math.round(score.averageEvidenceLevel)}`} />
         </section>
         <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           <Metric
@@ -505,7 +507,7 @@ export function CompanyDetailPanel({
 
         <NextActionBanner company={company} />
 
-        <section className="space-y-2">
+        <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">기본 정보</h3>
             <Badge tone={STATUS_TONE[company.status]}>
@@ -526,8 +528,8 @@ export function CompanyDetailPanel({
             value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"}`}
           />
           <InfoRow
-            label="근거 수준"
-            value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "재검증 필요" : "최신"}`}
+            label="정보 믿을만함"
+            value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "다시 확인 필요" : "확인됨"}`}
           />
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
@@ -566,13 +568,16 @@ export function CompanyDetailPanel({
         ) : null}
 
         {activeTab === "summary" ? (
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">평가 점수</h3>
+        <section className="space-y-4">
+          <h3 className="flex items-center gap-1 text-sm font-semibold">
+            평가 점수
+            <DrawerHelpTip text="내가 정한 기준으로 이 회사가 얼마나 맞는지 계산한 점수입니다." />
+          </h3>
           {score.categoryScores.map((category) => {
             const displayCategory =
               scoreCategories.find((item) => item.key === category.key) ?? category;
             return (
-            <div className="space-y-1" key={category.key}>
+            <div className="space-y-2" key={category.key}>
               <div className="flex justify-between text-sm">
                 <span>{displayCategory.title}</span>
                 <span className="font-semibold">{formatScore(category.average)}</span>
@@ -591,7 +596,7 @@ export function CompanyDetailPanel({
 
         {activeTab === "prep" ? (
           <>
-        <section className="space-y-2">
+        <section className="space-y-4">
           <h3 className="text-sm font-semibold">{fitTitle}</h3>
           <div className="grid grid-cols-1 gap-2">
             {Object.entries(fitLabels).map(([key, label]) => (
@@ -618,7 +623,7 @@ export function CompanyDetailPanel({
           </div>
         </section>
 
-        <section className="space-y-2">
+        <section className="space-y-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <ClipboardCheck className="h-4 w-4" />
             지원 준비 체크리스트
@@ -662,8 +667,8 @@ export function CompanyDetailPanel({
 
         {activeTab === "research" ? (
           <>
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">경고 신호</h3>
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold">걱정되는 점</h3>
           {company.riskFlags.length > 0 ? (
             <div className="space-y-1">
               {company.riskFlags.map((flag) => (
@@ -674,16 +679,16 @@ export function CompanyDetailPanel({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-slate-500">체크된 경고 신호가 없습니다.</p>
+            <p className="text-sm leading-7 text-slate-500">체크된 걱정되는 점이 없습니다.</p>
           )}
         </section>
 
-          <section className="space-y-3" data-drawer-section="prep">
+          <section className="space-y-4" data-drawer-section="prep">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" />
-            구조화 신호
+            좋은 점/걱정되는 점
           </h3>
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Select
               aria-label="신호 유형"
               onChange={(event) =>
@@ -691,9 +696,9 @@ export function CompanyDetailPanel({
               }
               value={signalKind}
             >
-              <option value="greenFlags">Green flag</option>
-              <option value="redFlags">Red flag</option>
-              <option value="unknowns">Unknown</option>
+              <option value="greenFlags">좋은 점</option>
+              <option value="redFlags">걱정되는 점</option>
+              <option value="unknowns">더 확인할 점</option>
             </Select>
             <Input
               aria-label="신호 라벨"
@@ -743,37 +748,37 @@ export function CompanyDetailPanel({
             </Select>
             <Button onClick={addSignal} size="sm">
               <Plus className="h-4 w-4" />
-              신호 추가
+              기록 추가
             </Button>
           </div>
           <SignalGroup
             kind="greenFlags"
             onRemove={removeSignal}
             signals={company.signals.greenFlags}
-            title="Green flags"
+            title="좋은 점"
             tone="green"
           />
           <SignalGroup
             kind="redFlags"
             onRemove={removeSignal}
             signals={company.signals.redFlags}
-            title="Red flags"
+            title="걱정되는 점"
             tone="red"
           />
           <SignalGroup
             kind="unknowns"
             onRemove={removeSignal}
             signals={company.signals.unknowns}
-            title="Unknowns"
+            title="더 확인할 점"
             tone="amber"
           />
         </section>
 
-          <section className="space-y-3" data-drawer-section="research">
+          <section className="space-y-4" data-drawer-section="research">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <BookOpenText className="h-4 w-4" />
-              리서치 로그
+              회사 조사 메모
             </h3>
             <Button
               disabled={aiResearchLoading}
@@ -786,15 +791,15 @@ export function CompanyDetailPanel({
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {aiResearchLoading ? "분석 중..." : "AI 리서치"}
+              {aiResearchLoading ? "분석 중..." : "AI로 회사 조사"}
             </Button>
           </div>
           {aiResearchError && (
             <p className="text-xs text-red-600">{aiResearchError}</p>
           )}
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Input
-              aria-label="리서치 출처"
+              aria-label="회사 조사 출처"
               onChange={(event) =>
                 setLogDraft((draft) => ({ ...draft, source: event.target.value }))
               }
@@ -802,7 +807,7 @@ export function CompanyDetailPanel({
               value={logDraft.source}
             />
             <Input
-              aria-label="리서치 링크"
+              aria-label="회사 조사 링크"
               onChange={(event) =>
                 setLogDraft((draft) => ({ ...draft, link: event.target.value }))
               }
@@ -810,7 +815,7 @@ export function CompanyDetailPanel({
               value={logDraft.link}
             />
             <Textarea
-              aria-label="긍정 신호"
+              aria-label="좋아 보이는 점"
               className="min-h-16"
               onChange={(event) =>
                 setLogDraft((draft) => ({
@@ -818,11 +823,11 @@ export function CompanyDetailPanel({
                   positiveSignals: event.target.value,
                 }))
               }
-              placeholder="긍정 신호"
+              placeholder="좋아 보이는 점"
               value={logDraft.positiveSignals}
             />
             <Textarea
-              aria-label="부정 신호"
+              aria-label="걱정되는 점"
               className="min-h-16"
               onChange={(event) =>
                 setLogDraft((draft) => ({
@@ -830,7 +835,7 @@ export function CompanyDetailPanel({
                   negativeSignals: event.target.value,
                 }))
               }
-              placeholder="부정 신호"
+              placeholder="걱정되는 점"
               value={logDraft.negativeSignals}
             />
             <Textarea
@@ -839,12 +844,12 @@ export function CompanyDetailPanel({
               onChange={(event) =>
                 setLogDraft((draft) => ({ ...draft, questions: event.target.value }))
               }
-              placeholder="면접/커피챗에서 확인할 질문"
+              placeholder="면접이나 커피챗에서 물어볼 것"
               value={logDraft.questions}
             />
             <Button onClick={addResearchLog} size="sm">
               <Plus className="h-4 w-4" />
-              로그 추가
+              메모 추가
             </Button>
           </div>
           {company.researchLogs.map((log) => (
@@ -854,7 +859,7 @@ export function CompanyDetailPanel({
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">{log.createdAt}</span>
                   <button
-                    aria-label="리서치 로그 삭제"
+                    aria-label="회사 조사 메모 삭제"
                     className="text-slate-400 hover:text-red-600"
                     onClick={() => removeResearchLog(log.id)}
                     type="button"
@@ -874,13 +879,13 @@ export function CompanyDetailPanel({
                 </a>
               ) : null}
               {log.positiveSignals ? (
-                <p className="mt-2 text-sm text-emerald-700">+ {log.positiveSignals}</p>
+                <p className="mt-2 text-sm leading-7 text-emerald-700">+ {log.positiveSignals}</p>
               ) : null}
               {log.negativeSignals ? (
-                <p className="mt-1 text-sm text-red-700">- {log.negativeSignals}</p>
+                <p className="mt-1 text-sm leading-7 text-red-700">- {log.negativeSignals}</p>
               ) : null}
               {log.questions ? (
-                <p className="mt-1 text-sm text-slate-700">? {log.questions}</p>
+                <p className="mt-1 text-sm leading-7 text-slate-700">? {log.questions}</p>
               ) : null}
             </div>
           ))}
@@ -893,12 +898,12 @@ export function CompanyDetailPanel({
 
         {activeTab === "interview" ? (
           <>
-          <section className="space-y-3" data-drawer-section="interview">
+          <section className="space-y-4" data-drawer-section="interview">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
             면접 라운드
           </h3>
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Select
               aria-label="라운드 유형"
               onChange={(event) =>
@@ -982,7 +987,7 @@ export function CompanyDetailPanel({
                 </select>
               </div>
               {round.memo ? (
-                <p className="mt-2 text-sm text-slate-700">{round.memo}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{round.memo}</p>
               ) : null}
             </div>
           ))}
@@ -991,7 +996,7 @@ export function CompanyDetailPanel({
         ) : null}
 
         {activeTab === "prep" ? (
-        <section className="space-y-3">
+        <section className="space-y-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <Flag className="h-4 w-4" />
             다음 할일
@@ -1076,7 +1081,7 @@ export function CompanyDetailPanel({
 
         {activeTab === "interview" ? (
           <>
-        <section className="space-y-3">
+        <section className="space-y-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <CalendarClock className="h-4 w-4" />
             면접 메모
@@ -1118,6 +1123,23 @@ export function CompanyDetailPanel({
   );
 }
 
+function DrawerHelpTip({ text }: { text: string }) {
+  return (
+    <span className="group relative ml-1 inline-flex align-middle">
+      <button
+        aria-label={text}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:bg-slate-100 focus:text-slate-700 focus:outline-none"
+        type="button"
+      >
+        <CircleHelp className="h-3.5 w-3.5" />
+      </button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg group-focus-within:block group-hover:block">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 function SignalGroup({
   kind,
   onRemove,
@@ -1133,19 +1155,19 @@ function SignalGroup({
 }) {
   return (
     <div className="rounded-md border border-slate-200 p-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <h4 className="text-sm font-semibold">{title}</h4>
         <Badge tone={tone}>{signals.length}</Badge>
       </div>
       <div className="space-y-2">
         {signals.map((signal) => (
-          <div className="rounded-md bg-slate-50 p-2" key={signal.id}>
+          <div className="rounded-md bg-slate-50 p-3" key={signal.id}>
             <div className="flex items-center justify-between gap-2">
               <strong className="text-sm">{signal.label}</strong>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">Lv.{signal.confidence}</span>
                 <button
-                  aria-label="신호 삭제"
+                  aria-label="기록 삭제"
                   className="text-slate-400 hover:text-red-600"
                   onClick={() => onRemove(kind, signal.id)}
                   type="button"
@@ -1154,11 +1176,11 @@ function SignalGroup({
                 </button>
               </div>
             </div>
-            <p className="mt-1 text-sm text-slate-700">
+            <p className="mt-2 text-sm leading-7 text-slate-700">
               {signal.reason ?? signal.description}
             </p>
             {signal.evidenceText ? (
-              <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 text-xs italic text-slate-500">
+              <blockquote className="mt-2 border-l-2 border-slate-300 pl-2 text-xs italic leading-6 text-slate-500">
                 {signal.evidenceText}
               </blockquote>
             ) : null}
@@ -1175,14 +1197,14 @@ function SignalGroup({
           </div>
         ))}
         {signals.length === 0 ? (
-          <p className="text-sm text-slate-400">기록 없음</p>
+          <p className="text-sm leading-7 text-slate-400">아직 기록이 없습니다.</p>
         ) : null}
       </div>
     </div>
   );
 }
 
-// "다음 액션" summary banner — shown when applied/interviewing
+// Shows the next follow-up task for active applications.
 function NextActionBanner({ company }: { company: Company }) {
   const needsAction =
     company.status === "applied" || company.status === "interviewing";
@@ -1198,8 +1220,8 @@ function NextActionBanner({ company }: { company: Company }) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
         <Flag className="h-3.5 w-3.5 shrink-0" />
-        <span>
-          <strong>후속조치 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 팔로업 태스크가 없습니다.
+        <span className="leading-5">
+          <strong>다음 할 일 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 다음 할 일이 없습니다.
         </span>
       </div>
     );
@@ -1208,8 +1230,8 @@ function NextActionBanner({ company }: { company: Company }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
       <Clock className="h-3.5 w-3.5 shrink-0" />
-      <span>
-        <strong>다음 액션:</strong> {next.title}
+      <span className="leading-5">
+        <strong>다음 할 일:</strong> {next.title}
         {next.dueDate ? (
           <span className="ml-1 font-medium">· {next.dueDate}</span>
         ) : null}
@@ -2090,7 +2112,7 @@ function CompanySummarySection({
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
       {!summary && !loading && !error ? (
         <p className="text-xs text-slate-400">
-          회사 정보·신호·리서치 로그를 바탕으로 AI가 요약을 작성합니다.
+          회사 정보와 내가 적은 메모를 바탕으로 AI가 요약을 작성합니다.
         </p>
       ) : null}
       {summary ? (

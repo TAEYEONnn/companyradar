@@ -214,7 +214,7 @@ export function Toolbar({
           />
           <FilterChip
             active={advancedFilter.needsValidation}
-            label="검증 필요"
+            label="확인 필요"
             onClick={() => toggleChip("needsValidation")}
           />
 
