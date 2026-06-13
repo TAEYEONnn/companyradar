@@ -262,7 +262,7 @@ export function AdminDashboard({
                       href={buildMailtoLink(
                         req.email,
                         `Re: [CompanyRadar] ${req.subject}`,
-                        `안녕하세요.\n\n문의해 주셔서 감사합니다.\n\n---\n원문: ${req.message}${REPLY_SIGNATURE}`,
+                        `안녕하세요.\n\nCompanyRadar를 이용해 주셔서 감사합니다.\n문의 내용을 확인했습니다.\n\n[문의 내용]\n${req.message}\n\n[답변]\n(이 부분을 작성해 주세요)\n\n추가 문의사항이 있으시면 이 메일로 회신해 주세요.${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기
@@ -318,8 +318,8 @@ export function AdminDashboard({
                       className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       href={buildMailtoLink(
                         req.email,
-                        `Re: [CompanyRadar] 환불 요청 확인`,
-                        `안녕하세요.\n\n환불 요청을 확인했습니다.\n\n---\n사유: ${req.reason}${REPLY_SIGNATURE}`,
+                        `Re: [CompanyRadar] 환불 처리 안내`,
+                        `안녕하세요.\n\nCompanyRadar를 이용해 주셔서 감사합니다.\n환불 요청을 확인했습니다.\n\n[요청 내용]\n${req.reason}${req.order_id ? `\n주문 ID: ${req.order_id}` : ""}\n\n[처리 결과]\n(승인/거절 여부와 사유를 작성해 주세요)\n\n환불 승인 시 결제 수단에 따라 3–5 영업일 내 처리됩니다.\n추가 문의는 이 메일로 회신해 주세요.${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기
@@ -369,8 +369,8 @@ export function AdminDashboard({
                       className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                       href={buildMailtoLink(
                         req.email,
-                        `Re: [CompanyRadar] 회원탈퇴 요청 확인`,
-                        `안녕하세요.\n\n탈퇴 요청을 확인했습니다. 처리 후 안내 드리겠습니다.\n\n---\n사유: ${req.reason}${REPLY_SIGNATURE}`,
+                        `Re: [CompanyRadar] 회원탈퇴 요청 접수 확인`,
+                        `안녕하세요.\n\n회원탈퇴 요청을 접수했습니다.\n\n[요청 사유]\n${req.reason || "사유 없음"}\n\n계정 삭제 전 미처리된 결제나 환불 건이 있는지 먼저 확인해 드립니다.\n처리가 완료되면 이 메일로 안내 드리겠습니다.\n\n처리 예정일: 영업일 기준 3일 이내${REPLY_SIGNATURE}`,
                       )}
                     >
                       답장 이메일 열기

@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
+import { VALIDATION_REASON_LABELS, getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
   DISCOVERY_REASON_LABELS,
@@ -363,7 +363,7 @@ export function CompanyDetailPanel({
   }
 
   function markJobPostingChecked() {
-    onPatch(company.id, getValidationCompletePatch(today()));
+    onPatch(company.id, { ...getValidationCompletePatch(today()), jobStatus: "open" as const });
     onToast?.("공고 확인일을 오늘로 기록했습니다.");
   }
 
@@ -448,13 +448,23 @@ export function CompanyDetailPanel({
               </a>
             ) : null}
           </div>
-          {validationReasons.length > 0 ? (
+          {validationReasons.filter(
+            (r) =>
+              r !== VALIDATION_REASON_LABELS.staleJobCheck &&
+              r !== VALIDATION_REASON_LABELS.unknownJobStatus,
+          ).length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
-              {validationReasons.map((reason) => (
-                <Badge key={reason} tone="amber">
-                  {reason}
-                </Badge>
-              ))}
+              {validationReasons
+                .filter(
+                  (r) =>
+                    r !== VALIDATION_REASON_LABELS.staleJobCheck &&
+                    r !== VALIDATION_REASON_LABELS.unknownJobStatus,
+                )
+                .map((reason) => (
+                  <Badge key={reason} tone="amber">
+                    {reason}
+                  </Badge>
+                ))}
             </div>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
@@ -1262,7 +1272,13 @@ function SignalGroup({
           </div>
         ))}
         {signals.length === 0 ? (
-          <p className="text-sm leading-7 text-slate-400">아직 기록이 없습니다.</p>
+          <p className="text-xs leading-6 text-slate-400">
+            {kind === "greenFlags"
+              ? "장점이나 매력적인 부분을 위에서 추가해 보세요."
+              : kind === "redFlags"
+                ? "우려되는 점이나 리스크를 위에서 추가해 보세요."
+                : "더 확인이 필요한 부분을 위에서 추가해 보세요."}
+          </p>
         ) : null}
       </div>
     </div>
