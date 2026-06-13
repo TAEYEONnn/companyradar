@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, CloudOff, Loader2, Menu, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,7 @@ export function CompanyTrackerApp() {
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
@@ -571,10 +572,15 @@ export function CompanyTrackerApp() {
 
   useKeyboardShortcuts({
     onNewCompany: () => {
-      if (viewMode === "dashboard") startCreate();
+      if (viewMode === "dashboard") {
+        setMobileMenuOpen(false);
+        startCreate();
+      }
     },
     onEscape: () => {
-      if (drawerOpen) {
+      if (mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      } else if (drawerOpen) {
         setDrawerOpen(false);
       } else if (viewMode !== "dashboard") {
         setEditingCompany(null);
@@ -690,6 +696,7 @@ export function CompanyTrackerApp() {
           companies.filter((c) => c.status === "applied").length
         }
         badges={sidebarBadges}
+        className="hidden md:flex"
         onNavigate={(mode) => {
           setViewMode(mode);
           setEditingCompany(null);
@@ -699,11 +706,66 @@ export function CompanyTrackerApp() {
         viewMode={viewMode}
       />
 
+      {/* ─── Mobile sidebar drawer ─── */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 md:hidden",
+          mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+      <div
+        aria-label="모바일 메뉴"
+        aria-modal="true"
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-2xl transition-transform duration-200 ease-in-out md:hidden",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+        role="dialog"
+      >
+        <button
+          aria-label="메뉴 닫기"
+          className="absolute right-3 top-3 z-10 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+          onClick={() => setMobileMenuOpen(false)}
+          type="button"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <AppSidebar
+          appliedCount={
+            companies.filter((c) => c.status === "applied").length
+          }
+          badges={sidebarBadges}
+          className="h-full w-full border-r-0"
+          onNavigate={(mode) => {
+            setViewMode(mode);
+            setEditingCompany(null);
+            setMobileMenuOpen(false);
+          }}
+          onSignOut={() => {
+            setMobileMenuOpen(false);
+            void signOut();
+          }}
+          userEmail={userEmail}
+          viewMode={viewMode}
+        />
+      </div>
+
       {/* ─── Main column ─── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top header */}
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5">
-          <span className="text-sm font-semibold text-slate-700">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-5">
+          <Button
+            aria-label="메뉴 열기"
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(true)}
+            size="sm"
+            variant="secondary"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <span className="truncate text-sm font-semibold text-slate-700">
             Career Company Tracker
           </span>
           {isRemoteSyncEnabled() ? (
@@ -722,12 +784,12 @@ export function CompanyTrackerApp() {
           <div className="flex-1" />
           <Button onClick={startCreate}>
             <Plus className="h-4 w-4" />
-            회사 추가
+            <span className="hidden sm:inline">회사 추가</span>
           </Button>
         </header>
 
         {/* Summary bar */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5 py-2 text-sm text-slate-500">
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 md:gap-3 md:px-5">
           <span className="font-medium text-slate-800">{companies.length}개 회사</span>
           <span>·</span>
           <span>진행중 {summary.active}</span>
