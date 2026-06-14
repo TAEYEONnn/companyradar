@@ -146,6 +146,7 @@ export function CompanyDetailPanel({
   });
   const [aiResearchLoading, setAiResearchLoading] = useState(false);
   const [aiResearchError, setAiResearchError] = useState("");
+  const [aiSummary, setAiSummary] = useState("");
   const validationReasons = getCompanyValidationReasons(company);
   const [activeTab, setActiveTab] = useState<DrawerDetailTab>(focusTarget?.tab ?? "summary");
   const [headerCompact, setHeaderCompact] = useState(false);
@@ -591,7 +592,7 @@ export function CompanyDetailPanel({
         ) : null}
 
         {activeTab === "ai" ? (
-          <CompanySummarySection company={company} userId={userId} />
+          <CompanySummarySection company={company} userId={userId} summary={aiSummary} onSummaryChange={setAiSummary} />
         ) : null}
 
         {activeTab === "summary" ? (
@@ -2362,11 +2363,14 @@ function StatusHistorySection({ statusHistory }: { statusHistory: StatusHistoryE
 function CompanySummarySection({
   company,
   userId: _userId,
+  summary,
+  onSummaryChange,
 }: {
   company: Company;
   userId: string;
+  summary: string;
+  onSummaryChange: (summary: string) => void;
 }) {
-  const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -2424,7 +2428,7 @@ function CompanySummarySection({
         return;
       }
 
-      setSummary(data.summary);
+      onSummaryChange(data.summary);
     } catch {
       setError("AI 요약 생성 요청에 실패했습니다.");
     } finally {

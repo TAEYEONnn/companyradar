@@ -36,7 +36,18 @@ export default function ResetPasswordPage() {
       try {
         if (code) {
           const { error } = await client.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+          if (error) {
+            // Code exchange may fail if PKCE verifier is missing (different browser/device).
+            // Fall back to any existing recovery session before showing error.
+            const { data: existing } = await client.auth.getSession();
+            if (!mounted) return;
+            if (existing.session) {
+              setHasSession(true);
+              window.history.replaceState(null, "", "/auth/reset-password");
+              return;
+            }
+            throw error;
+          }
         } else if (tokenHash && type === "recovery") {
           const { error } = await client.auth.verifyOtp({
             token_hash: tokenHash,

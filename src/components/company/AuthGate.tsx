@@ -163,7 +163,7 @@ export function AuthGate() {
     setError("");
     setMessage("");
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(nextEmail, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: `${window.location.origin}/auth/callback`,
     });
     setLoading(false);
 

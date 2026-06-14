@@ -265,7 +265,7 @@ export function AdminDashboard({
   initialDeletions,
 }: AdminDashboardProps) {
   const [tab, setTab] = useState<Tab>("support");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done" | "archived">("pending");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done" | "archived">("all");
   const [support, setSupport] = useState(initialSupport);
   const [refunds, setRefunds] = useState(initialRefunds);
   const [deletions, setDeletions] = useState(initialDeletions);
@@ -369,13 +369,13 @@ export function AdminDashboard({
   async function handleReplyOpen(table: string, id: string, replyBody: string) {
     const token = await getAccessToken();
     if (!token) { showToast("로그인이 필요합니다."); return; }
+    // Optimistic update so the textarea immediately reflects what was sent.
+    const replied_at = new Date().toISOString();
+    if (table === "support_requests") setSupport((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+    if (table === "refund_requests") setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+    if (table === "account_deletion_requests") setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
     const ok = await updateStatus(table, id, token, { replyBody, markReplied: true });
-    if (ok) {
-      const replied_at = new Date().toISOString();
-      if (table === "support_requests") setSupport((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
-      if (table === "refund_requests") setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
-      if (table === "account_deletion_requests") setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
-    }
+    if (!ok) showToast("답장 내용 저장에 실패했습니다. DB 스키마를 확인해주세요.");
   }
 
   const pendingSupportCount = support.filter((r) => !r.archived_at && ["open", "in_review"].includes(r.status)).length;
@@ -517,13 +517,13 @@ export function AdminDashboard({
                       {req.status === "open" && (
                         <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "in_review")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          검토 안내
+                          검토 중으로 표시
                         </Button>
                       )}
                       {["open", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "resolved")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          답변 완료
+                          처리 완료로 표시
                         </Button>
                       )}
                       {req.status === "resolved" && (
@@ -602,12 +602,12 @@ export function AdminDashboard({
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleRefundStatus(req.id, "approved")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          승인 안내
+                          승인으로 표시
                         </Button>
                       )}
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleRefundStatus(req.id, "rejected")} size="sm" variant="ghost">
-                          거절 안내
+                          거절로 표시
                         </Button>
                       )}
                       {["approved", "rejected"].includes(req.status) && (
@@ -685,7 +685,7 @@ export function AdminDashboard({
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleDeletionStatus(req.id, "completed")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          완료 안내
+                          완료로 표시
                         </Button>
                       )}
                       {req.status === "requested" && (

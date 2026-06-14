@@ -51,8 +51,9 @@ export function OnboardingModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-start justify-between p-6 pb-4">
+      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" style={{ maxHeight: "calc(100dvh - 32px)" }}>
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between p-6 pb-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
               3단계로 지원 관리를 시작하세요
@@ -73,64 +74,66 @@ export function OnboardingModal({
           ) : null}
         </div>
 
-        <div className="grid gap-2 px-6 sm:grid-cols-3">
-          {START_STEPS.map((step, index) => (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={step.title}>
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
-                {index + 1}
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {START_STEPS.map((step, index) => (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={step.title}>
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                  {index + 1}
+                </div>
+                <div className="mt-2 text-sm font-semibold text-slate-800">{step.title}</div>
+                <div className="mt-0.5 text-xs leading-snug text-slate-500">{step.description}</div>
               </div>
-              <div className="mt-2 text-sm font-semibold text-slate-800">{step.title}</div>
-              <div className="mt-0.5 text-xs leading-snug text-slate-500">{step.description}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <div className="px-6 pt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <p className="pt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">
             직군별 평가 기준 선택
           </p>
-        </div>
 
-        <div className="grid grid-cols-1 gap-2 px-6 pt-2 sm:grid-cols-2">
-          {ROLE_CONFIG.map(({ role, icon: Icon, description }) => {
-            const isSelected = selected === role;
-            return (
-              <button
-                key={role}
-                className={[
-                  "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
-                  isSelected
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50",
-                ].join(" ")}
-                onClick={() => setSelected(role)}
-                type="button"
-              >
-                <Icon
+          <div className="mt-2 grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2">
+            {ROLE_CONFIG.map(({ role, icon: Icon, description }) => {
+              const isSelected = selected === role;
+              return (
+                <button
+                  key={role}
                   className={[
-                    "mt-0.5 h-5 w-5 shrink-0",
-                    isSelected ? "text-white" : "text-slate-500",
+                    "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                    isSelected
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50",
                   ].join(" ")}
-                />
-                <div className="min-w-0">
-                  <div className="font-medium text-sm leading-tight">
-                    {ROLE_LABELS[role]}
-                  </div>
-                  <div
+                  onClick={() => setSelected(role)}
+                  type="button"
+                >
+                  <Icon
                     className={[
-                      "mt-0.5 text-xs leading-snug",
-                      isSelected ? "text-slate-300" : "text-slate-400",
+                      "mt-0.5 h-5 w-5 shrink-0",
+                      isSelected ? "text-white" : "text-slate-500",
                     ].join(" ")}
-                  >
-                    {description}
+                  />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm leading-tight">
+                      {ROLE_LABELS[role]}
+                    </div>
+                    <div
+                      className={[
+                        "mt-0.5 text-xs leading-snug",
+                        isSelected ? "text-slate-300" : "text-slate-400",
+                      ].join(" ")}
+                    >
+                      {description}
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="flex justify-between p-6 pt-4">
+        {/* Fixed footer */}
+        <div className="flex shrink-0 justify-between border-t border-slate-100 p-6 pt-4">
           {allowSkip ? (
           <button
             className="text-sm text-slate-400 hover:text-slate-600"
