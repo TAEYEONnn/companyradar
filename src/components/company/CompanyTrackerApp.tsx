@@ -421,6 +421,8 @@ export function CompanyTrackerApp() {
   const hasOnlySampleCompanies =
     companies.length > 0 && companies.every((company) => company.isSampleData);
 
+  const hasSampleCompanies = companies.some((company) => company.isSampleData);
+
   const dashboardSections = useMemo(() => {
     const deadlineSoon = companies.filter(isDeadlineSoon);
     const waitingResponse = companies.filter((company) =>
@@ -596,6 +598,20 @@ export function CompanyTrackerApp() {
     if (nextSettings.userRole && nextSettings.userRole !== previousRole) {
       setCompanies((current) => normalizeSamplesForRole(current, nextSettings.userRole));
     }
+  }
+
+  function deleteSampleCompanies() {
+    if (!effectiveUserId) return;
+    const remaining = companies.filter((company) => !company.isSampleData);
+    setCompanies(remaining);
+    if (selectedId && !remaining.find((c) => c.id === selectedId)) {
+      setSelectedId(remaining[0]?.id ?? "");
+    }
+    setSelectedCompanyIds((ids) => ids.filter((id) => remaining.find((c) => c.id === id)));
+    if (isRemoteSyncEnabled() && userId) {
+      void pushRemoteCompanies(remaining, userId);
+    }
+    showToast("샘플 데이터를 삭제했습니다.");
   }
 
   function resetSampleData() {
@@ -933,7 +949,7 @@ export function CompanyTrackerApp() {
             <Menu className="h-4 w-4" />
           </Button>
           <span className="truncate text-sm font-semibold text-slate-700">
-            Career Company Tracker
+            CompanyRadar
           </span>
           {isRemoteSyncEnabled() ? (
             <SyncStatusBadge
@@ -1061,8 +1077,10 @@ export function CompanyTrackerApp() {
                 <Toolbar
                   advancedFilter={advancedFilter}
                   devToolsEnabled={devToolsEnabled}
+                  hasSampleCompanies={hasSampleCompanies}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
+                  onDeleteSamples={deleteSampleCompanies}
                   onListModeChange={setListMode}
                   onQueryChange={setQuery}
                   onReset={() => setSampleResetOpen(true)}

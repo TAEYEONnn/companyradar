@@ -8,6 +8,7 @@ import {
   Search,
   SlidersHorizontal,
   Table2,
+  Trash2,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -49,12 +50,14 @@ function isFilterActive(f: AdvancedFilter) {
 
 interface ToolbarProps {
   devToolsEnabled?: boolean;
+  hasSampleCompanies?: boolean;
   listMode: ListMode;
   query: string;
   sortMode: SortMode;
   statusFilter: ApplicationStatus | "all";
   advancedFilter?: AdvancedFilter;
   onAdvancedFilterChange?: (f: AdvancedFilter) => void;
+  onDeleteSamples?: () => void;
   onListModeChange: (mode: ListMode) => void;
   onQueryChange: (query: string) => void;
   onReset: () => void;
@@ -64,12 +67,14 @@ interface ToolbarProps {
 
 export function Toolbar({
   devToolsEnabled = false,
+  hasSampleCompanies = false,
   listMode,
   query,
   sortMode,
   statusFilter,
   advancedFilter = EMPTY_ADVANCED_FILTER,
   onAdvancedFilterChange,
+  onDeleteSamples,
   onListModeChange,
   onQueryChange,
   onReset,
@@ -95,7 +100,7 @@ export function Toolbar({
   return (
     <div className="border-b border-slate-200">
       <div className="flex flex-wrap items-center gap-2 p-3">
-        <div className="relative min-w-56 flex-1">
+        <div className="relative w-full flex-none sm:min-w-56 sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             aria-label="회사 검색"
@@ -106,7 +111,7 @@ export function Toolbar({
             value={query}
           />
         </div>
-        <div className="flex w-40 items-center gap-2">
+        <div className="flex flex-1 items-center gap-2 sm:w-40 sm:flex-none">
           <ListFilter className="h-4 w-4 shrink-0 text-slate-400" />
           <Select
             aria-label="상태 필터"
@@ -123,7 +128,7 @@ export function Toolbar({
             ))}
           </Select>
         </div>
-        <div className="flex w-48 items-center gap-2">
+        <div className="flex flex-1 items-center gap-2 sm:w-48 sm:flex-none">
           <ArrowDownWideNarrow className="h-4 w-4 shrink-0 text-slate-400" />
           <Select
             aria-label="정렬"
@@ -192,6 +197,12 @@ export function Toolbar({
           </button>
         )}
 
+        {hasSampleCompanies && onDeleteSamples ? (
+          <Button aria-label="샘플 데이터 모두 삭제" onClick={onDeleteSamples} size="sm" variant="ghost">
+            <Trash2 className="h-3.5 w-3.5" />
+            샘플 삭제
+          </Button>
+        ) : null}
         {devToolsEnabled ? (
         <div className="flex items-center gap-1">
           <Button aria-label="직군 예시 데이터 보기" onClick={onReset} size="sm" title="직군 예시 데이터 보기" variant="ghost">

@@ -331,7 +331,7 @@ export function CriteriaSettingsPanel({
             <div className="space-y-3">
               {SCORE_CATEGORIES.map((category) => (
                 <div
-                  className="grid grid-cols-[minmax(120px,180px)_1fr_72px] items-center gap-3 rounded-md border border-slate-200 bg-white p-3"
+                  className="grid grid-cols-[minmax(100px,180px)_1fr_64px] items-center gap-2 rounded-md border border-slate-200 bg-white p-3 sm:gap-3"
                   key={category.key}
                 >
                   <div>
@@ -745,8 +745,8 @@ function ActionBox({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-3">
-      <div className="flex min-w-0 items-start gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 p-3">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
         <div className="mt-0.5 text-slate-500">{icon}</div>
         <div>
           <div className="text-sm font-medium text-slate-900">{title}</div>
