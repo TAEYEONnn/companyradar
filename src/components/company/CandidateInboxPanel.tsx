@@ -135,13 +135,12 @@ export function CandidateInboxPanel({
     <section className="rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
         <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-            <Inbox className="h-4 w-4" />
-            Candidate Inbox
+          <div className="flex items-center gap-2 text-base font-semibold">
+            <Inbox className="h-4 w-4 text-slate-500" />
+            공고 후보
           </div>
-          <h2 className="mt-1 text-lg font-semibold">검토 전 회사 후보</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            아직 확정하지 않은 공고 URL과 원문 메모를 회사 목록과 분리해 둡니다.
+          <p className="mt-0.5 text-sm text-slate-500">
+            공고 URL이나 원문을 저장하고 AI로 정리해보세요.
           </p>
           {aiCredit && !aiCredit.unlimited ? (
             <p
@@ -154,8 +153,8 @@ export function CandidateInboxPanel({
             >
               <Sparkles className="h-3.5 w-3.5" />
               {aiCredit.freeUsesRemaining > 0
-                ? `AI 공고 분석 무료 ${aiCredit.freeUsesRemaining}회 남아있어요.`
-                : "무료 AI 분석을 모두 사용했어요. 추가 사용은 추후 제공될 예정이에요."}
+                ? `무료 AI 분석 ${aiCredit.freeUsesRemaining}회 남음`
+                : "무료 분석 소진 · 추후 추가 예정"}
             </p>
           ) : null}
         </div>
@@ -166,7 +165,7 @@ export function CandidateInboxPanel({
 
       <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[380px_1fr]">
         <div className="space-y-4 rounded-md border border-slate-200 p-3">
-          <Field label="공고/회사 URL">
+          <Field label="공고 URL">
             <Input
               onChange={(event) =>
                 setDraft((current) => ({ ...current, sourceUrl: event.target.value }))
@@ -176,7 +175,7 @@ export function CandidateInboxPanel({
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="회사명 (선택)">
+            <Field label="회사명">
               <Input
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, companyName: event.target.value }))
@@ -185,7 +184,7 @@ export function CandidateInboxPanel({
                 value={draft.companyName}
               />
             </Field>
-            <Field label="직무명 (선택)">
+            <Field label="직무명">
               <Input
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, jobTitle: event.target.value }))
@@ -224,13 +223,13 @@ export function CandidateInboxPanel({
               value={draft.firstImpressionNote}
             />
           </Field>
-          <Field label="공고 원문/메모">
+          <Field label="공고 원문">
             <Textarea
               className="min-h-40"
               onChange={(event) =>
                 setDraft((current) => ({ ...current, rawText: event.target.value }))
               }
-              placeholder="채용공고 내용, 직무 요건, 메모 등을 자유롭게 붙여넣어 보관하세요."
+              placeholder="채용공고 원문을 붙여넣으세요."
               value={draft.rawText}
             />
           </Field>
@@ -336,7 +335,7 @@ export function CandidateInboxPanel({
                 {(candidate.parseStatus === "parsed" || candidate.parseStatus === "partial") &&
                 !candidate.promotedCompanyId ? (
                   <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs leading-5 text-amber-700">
-                    AI 정리는 초안이에요. 저장 전 회사명, 공고명, 마감일을 직접 확인해주세요.
+                    AI 초안 · 회사명·마감일을 확인하세요.
                   </p>
                 ) : null}
                 {candidate.parsedCompany?.name && !candidate.companyName ? (

@@ -1409,7 +1409,7 @@ function NextActionBanner({ company, onAddTask }: { company: Company; onAddTask?
         <div className="flex items-center gap-2">
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="leading-5">
-            <strong>다음 할 일 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 다음 할 일이 없습니다.
+            다음 할 일 없음 — {STATUS_LABELS[company.status]} 상태
           </span>
         </div>
         {onAddTask ? (
@@ -1587,8 +1587,8 @@ function EncryptedNoteSection({
         민감 메모
         {saving && <RefreshCw className="ml-auto h-3 w-3 animate-spin text-slate-400" />}
       </h3>
-      <p className="text-sm leading-6 text-slate-500">
-        연봉 협상, 처우 조건, 내부자에게 들은 내용, 소개자 정보처럼 공개 목록에 섞이면 곤란한 내용을 따로 남겨두세요.
+      <p className="text-xs text-slate-500">
+        연봉·처우·내부자 정보 등 비공개 보관이 필요한 내용을 적어두세요.
       </p>
 
       <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">

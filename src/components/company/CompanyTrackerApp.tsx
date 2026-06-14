@@ -1141,8 +1141,8 @@ export function CompanyTrackerApp() {
                 ) : (
                   <>
                 {hasOnlySampleCompanies ? (
-                  <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">
-                    현재 직군 예시 회사 3개만 표시 중입니다. 새 회사를 추가하면 로그인 계정 기준으로 자동 저장됩니다.
+                  <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                    예시 데이터 보는 중 · 회사 추가 시 자동 저장됩니다.
                   </div>
                 ) : null}
                 <Toolbar
