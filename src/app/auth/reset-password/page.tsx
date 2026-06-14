@@ -41,8 +41,15 @@ export default function ResetPasswordPage() {
       const hashType = hashParams.get("type");
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
+      // recovery=1 means /auth/confirm already exchanged the code and established
+      // the recovery session — no need to exchange again, just read the session.
+      const recoveryFromConfirm = currentUrl.searchParams.get("recovery") === "1";
 
-      const hasRecoveryParam = Boolean(code || tokenHash || accessToken);
+      const hasRecoveryParam = Boolean(code || tokenHash || accessToken || recoveryFromConfirm);
+
+      console.log("[RESET_PASSWORD_PARAMS]", {
+        code: !!code, tokenHash: !!tokenHash, accessToken: !!accessToken, recoveryFromConfirm,
+      });
 
       // No recovery params → do not fall back to existing session.
       // An operator session in localStorage must not grant access to this form.
@@ -52,7 +59,10 @@ export default function ResetPasswordPage() {
       }
 
       try {
-        if (code) {
+        if (recoveryFromConfirm) {
+          // Session already established by /auth/confirm — skip exchange, just verify.
+          // Falls through to getSession() below.
+        } else if (code) {
           // Sign out any existing session first — prevents a logged-in operator's session
           // from being used if code exchange fails (wrong-account bleed).
           await client.auth.signOut();

@@ -36,6 +36,13 @@ function ConfirmInner() {
     });
 
     async function confirmCode() {
+      // Detect PASSWORD_RECOVERY before exchange — if the code is for password
+      // reset, we must redirect to the reset form instead of signing the user in.
+      let isRecovery = false;
+      const { data: { subscription } } = client.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY") isRecovery = true;
+      });
+
       try {
         const result = await Promise.race([
           client.auth
@@ -43,6 +50,7 @@ function ConfirmInner() {
             .then(({ error }) => ({ error, timedOut: false as const })),
           timeout,
         ]);
+        subscription.unsubscribe();
         if (!active) return;
 
         if (result.timedOut) {
@@ -56,10 +64,19 @@ function ConfirmInner() {
           const { data } = await client.auth.getSession();
           if (!active) return;
           router.replace(data.session ? nextPath : "/auth/error");
-        } else {
-          router.replace(nextPath);
+          return;
         }
+
+        if (isRecovery) {
+          // Recovery code: session is established — hand off to the reset form.
+          console.log("[auth/confirm] PASSWORD_RECOVERY — redirecting to reset form");
+          router.replace("/auth/reset-password?recovery=1");
+          return;
+        }
+
+        router.replace(nextPath);
       } catch (error) {
+        subscription.unsubscribe();
         console.error("[auth/confirm] unexpected confirmation error:", error);
         const { data } = await client.auth.getSession();
         if (!active) return;
