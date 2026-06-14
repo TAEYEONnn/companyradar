@@ -152,6 +152,7 @@ export function CompanyDetailPanel({
   const [headerCompact, setHeaderCompact] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ title: string; onConfirm: () => void } | null>(null);
+  const [validationTipOpen, setValidationTipOpen] = useState(false);
 
   function confirmDelete(title: string, fn: () => void) {
     setPendingDelete({ title, onConfirm: fn });
@@ -462,13 +463,21 @@ export function CompanyDetailPanel({
               <Badge tone="amber">공고 재확인 필요</Badge>
               <span className="group relative inline-flex align-middle">
                 <button
+                  aria-expanded={validationTipOpen}
                   aria-label="확인이 필요한 항목 보기"
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-amber-500 hover:bg-amber-100 focus:bg-amber-100 focus:outline-none"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-amber-500 hover:bg-amber-100 focus:outline-none"
+                  onBlur={() => setValidationTipOpen(false)}
+                  onClick={() => setValidationTipOpen((v) => !v)}
                   type="button"
                 >
                   <CircleHelp className="h-3.5 w-3.5" />
                 </button>
-                <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden min-w-56 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-800 shadow-lg group-focus-within:block group-hover:block">
+                <span
+                  className={[
+                    "pointer-events-none absolute bottom-full left-0 z-20 mb-2 min-w-56 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-800 shadow-lg",
+                    validationTipOpen ? "block" : "hidden group-hover:block",
+                  ].join(" ")}
+                >
                   {validationReasons.map((r) => (
                     <span className="block" key={r}>
                       · {VALIDATION_DISPLAY_LABELS[r] ?? r}
@@ -1071,7 +1080,7 @@ export function CompanyDetailPanel({
             다음 할일
           </h3>
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="grid grid-cols-[1fr_128px_64px] items-center gap-2">
+            <div className="space-y-2 sm:grid sm:grid-cols-[1fr_128px_64px] sm:items-center sm:space-y-0 sm:gap-2">
               <Input
                 aria-label="할일"
                 id="follow-up-task-title"
@@ -1081,17 +1090,20 @@ export function CompanyDetailPanel({
                 placeholder="예: 채용담당자에게 팔로업 메일"
                 value={taskDraft.title}
               />
-              <Input
-                aria-label="기한"
-                onChange={(event) =>
-                  setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
-                }
-                type="date"
-                value={taskDraft.dueDate}
-              />
-              <Button onClick={addFollowUpTask} size="sm">
-                추가
-              </Button>
+              <div className="flex items-center gap-2 sm:contents">
+                <Input
+                  aria-label="기한"
+                  className="flex-1 sm:flex-none"
+                  onChange={(event) =>
+                    setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
+                  }
+                  type="date"
+                  value={taskDraft.dueDate}
+                />
+                <Button onClick={addFollowUpTask} size="sm">
+                  추가
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-400">빠른 기한:</span>
@@ -1284,16 +1296,25 @@ export function CompanyDetailPanel({
 }
 
 function DrawerHelpTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
   return (
     <span className="group relative ml-1 inline-flex align-middle">
       <button
+        aria-expanded={open}
         aria-label={text}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:bg-slate-100 focus:text-slate-700 focus:outline-none"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none"
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen((v) => !v)}
         type="button"
       >
         <CircleHelp className="h-3.5 w-3.5" />
       </button>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg group-focus-within:block group-hover:block">
+      <span
+        className={[
+          "pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg",
+          open ? "block" : "hidden group-hover:block",
+        ].join(" ")}
+      >
         {text}
       </span>
     </span>

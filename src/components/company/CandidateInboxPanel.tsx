@@ -154,7 +154,7 @@ export function CandidateInboxPanel({
             >
               <Sparkles className="h-3.5 w-3.5" />
               {aiCredit.freeUsesRemaining > 0
-                ? "AI 공고 분석 무료 1회가 남아있어요."
+                ? `AI 공고 분석 무료 ${aiCredit.freeUsesRemaining}회 남아있어요.`
                 : "무료 AI 분석을 모두 사용했어요. 추가 사용은 추후 제공될 예정이에요."}
             </p>
           ) : null}
@@ -305,8 +305,8 @@ export function CandidateInboxPanel({
                         ? "분석 중"
                         : !hasAiCredit && !candidate.promotedCompanyId
                           ? "AI 분석 완료"
-                          : aiCredit && !aiCredit.unlimited && aiCredit.freeUsesRemaining === 1
-                            ? "AI 분석 · 무료 1회"
+                          : aiCredit && !aiCredit.unlimited && aiCredit.freeUsesRemaining > 0
+                            ? `AI 분석 · 무료 ${aiCredit.freeUsesRemaining}회`
                             : "AI 분석"}
                     </Button>
                     <Button

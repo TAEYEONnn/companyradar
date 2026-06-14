@@ -16,7 +16,7 @@ interface AuthorizeAiResult {
 }
 
 const PAYMENT_REQUIRED_MESSAGE =
-  "AI 기능은 유료 베타입니다. 계정당 1회 무료로 체험할 수 있고, 이후 10회권을 구매해 계속 사용할 수 있어요.";
+  "무료 AI 분석 5회를 모두 사용했어요. 추가 사용은 추후 제공될 예정이에요.";
 
 export async function authorizeAiRequest(
   request: Request,
@@ -105,7 +105,7 @@ export async function getOrCreateAiEntitlement(userId: string): Promise<AiEntitl
   const admin = getSupabaseAdminClient();
 
   // Check whether this email has already consumed a free credit under any previous account.
-  let initialFreeUses = 1;
+  let initialFreeUses = 5;
   try {
     const { data: authData } = await admin.auth.admin.getUserById(userId);
     const email = authData.user?.email;

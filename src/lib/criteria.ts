@@ -488,6 +488,59 @@ const ROLE_SCORE_TEXT: Record<UserRole, Record<ScoreCategoryKey, RoleScoreText>>
       },
     },
   },
+  other: {
+    businessProduct: {
+      title: "사업/제품",
+      shortTitle: "사업",
+      items: {
+        solvesProblem: "해결하는 문제가 명확하고 중요한가",
+        sustainable: "비즈니스 모델이 지속 가능해 보이는가",
+        marketStability: "시장 크기와 성장성이 충분한가",
+        productQuality: "제품/서비스 품질과 방향이 괜찮은가",
+      },
+    },
+    organizationCulture: {
+      title: "조직/문화",
+      shortTitle: "조직",
+      items: {
+        reviewQuality: "조직 평판과 협업 문화가 괜찮은가",
+        burnoutRisk: "업무 과부하 위험이 낮아 보이는가",
+        decisionClarity: "의사결정 구조가 명확한가",
+        retention: "핵심 인력이 안정적으로 유지되는가",
+      },
+    },
+    designGrowth: {
+      title: "성장 가능성",
+      shortTitle: "성장",
+      items: {
+        strategicRole: "역할이 단순 실행에 그치지 않는가",
+        systemOpportunity: "구조적으로 개선하고 기여할 기회가 있는가",
+        collaboration: "팀 간 협업 구조가 건강한가",
+        portfolioProblem: "경력에 남길 만한 문제를 다룰 수 있는가",
+      },
+    },
+    compensationWork: {
+      title: "보상/근무 조건",
+      shortTitle: "조건",
+      items: {
+        salaryRange: "연봉 범위가 기대와 맞는가",
+        workModel: "근무 형태가 지속 가능하게 맞는가",
+        commute: "출퇴근 부담이 감당 가능한가",
+        benefits: "복지와 업무 지원이 충분한가",
+        contractStability: "고용/계약 안정성이 괜찮은가",
+      },
+    },
+    personalFit: {
+      title: "나와의 적합도",
+      shortTitle: "적합도",
+      items: {
+        currentSkillFit: "현재 역량과 역할 난이도가 맞는가",
+        learningDirection: "배우고 싶은 방향과 맞는가",
+        interviewSignal: "면접에서 커뮤니케이션 신뢰가 있었는가",
+        growthCurve: "다음 커리어 단계에 도움이 되는가",
+      },
+    },
+  },
 };
 
 export function getRoleScoreCategories(
@@ -564,6 +617,15 @@ export const ROLE_RISK_CHECKLIST: Record<UserRole, string[]> = {
     "계약 조건이 불명확함",
     "온보딩 체계가 없어 보임",
   ],
+  other: [
+    "채용공고가 지나치게 모호함",
+    "역할 범위가 과도하게 넓음",
+    "단순 반복 업무 위주의 역할",
+    "면접에서 업무 범위·성장 경로 답변이 불명확",
+    "리뷰에서 리더십 문제가 반복됨",
+    "계약 조건이 불명확함",
+    "온보딩 체계가 없어 보임",
+  ],
 };
 
 export const DEFAULT_SCORE_THRESHOLDS: ScoreThresholdSettings = {
@@ -590,6 +652,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   frontend: "프론트엔드 개발자",
   ux_researcher: "UX 리서처",
   marketer: "프로덕트 마케터",
+  other: "운영 / 기타",
 };
 
 export const ROLE_WEIGHT_PRESETS: Record<UserRole, CriteriaSettings["weights"]> = {
@@ -598,6 +661,7 @@ export const ROLE_WEIGHT_PRESETS: Record<UserRole, CriteriaSettings["weights"]> 
   frontend:      { businessProduct: 0.2,  organizationCulture: 0.25, designGrowth: 0.3,  compensationWork: 0.15, personalFit: 0.1 },
   ux_researcher: { businessProduct: 0.15, organizationCulture: 0.3,  designGrowth: 0.3,  compensationWork: 0.15, personalFit: 0.1 },
   marketer:      { businessProduct: 0.25, organizationCulture: 0.25, designGrowth: 0.25, compensationWork: 0.15, personalFit: 0.1 },
+  other:         { businessProduct: 0.2,  organizationCulture: 0.25, designGrowth: 0.25, compensationWork: 0.2,  personalFit: 0.1 },
 };
 
 export const ROLE_GROWTH_LABEL: Record<UserRole, string> = {
@@ -606,6 +670,7 @@ export const ROLE_GROWTH_LABEL: Record<UserRole, string> = {
   frontend:      "기술 성장 가능성",
   ux_researcher: "리서치 환경",
   marketer:      "마케팅 임팩트",
+  other:         "성장 가능성",
 };
 
 export const ROLE_FIT_LABELS: Record<UserRole, Record<keyof DesignerFitChecklist, string>> = {
@@ -649,6 +714,14 @@ export const ROLE_FIT_LABELS: Record<UserRole, Record<keyof DesignerFitChecklist
     canImproveProcess: "마케팅 예산 권한",
     isOnlyVisualProductionRole: "단순 실행 역할 여부",
   },
+  other: {
+    hasDesignSystemOpportunity: "업무 체계 개선 기회",
+    hasDesignOpsOpportunity: "프로세스 자동화/개선 가능성",
+    hasComponentOwnership: "역할 자율성",
+    hasDocumentationCulture: "문서화 및 협업 문화",
+    canImproveProcess: "업무 방식 개선 가능",
+    isOnlyVisualProductionRole: "단순 반복 업무 위주 역할 여부",
+  },
 };
 
 export const ROLE_FIT_CHECKLIST_TITLE: Record<UserRole, string> = {
@@ -657,4 +730,5 @@ export const ROLE_FIT_CHECKLIST_TITLE: Record<UserRole, string> = {
   frontend:      "개발자 적합도 체크리스트",
   ux_researcher: "UX 리서처 적합도 체크리스트",
   marketer:      "마케터 적합도 체크리스트",
+  other:         "커리어 적합도 체크리스트",
 };

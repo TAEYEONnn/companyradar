@@ -1375,7 +1375,8 @@ function StartGuide({
   onAddCompany: () => void;
   onOpenInbox: () => void;
 }) {
-  const hasAiCredit = aiCredit ? (aiCredit.unlimited || aiCredit.freeUsesRemaining > 0) : true;
+  const remaining = aiCredit?.unlimited ? null : (aiCredit?.freeUsesRemaining ?? null);
+  const hasAiCredit = remaining === null || remaining > 0;
   const steps = [
     { num: "1", title: "공고 저장", desc: "URL 또는 텍스트로 공고를 저장해요" },
     { num: "2", title: "신호 정리", desc: "좋은 점·걱정되는 점·확인할 점을 기록해요" },
@@ -1384,8 +1385,37 @@ function StartGuide({
   ];
   return (
     <div className="p-6">
-      <h3 className="text-sm font-semibold text-slate-700">CompanyRadar 핵심 흐름</h3>
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <p className="text-sm text-slate-500">공고를 붙여넣으면 AI가 회사명·신호·걱정되는 점을 초안으로 정리해줘요.</p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700"
+          onClick={onOpenInbox}
+          type="button"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9 3a1 1 0 00-1 1v2H5a2 2 0 00-2 2v11a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-3V4a1 1 0 00-1-1H9zm0 2h6v2H9V5zm-4 5h14v9H5v-9z" />
+          </svg>
+          AI로 공고 정리하기
+          {remaining !== null && hasAiCredit ? (
+            <span className="rounded-full bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-200">
+              무료 {remaining}회
+            </span>
+          ) : remaining !== null && !hasAiCredit ? (
+            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">
+              사용 완료
+            </span>
+          ) : null}
+        </button>
+        <button
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          onClick={onAddCompany}
+          type="button"
+        >
+          + 직접 추가하기
+        </button>
+      </div>
+      <h3 className="mt-6 text-xs font-semibold uppercase tracking-widest text-slate-400">핵심 흐름</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {steps.map((step, i) => (
           <div key={step.num} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3">
             {i < steps.length - 1 ? (
@@ -1398,31 +1428,6 @@ function StartGuide({
             <div className="mt-0.5 text-xs leading-5 text-slate-500">{step.desc}</div>
           </div>
         ))}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-          disabled={!hasAiCredit}
-          onClick={onOpenInbox}
-          type="button"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path d="M5 3l14 9-14 9V3z" fill="currentColor" />
-          </svg>
-          AI로 공고 정리하기
-          {aiCredit && !aiCredit.unlimited ? (
-            <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">
-              {aiCredit.freeUsesRemaining > 0 ? "무료 1회" : "사용 완료"}
-            </span>
-          ) : null}
-        </button>
-        <button
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          onClick={onAddCompany}
-          type="button"
-        >
-          + 관심 회사 직접 추가하기
-        </button>
       </div>
     </div>
   );

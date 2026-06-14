@@ -1,6 +1,6 @@
 "use client";
 
-import { Brush, ChartBar, ChevronRight, Code2, LayoutGrid, Megaphone, Plus, Search, Sparkles } from "lucide-react";
+import { Briefcase, Brush, ChartBar, ChevronRight, Code2, LayoutGrid, Megaphone, Plus, Search, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, ROLE_WEIGHT_PRESETS } from "@/lib/criteria";
@@ -20,6 +20,7 @@ const ROLE_CONFIG: { role: UserRole; icon: React.ComponentType<{ className?: str
   { role: "frontend", icon: Code2, description: "React, TypeScript, UI" },
   { role: "ux_researcher", icon: Search, description: "리서치, 인터뷰, 인사이트" },
   { role: "marketer", icon: Megaphone, description: "그로스, 콘텐츠, 브랜드" },
+  { role: "other", icon: Briefcase, description: "운영, 세일즈, HR, 기타 직군" },
 ];
 
 const START_OPTIONS: {
@@ -35,7 +36,7 @@ const START_OPTIONS: {
     title: "AI로 공고 정리하기",
     description:
       "채용공고를 붙여넣으면 회사명, 좋은 신호, 걱정되는 점을 초안으로 정리해요.",
-    badge: "무료 1회",
+    badge: "무료 5회",
   },
   {
     mode: "manual",
@@ -80,7 +81,7 @@ export function OnboardingModal({ userId, onComplete }: OnboardingModalProps) {
               </div>
               <h2 className="text-lg font-semibold text-slate-900">내 직군을 선택해주세요</h2>
               <p className="mt-1 text-sm text-slate-500">
-                직군에 맞는 평가 기준과 리스크 체크리스트를 적용합니다.
+                디자인·개발·기획·마케팅·운영 등 IT/프로덕트 직군 모두를 위한 트래커예요. 직군별 평가 기준과 리스크 체크리스트를 맞춤 적용합니다.
               </p>
             </div>
 

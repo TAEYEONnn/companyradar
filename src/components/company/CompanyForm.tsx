@@ -308,7 +308,15 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white">
+    <section className="rounded-lg border border-slate-200 bg-white pb-20 sm:pb-0">
+      {/* Mobile sticky save footer */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-2 border-t border-slate-200 bg-white/95 p-3 backdrop-blur-sm sm:hidden">
+        <Button onClick={onCancel} size="sm" variant="secondary">취소</Button>
+        <Button disabled={!draft.name.trim()} onClick={() => onSubmit(draft)} size="sm">
+          <Save className="h-4 w-4" />
+          저장
+        </Button>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
         <div>
           <h2 className="text-lg font-semibold">
@@ -318,7 +326,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
             기본 정보, 평가 점수, 경고 신호를 함께 기록합니다.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="hidden gap-2 sm:flex">
           <Button onClick={onCancel} variant="secondary">
             취소
           </Button>
