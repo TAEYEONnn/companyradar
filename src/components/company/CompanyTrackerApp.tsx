@@ -1015,6 +1015,10 @@ export function CompanyTrackerApp() {
             />
           ) : null}
           <div className="flex-1" />
+          <Button onClick={() => setViewMode("quick-add")} variant="secondary">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">회사명만 저장하기</span>
+          </Button>
           <Button onClick={() => setViewMode("inbox")}>
             <Sparkles className="h-4 w-4" />
             <span className="hidden sm:inline">AI로 공고 정리하기</span>
