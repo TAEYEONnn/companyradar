@@ -87,15 +87,42 @@ export async function consumeAiCredit(
     throw new Error("AI credit consume failed");
   }
 
+  // Record email permanently so re-registration cannot bypass the free credit limit.
+  try {
+    const { data: authData } = await admin.auth.admin.getUserById(user.id);
+    const email = authData.user?.email;
+    if (email) {
+      await admin
+        .from("ai_free_used_emails")
+        .upsert({ email }, { onConflict: "email", ignoreDuplicates: true });
+    }
+  } catch { /* non-fatal — entitlement row already consumed */ }
+
   await logAiRequest(user, feature, "success");
 }
 
 export async function getOrCreateAiEntitlement(userId: string): Promise<AiEntitlement> {
   const admin = getSupabaseAdminClient();
+
+  // Check whether this email has already consumed a free credit under any previous account.
+  let initialFreeUses = 1;
+  try {
+    const { data: authData } = await admin.auth.admin.getUserById(userId);
+    const email = authData.user?.email;
+    if (email) {
+      const { data: usedRow } = await admin
+        .from("ai_free_used_emails")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle<{ email: string }>();
+      if (usedRow) initialFreeUses = 0;
+    }
+  } catch { /* non-fatal — default to 1 */ }
+
   await admin.from("ai_credit_accounts").upsert(
     {
       user_id: userId,
-      free_uses_remaining: 1,
+      free_uses_remaining: initialFreeUses,
       paid_credits_remaining: 0,
     },
     { onConflict: "user_id", ignoreDuplicates: true },

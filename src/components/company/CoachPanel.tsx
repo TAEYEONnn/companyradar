@@ -15,10 +15,11 @@ interface CoachPanelProps {
   scoreMap: Map<string, CompanyScoreResult>;
   settings?: CriteriaSettings;
   onBack: () => void;
+  strategy: string;
+  onStrategyChange: (s: string) => void;
 }
 
-export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanelProps) {
-  const [strategy, setStrategy] = useState("");
+export function CoachPanel({ companies, scoreMap, settings, onBack, strategy, onStrategyChange }: CoachPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [strategyOpen, setStrategyOpen] = useState(true);
@@ -157,7 +158,7 @@ export function CoachPanel({ companies, scoreMap, settings, onBack }: CoachPanel
         setError(getApiErrorMessage(res, data, "전략 생성에 실패했습니다."));
         return;
       }
-      setStrategy(data.strategy);
+      onStrategyChange(data.strategy);
       setStrategyOpen(true);
     } catch {
       setError("AI 코치 요청에 실패했습니다.");

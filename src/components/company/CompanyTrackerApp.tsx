@@ -115,6 +115,7 @@ export function CompanyTrackerApp() {
   const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [deletionRequested, setDeletionRequested] = useState(false);
+  const [coachStrategy, setCoachStrategy] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: "idle",
     lastAt: "",
@@ -1055,6 +1056,8 @@ export function CompanyTrackerApp() {
                 settings={settings}
                 onBack={() => setViewMode("dashboard")}
                 scoreMap={scoreMap}
+                strategy={coachStrategy}
+                onStrategyChange={setCoachStrategy}
               />
             ) : viewMode === "compare" ? (
               <ComparePanel

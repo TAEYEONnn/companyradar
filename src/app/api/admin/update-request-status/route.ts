@@ -114,6 +114,12 @@ export async function POST(request: Request) {
         (u) => u.email?.toLowerCase() === body.userEmail!.toLowerCase(),
       );
       if (target) {
+        // Permanently block free AI credit for this email so re-registration doesn't reset it.
+        if (target.email) {
+          await admin
+            .from("ai_free_used_emails")
+            .upsert({ email: target.email }, { onConflict: "email", ignoreDuplicates: true });
+        }
         const { error: delErr } = await admin.auth.admin.deleteUser(target.id);
         if (delErr) {
           console.error("[admin] auth user deletion failed", delErr);
