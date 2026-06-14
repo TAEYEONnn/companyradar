@@ -83,7 +83,11 @@ export function AuthGate() {
       return;
     }
     const nextEmail = email.trim();
-    if (!validateEmail(nextEmail) || !validatePassword(password)) return;
+    if (!validateEmail(nextEmail)) return;
+    if (!password) {
+      setError("비밀번호를 입력해주세요.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -227,9 +231,9 @@ export function AuthGate() {
               <Input
                 autoComplete={isSignup ? "new-password" : "current-password"}
                 id="auth-password"
-                minLength={8}
+                minLength={isSignup ? 8 : undefined}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="8자 이상"
+                placeholder={isSignup ? "8자 이상" : "비밀번호"}
                 type="password"
                 value={password}
               />
