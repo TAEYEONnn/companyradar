@@ -73,10 +73,10 @@ export function AuthGate() {
     const remainingSeconds = getRemainingCooldownSeconds(nextEmail);
     if (remainingSeconds > 0) {
       setMessage("");
-      setError(`이미 로그인 링크를 보냈습니다. 메일함을 확인하거나 ${remainingSeconds}초 후 다시 시도해주세요.`);
+      setError(`방금 로그인 링크 요청을 완료했습니다. 메일함을 확인하거나 ${remainingSeconds}초 후 다시 시도해주세요.`);
       setDevError(
         process.env.NODE_ENV === "development"
-          ? "[dev] Supabase email rate limit을 피하기 위해 로컬에서 재발송을 잠시 막았습니다. Redirect URL 설정 문제는 아닙니다."
+          ? "[dev] 직전 요청이 성공했을 때만 로컬 재발송 차단을 적용합니다. Redirect URL 설정 문제는 아닙니다."
           : "",
       );
       return;
@@ -100,15 +100,14 @@ export function AuthGate() {
       const msg = signInError.message?.toLowerCase() ?? "";
       const isRateLimit = msg.includes("rate") || msg.includes("limit") || signInError.status === 429;
       if (isRateLimit) {
-        rememberMagicLinkSent(nextEmail);
-        setError("이미 최근에 링크를 발송했습니다. 메일함을 확인하거나 60초 후 다시 시도해주세요.");
+        setError("Supabase 이메일 발송 한도에 걸렸습니다. 잠시 후 다시 시도하거나 운영자에게 알려주세요.");
       } else {
         setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
       if (process.env.NODE_ENV === "development") {
         setDevError(
           isRateLimit
-            ? `[dev] ${signInError.message ?? String(signInError)}\n\n이 에러는 Supabase 이메일 발송 rate limit입니다. Site URL 또는 Redirect URLs 설정 문제가 아니며, 60초 후 다시 시도하거나 메일함의 최신 링크를 사용하세요.`
+            ? `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n\n이 에러는 Supabase Auth 이메일/OTP 발송 한도입니다. Site URL 또는 Redirect URLs 설정 문제가 아닙니다.\nSupabase Dashboard › Authentication › Rate Limits에서 OTP/email sent 한도를 확인하고, 프로덕션에서는 Custom SMTP 설정을 권장합니다.`
             : `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n→ Supabase 대시보드 › Authentication › URL Configuration › Redirect URLs 에 이 URL이 등록되어 있는지 확인하세요.`,
         );
       }

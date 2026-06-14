@@ -16,7 +16,7 @@
 
 - **로그인 화면 OG 카피 정렬**: 공유 미리보기 문구와 로그인 첫 화면 카피를 "지원할 회사를 기준 있게 정리" 흐름으로 통일. 신규 사용자가 `회사 추가 → 점수 확인 → 면접 준비`를 바로 이해하도록 3단계 미니 흐름 추가.
 - **첫 방문 온보딩 3단계 축약**: 직군 선택 모달 상단에 `회사 추가 → 점수 확인 → 면접 준비` 진행 흐름을 추가하고, 직군 설명을 짧게 줄여 첫 설정 부담 완화.
-- **매직링크 rate limit UX 개선**: 같은 이메일로 60초 안에 재발송을 로컬에서 차단해 Supabase email rate limit을 예방. rate limit 에러는 Site URL/Redirect URL 문제가 아니라는 dev 안내를 명확히 표시.
+- **매직링크 rate limit UX 개선**: 성공한 매직링크 요청만 60초 재발송 차단으로 기록. Supabase가 `email rate limit exceeded`를 반환하면 Site URL/Redirect URL 문제가 아니라 Auth 이메일/OTP 발송 한도임을 안내.
 - **OG/Twitter 공유 미리보기 추가**: 루트 페이지에 `og:title`, `og:description`, `og:url`, `og:site_name`, `og:image`, `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image` 메타데이터 추가. `/opengraph-image`에서 1200×630 PNG 공유 이미지를 동적 생성.
 - **브랜드 메타데이터 CompanyRadar 통일**: `layout.tsx` 기본 title/description을 CompanyRadar 기준으로 변경하고, `NEXT_PUBLIC_SITE_URL`/Vercel URL 기반 canonical URL을 사용.
 - **운영자 답장 템플릿 상태 반영**: 문의·환불·탈퇴 상태 변경 후 Gmail 답장 링크와 "답장 내용" 미리보기가 검토/완료/승인/거절/취소 상태별 문구로 즉시 갱신.
@@ -129,7 +129,9 @@ http://localhost:3000/**
 https://your-production-domain/**
 ```
 
-로컬 개발 시 `NEXT_PUBLIC_SITE_URL=http://localhost:3000`을 `.env.local`에 추가합니다. Supabase의 **Site URL**은 로컬 테스트 중이면 `http://localhost:3000`이어도 정상입니다. 배포 도메인에서 Magic Link를 보낼 때는 Site URL을 실제 프로덕션 도메인으로 바꾸고, Redirect URLs에 `https://your-production-domain/**` 또는 `https://your-production-domain/auth/callback`을 추가합니다. `email rate limit exceeded`는 URL 설정 오류가 아니라 Supabase 이메일 재발송 제한입니다.
+로컬 개발 시 `NEXT_PUBLIC_SITE_URL=http://localhost:3000`을 `.env.local`에 추가합니다. Supabase의 **Site URL**은 로컬 테스트 중이면 `http://localhost:3000`이어도 정상입니다. 배포 도메인에서 Magic Link를 보낼 때는 Site URL을 실제 프로덕션 도메인으로 바꾸고, Redirect URLs에 `https://your-production-domain/**` 또는 `https://your-production-domain/auth/callback`을 추가합니다.
+
+`email rate limit exceeded`는 URL 설정 오류가 아니라 Supabase Auth 이메일/OTP 발송 한도입니다. Supabase Dashboard → Authentication → **Rate Limits**에서 OTP/email sent 한도를 확인합니다. Supabase 기본 이메일 발송자는 제한이 낮을 수 있으므로, 프로덕션에서는 Authentication → **SMTP Settings**에서 Custom SMTP를 연결하는 것을 권장합니다.
 
 ### DB 마이그레이션
 
