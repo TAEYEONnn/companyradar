@@ -15,11 +15,14 @@
 ## 이번 빌드 변경사항
 
 - Magic Link 인증 개선: `/auth/callback` 라우트 추가(PKCE code exchange), 로그인 실패 시 사용자 친화적 안내 페이지(`/auth/error`), `emailRedirectTo` 값 수정. AuthGate 브랜딩 업데이트.
-- 설정 화면 Gmail 문의 버튼: `NEXT_PUBLIC_SUPPORT_EMAIL` 설정 시 서비스 문의·결제 환불 섹션에 Gmail Compose URL 버튼 추가. 팝업 차단 시 이메일 주소 복사 안내.
+- 설정 화면 Gmail 문의 버튼: `NEXT_PUBLIC_SUPPORT_EMAIL` 설정 시 서비스 문의·결제 환불 섹션에 Gmail Compose URL 버튼 추가.
 - Drawer 너비 확장: `sm:w-[520px]` → `sm:w-[600px] lg:w-[720px] xl:w-[800px]`.
 - 회사 추가/수정 폼 progressive disclosure: 필수 항목(회사명, 공고 URL, 상태, 우선순위)만 기본 노출. 나머지는 "추가 정보" 접힘 영역으로 이동.
-- 샘플 데이터 명확화: 직군별 샘플 회사명을 `[샘플] 디자이너 직군 예시` 형식으로 변경. 회사 목록(테이블/카드)에 "샘플" 배지 추가.
-- 어드민 대시보드 전면 개선: Gmail 답장 링크(`mailto:` → Gmail Compose URL), 테스트용 더미 데이터 버튼, 답장 템플릿 인라인 미리보기 토글, 완료 항목 되돌리기(undo), 기본 필터 "미처리"로 변경.
+- 샘플 데이터 명확화: 직군별 샘플 회사명을 `[샘플] 디자이너 직군 예시` 형식으로 변경. 회사 목록에 "샘플" 배지 추가. 툴바에 "샘플 삭제" 버튼 추가.
+- 모바일 레이아웃 수정: Toolbar 상태/정렬 필터 반응형 flex로 수정(375px overflow 해소). ActionBox flex-wrap으로 버튼 overflow 방지. 설정 슬라이더 그리드 협소 화면 대응.
+- 헤더 브랜드명: "Career Company Tracker" → "CompanyRadar".
+- Drawer 정보 밀도 축소: 빈 InfoRow 자동 숨김, 중복 링크 제거, 빈 값 fallback "없음" 제거.
+- 어드민 대시보드 전면 개선: Gmail 답장 링크, 더미 데이터, 답장 템플릿 미리보기, 완료 되돌리기, 기본 필터 "미처리".
 - 회사 테이블 뱃지 중복 제거, 드로어 근거 레벨 자연어화, 서비스명 CompanyRadar 교체, 소스코드 개인정보 제거.
 
 ## 실행
