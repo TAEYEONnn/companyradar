@@ -12,6 +12,15 @@ export default function ResetPasswordPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
+  // After password change succeeds, auto-redirect to login after 2 s.
+  useEffect(() => {
+    if (status !== "done") return;
+    const timer = setTimeout(() => {
+      window.location.replace("/");
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [status]);
+
   useEffect(() => {
     let mounted = true;
     const supabase = getSupabaseClient();

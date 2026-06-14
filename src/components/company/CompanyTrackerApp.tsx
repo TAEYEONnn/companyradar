@@ -766,6 +766,7 @@ export function CompanyTrackerApp() {
       return false;
     }
     const supabase = getSupabaseClient();
+    console.log("[RESET_REQUEST_EMAIL]", userEmail);
     const { error } = await supabase?.auth.resetPasswordForEmail(userEmail, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     }) ?? { error: null };
