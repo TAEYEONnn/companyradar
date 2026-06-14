@@ -12,7 +12,15 @@
 - AI 공고 파싱, 회사 조사, 비교 분석, 주간 전략, 면접 질문, 메일 초안, 회사 요약
 - AI 유료 베타: 계정당 첫 성공 1회 무료, 이후 10회권 4,900원
 
-## 이번 빌드 변경사항
+## 이번 빌드 변경사항 (UX Fix Sprint)
+
+- 후보 검토(Candidate Inbox) → 회사 목록 승격 데이터 매핑 수정: `homepageUrl`이 구인공고 URL로 덮어쓰이던 버그 수정. `jobPostUrl`에만 sourceUrl 사용. 초기 `validationReason`에서 기술적 레이블 제거.
+- 승격 안내 문구 개선: `"Candidate Inbox에서 승격한 후보입니다."` → `"검토 후 관심 회사로 추가했습니다."`.
+- 확인 뱃지 단순화: 회사 목록에서 최대 1개 뱃지만 표시 (`확인 필요` / `마감 확인 필요`). 기술적 레이블("AI 추출 데이터", "근거 레벨 2 이하") 제거.
+- Drawer 상세 뱃지 친화적 표현: `VALIDATION_DISPLAY_LABELS`로 자연어 표시.
+- 샘플 데이터 교체: 실제 회사 대신 가상 회사 3개(무드테크·그로스랩·스택하우스). 디자이너/PM/개발자 직군 각 1개. 첫 로그인 시 3개 모두 표시.
+
+## 이전 빌드 변경사항
 
 - Magic Link 인증 개선: `/auth/callback` 라우트 추가(PKCE code exchange), 로그인 실패 시 사용자 친화적 안내 페이지(`/auth/error`), `emailRedirectTo` 값 수정. AuthGate 브랜딩 업데이트.
 - 설정 화면 Gmail 문의 버튼: `NEXT_PUBLIC_SUPPORT_EMAIL` 설정 시 서비스 문의·결제 환불 섹션에 Gmail Compose URL 버튼 추가.
