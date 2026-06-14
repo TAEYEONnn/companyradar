@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { VALIDATION_REASON_LABELS, getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
+import { VALIDATION_DISPLAY_LABELS, VALIDATION_REASON_LABELS, getCompanyValidationReasons, getValidationCompletePatch } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
   DISCOVERY_REASON_LABELS,
@@ -454,23 +454,13 @@ export function CompanyDetailPanel({
               </a>
             ) : null}
           </div>
-          {validationReasons.filter(
-            (r) =>
-              r !== VALIDATION_REASON_LABELS.staleJobCheck &&
-              r !== VALIDATION_REASON_LABELS.unknownJobStatus,
-          ).length > 0 ? (
+          {validationReasons.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
-              {validationReasons
-                .filter(
-                  (r) =>
-                    r !== VALIDATION_REASON_LABELS.staleJobCheck &&
-                    r !== VALIDATION_REASON_LABELS.unknownJobStatus,
-                )
-                .map((reason) => (
-                  <Badge key={reason} tone="amber">
-                    {reason}
-                  </Badge>
-                ))}
+              {validationReasons.map((reason) => (
+                <Badge key={reason} tone="amber">
+                  {VALIDATION_DISPLAY_LABELS[reason] ?? reason}
+                </Badge>
+              ))}
             </div>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">

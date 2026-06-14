@@ -13,6 +13,31 @@ export const VALIDATION_REASON_LABELS = {
   unknownJobStatus: "공고 상태 미확인",
 } as const;
 
+export const VALIDATION_DISPLAY_LABELS: Record<string, string> = {
+  [VALIDATION_REASON_LABELS.staleJobCheck]: "공고 상태를 다시 확인해주세요",
+  [VALIDATION_REASON_LABELS.aiExtracted]: "AI가 추출한 정보라 직접 확인이 필요해요",
+  [VALIDATION_REASON_LABELS.missingDeadline]: "공고 마감일을 확인해주세요",
+  [VALIDATION_REASON_LABELS.lowEvidence]: "판단 근거가 아직 부족해요",
+  [VALIDATION_REASON_LABELS.noVerificationHistory]: "아직 직접 확인한 기록이 없어요",
+  [VALIDATION_REASON_LABELS.staleVerification]: "정보를 업데이트할 시점이에요",
+  [VALIDATION_REASON_LABELS.unknownJobStatus]: "공고 공개 여부를 확인해주세요",
+};
+
+export function getPrimaryValidationBadge(validationReasons: string[]): string | null {
+  if (validationReasons.includes(VALIDATION_REASON_LABELS.unknownJobStatus) ||
+      validationReasons.includes(VALIDATION_REASON_LABELS.missingDeadline)) {
+    return "마감 확인 필요";
+  }
+  if (validationReasons.includes(VALIDATION_REASON_LABELS.staleJobCheck) ||
+      validationReasons.includes(VALIDATION_REASON_LABELS.staleVerification)) {
+    return "확인 필요";
+  }
+  if (validationReasons.length > 0) {
+    return "확인 필요";
+  }
+  return null;
+}
+
 function daysSince(dateStr: string, now: string): number {
   if (!dateStr) return Number.POSITIVE_INFINITY;
   const date = parseLocalDate(dateStr.slice(0, 10));

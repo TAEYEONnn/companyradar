@@ -1315,9 +1315,9 @@ function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
     candidateReason:
       parsed?.candidateReason ||
       candidate.firstImpressionNote ||
-      "Candidate Inbox에서 승격한 후보입니다.",
+      "검토 후 관심 회사로 추가했습니다.",
     signals: parsed?.signals ?? company.signals,
-    homepageUrl: candidate.sourceUrl,
+    homepageUrl: parsed?.homepageUrl ?? "",
     jobPostUrl: candidate.sourceUrl,
     sourceUrls: candidate.sourceUrl ? [candidate.sourceUrl] : [],
     discoveryReason: candidate.discoveryReason,
@@ -1327,10 +1327,8 @@ function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
     sourceConfidence: 1,
     needsRefresh: true,
     validationReason: [
-      VALIDATION_REASON_LABELS.aiExtracted,
       VALIDATION_REASON_LABELS.staleJobCheck,
       ...(parsed?.jobDeadline ? [] : [VALIDATION_REASON_LABELS.missingDeadline]),
-      VALIDATION_REASON_LABELS.lowEvidence,
     ],
     createdAt: now,
     updatedAt: now,

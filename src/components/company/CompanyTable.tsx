@@ -5,12 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { ApplicationChecklist } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { VALIDATION_REASON_LABELS, getCompanyValidationReasons } from "@/lib/company-validation";
-
-const TABLE_VISIBLE_REASONS = new Set<string>([
-  VALIDATION_REASON_LABELS.staleJobCheck,
-  VALIDATION_REASON_LABELS.unknownJobStatus,
-]);
+import { getCompanyValidationReasons, getPrimaryValidationBadge } from "@/lib/company-validation";
 import {
   COMPANY_SIZE_LABELS,
   PRIORITY_LABELS,
@@ -271,13 +266,11 @@ export function CompanyTable({
                     <div className="mt-0.5 text-xs text-slate-500">
                       {company.industry} · {COMPANY_SIZE_LABELS[company.size]}
                     </div>
-                    {validationReasons.filter(r => TABLE_VISIBLE_REASONS.has(r)).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {validationReasons.filter(r => TABLE_VISIBLE_REASONS.has(r)).slice(0, 2).map((reason) => (
-                          <Badge key={reason} tone="amber">
-                            {reason}
-                          </Badge>
-                        ))}
+                    {getPrimaryValidationBadge(validationReasons) && (
+                      <div className="mt-1">
+                        <Badge tone="amber">
+                          {getPrimaryValidationBadge(validationReasons)}
+                        </Badge>
                       </div>
                     )}
                     <ChecklistDots checklist={company.applicationChecklist} />
@@ -408,10 +401,10 @@ export function CompanyTable({
 }
 
 function getCoreTags(company: Company, validationReasons: string[]): string[] {
-  const tableReasons = validationReasons.filter(r => TABLE_VISIBLE_REASONS.has(r));
+  const primaryBadge = getPrimaryValidationBadge(validationReasons);
   return Array.from(
     new Set([
-      ...tableReasons,
+      ...(primaryBadge ? [primaryBadge] : []),
       ...company.riskFlags,
       company.industry,
     ].filter(Boolean)),
