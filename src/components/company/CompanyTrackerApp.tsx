@@ -661,8 +661,8 @@ export function CompanyTrackerApp() {
     jobTitle: string;
     discoveryReason: DiscoveryReason;
     firstImpressionNote: string;
-  }) {
-    if (!effectiveUserId) return;
+  }): CandidateInboxItem | undefined {
+    if (!effectiveUserId) return undefined;
     const now = new Date().toISOString();
     const candidate: CandidateInboxItem = {
       id: createId("candidate"),
@@ -685,6 +685,7 @@ export function CompanyTrackerApp() {
         if (!saved) showToast("후보 저장에 실패했습니다.");
       });
     }
+    return candidate;
   }
 
   function patchCandidate(candidateId: string, patch: Partial<CandidateInboxItem>) {
@@ -732,7 +733,7 @@ export function CompanyTrackerApp() {
         if (!saved) showToast("추가 상태 저장에 실패했습니다.");
       });
     }
-    showToast(`${company.name}을 회사 목록에 추가했습니다.`);
+    showToast("회사 목록에 추가했어요.");
   }
 
   async function signOut() {
@@ -1376,7 +1377,7 @@ function StartGuide({
   ];
   return (
     <div className="p-6">
-      <p className="text-sm text-slate-500">공고를 붙여넣으면 AI가 회사명·신호·걱정되는 점을 초안으로 정리해줘요.</p>
+      <p className="text-sm text-slate-500">아직 저장한 공고가 없어요. 공고를 붙여넣으면 AI가 초안을 정리해요.</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700"

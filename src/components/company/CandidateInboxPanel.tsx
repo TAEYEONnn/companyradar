@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, Inbox, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Inbox, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,7 @@ import { getSupabaseClient } from "@/lib/supabase-client";
 import type { CandidateInboxItem, Company, DiscoveryReason } from "@/lib/types";
 
 interface CandidateDraft {
-  sourceUrl: string;
-  rawText: string;
+  unifiedInput: string;
   companyName: string;
   jobTitle: string;
   discoveryReason: DiscoveryReason;
@@ -32,7 +31,7 @@ interface CandidateInboxPanelProps {
   companies: Company[];
   aiCredit?: AiCredit | null;
   onBack: () => void;
-  onCreate: (draft: CandidateDraft) => void;
+  onCreate: (draft: { sourceUrl: string; rawText: string; companyName: string; jobTitle: string; discoveryReason: DiscoveryReason; firstImpressionNote: string }) => CandidateInboxItem | undefined;
   onDelete: (candidateId: string) => void;
   onPatch: (id: string, patch: Partial<CandidateInboxItem>) => void;
   onParseSuccess?: () => void;
@@ -50,8 +49,7 @@ const PARSE_STATUS_LABELS: Record<CandidateInboxItem["parseStatus"], string> = {
 };
 
 const EMPTY_DRAFT: CandidateDraft = {
-  sourceUrl: "",
-  rawText: "",
+  unifiedInput: "",
   companyName: "",
   jobTitle: "",
   discoveryReason: "manual",
@@ -71,14 +69,36 @@ export function CandidateInboxPanel({
   onSelectCompany,
 }: CandidateInboxPanelProps) {
   const [draft, setDraft] = useState<CandidateDraft>(EMPTY_DRAFT);
+  const [showExtra, setShowExtra] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [parsingId, setParsingId] = useState<string | null>(null);
   const [parseError, setParseError] = useState<{ id: string; msg: string } | null>(null);
 
+  function resolvedDraft() {
+    const isUrl = /^https?:\/\//.test(draft.unifiedInput.trim());
+    return {
+      sourceUrl: isUrl ? draft.unifiedInput.trim() : "",
+      rawText: isUrl ? "" : draft.unifiedInput.trim(),
+      companyName: draft.companyName,
+      jobTitle: draft.jobTitle,
+      discoveryReason: draft.discoveryReason,
+      firstImpressionNote: draft.firstImpressionNote,
+    };
+  }
+
   function submitCandidate() {
-    if (!draft.sourceUrl.trim() && !draft.rawText.trim() && !draft.companyName.trim()) return;
-    onCreate(draft);
+    if (!draft.unifiedInput.trim() && !draft.companyName.trim()) return;
+    onCreate(resolvedDraft());
     setDraft(EMPTY_DRAFT);
+  }
+
+  async function submitAndParse() {
+    if (!draft.unifiedInput.trim() && !draft.companyName.trim()) return;
+    const candidate = onCreate(resolvedDraft());
+    setDraft(EMPTY_DRAFT);
+    if (candidate) {
+      await parseCandidate(candidate);
+    }
   }
 
   async function parseCandidate(candidate: CandidateInboxItem) {
@@ -137,7 +157,7 @@ export function CandidateInboxPanel({
         <div>
           <div className="flex items-center gap-2 text-base font-semibold">
             <Inbox className="h-4 w-4 text-slate-500" />
-            공고 후보
+            공고 정리
           </div>
           <p className="mt-0.5 text-sm text-slate-500">
             공고 URL이나 원문을 저장하고 AI로 정리해보세요.
@@ -164,79 +184,92 @@ export function CandidateInboxPanel({
       </div>
 
       <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[380px_1fr]">
-        <div className="space-y-4 rounded-md border border-slate-200 p-3">
-          <Field label="공고 URL">
-            <Input
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, sourceUrl: event.target.value }))
-              }
-              placeholder="https://"
-              value={draft.sourceUrl}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="회사명">
-              <Input
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, companyName: event.target.value }))
-                }
-                placeholder="예: 토스"
-                value={draft.companyName}
-              />
-            </Field>
-            <Field label="직무명">
-              <Input
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, jobTitle: event.target.value }))
-                }
-                placeholder="예: 프로덕트 디자이너"
-                value={draft.jobTitle}
-              />
-            </Field>
-          </div>
-          <Field label="발견 이유">
-            <Select
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  discoveryReason: event.target.value as DiscoveryReason,
-                }))
-              }
-              value={draft.discoveryReason}
+        <div className="space-y-3 rounded-md border border-slate-200 p-3">
+          <Textarea
+            className="min-h-36 text-sm"
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, unifiedInput: event.target.value }))
+            }
+            placeholder="공고 URL 또는 원문을 붙여넣으세요"
+            value={draft.unifiedInput}
+          />
+
+          <button
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+            onClick={() => setShowExtra((v) => !v)}
+            type="button"
+          >
+            {showExtra ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            추가 정보 입력
+          </button>
+
+          {showExtra ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="회사명">
+                  <Input
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, companyName: event.target.value }))
+                    }
+                    placeholder="예: 토스"
+                    value={draft.companyName}
+                  />
+                </Field>
+                <Field label="직무명">
+                  <Input
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, jobTitle: event.target.value }))
+                    }
+                    placeholder="예: 프로덕트 디자이너"
+                    value={draft.jobTitle}
+                  />
+                </Field>
+              </div>
+              <Field label="발견 이유">
+                <Select
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      discoveryReason: event.target.value as DiscoveryReason,
+                    }))
+                  }
+                  value={draft.discoveryReason}
+                >
+                  {DISCOVERY_REASON_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="첫인상 메모">
+                <Textarea
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      firstImpressionNote: event.target.value,
+                    }))
+                  }
+                  placeholder="왜 저장했는지, 지금 확인할 포인트"
+                  value={draft.firstImpressionNote}
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <Button disabled={!hasAiCredit} onClick={() => void submitAndParse()}>
+              <Sparkles className="h-4 w-4" />
+              AI로 정리하기
+            </Button>
+            <button
+              className="text-center text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+              onClick={submitCandidate}
+              type="button"
             >
-              {DISCOVERY_REASON_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="첫인상 메모">
-            <Textarea
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  firstImpressionNote: event.target.value,
-                }))
-              }
-              placeholder="왜 저장했는지, 지금 확인할 포인트"
-              value={draft.firstImpressionNote}
-            />
-          </Field>
-          <Field label="공고 원문">
-            <Textarea
-              className="min-h-40"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, rawText: event.target.value }))
-              }
-              placeholder="채용공고 원문을 붙여넣으세요."
-              value={draft.rawText}
-            />
-          </Field>
-          <Button onClick={submitCandidate}>
-            <Plus className="h-4 w-4" />
-            후보 저장
-          </Button>
+              저장만 하기
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -377,8 +410,7 @@ export function CandidateInboxPanel({
 
           {candidates.length === 0 ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-500">
-              <p>아직 후보가 없습니다.</p>
-              <p className="text-xs text-slate-400">공고 URL이나 메모를 위에서 추가해 보세요.</p>
+              <p>공고를 붙여넣으면 AI가 초안을 정리해요.</p>
             </div>
           ) : null}
         </div>

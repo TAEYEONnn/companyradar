@@ -108,7 +108,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", icon: Building2, label: "회사 목록" },
-  { id: "inbox", icon: Inbox, label: "후보 검토", badgeKey: "inbox" },
+  { id: "inbox", icon: Inbox, label: "공고 정리", badgeKey: "inbox" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
   { id: "timeline", icon: CalendarDays, label: "타임라인" },
   { id: "coach", icon: BrainCircuit, label: "AI 코치" },
