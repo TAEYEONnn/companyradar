@@ -85,11 +85,11 @@ interface MigrationPromptState {
 }
 
 const ROLE_SAMPLE_NAMES: Record<string, string> = {
-  designer: "토스",
-  pm: "당근",
-  frontend: "채널코퍼레이션",
-  ux_researcher: "LINE Plus",
-  marketer: "카카오스타일",
+  designer: "무드테크 · 그로스랩 · 스택하우스",
+  pm: "무드테크 · 그로스랩 · 스택하우스",
+  frontend: "무드테크 · 그로스랩 · 스택하우스",
+  ux_researcher: "무드테크 · 그로스랩 · 스택하우스",
+  marketer: "무드테크 · 그로스랩 · 스택하우스",
 };
 
 export function CompanyTrackerApp() {

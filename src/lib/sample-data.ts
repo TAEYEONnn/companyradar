@@ -139,7 +139,7 @@ function company(input: {
     followUpTasks: [
       {
         id: `${input.id}_refresh_task`,
-        title: "채용공고 상태와 디자이너 역할 범위 재확인",
+        title: "채용공고 상태와 포지션 요구사항 재확인",
         dueDate: VERIFIED_AT,
         completed: false,
         createdAt: VERIFIED_AT,
@@ -189,7 +189,114 @@ const standardScores = {
   },
 };
 
+const BASE_SAMPLE_COMPANIES: Company[] = [
+  company({
+    id: "sample_moodtech",
+    name: "무드테크",
+    homepageUrl: "",
+    jobPostUrl: "",
+    industry: "Product Design / B2C",
+    size: "startup",
+    growthInfo: "디자인 시스템 구축 중이며 제품 조직이 빠르게 성장 중.",
+    productDescription: "사용자 감정 기반 생산성 앱을 운영하는 스타트업.",
+    interestLevel: 4,
+    applicationPriority: "high",
+    priorityReason: "디자인 시스템 운영 기회와 제품 IA 개선 여지가 높음.",
+    discoveryReason: "design-system",
+    firstImpressionNote: "디자인 팀 규모가 작아서 오너십을 가져갈 수 있을 것 같음.",
+    candidateReason: "디자인 시스템, 사용자 리서치, IA 개선 문제를 다룰 수 있어 보임.",
+    designerFit: {
+      hasDesignSystemOpportunity: true,
+      hasComponentOwnership: true,
+      canImproveProcess: true,
+    },
+    greenFlags: [
+      signal("moodtech_green_ds", "디자인 시스템 운영 경험 우대", "공고에 디자인 시스템 구축 경험을 명시적으로 우대함.", "", 3),
+    ],
+    redFlags: [
+      signal("moodtech_red_scope", "역할 범위가 다소 넓음", "디자인 전반을 혼자 담당해야 할 수 있음.", "", 2),
+    ],
+    unknowns: [
+      signal("moodtech_unknown_team", "실제 디자인팀 규모", "현재 디자이너가 몇 명인지, 어떤 협업 구조인지 확인 필요.", "", 2),
+    ],
+    scores: {
+      ...standardScores,
+      designGrowth: { strategicRole: 4, systemOpportunity: 5, collaboration: 3, portfolioProblem: 4 },
+    },
+  }),
+  company({
+    id: "sample_growthlab",
+    name: "그로스랩",
+    homepageUrl: "",
+    jobPostUrl: "",
+    industry: "B2B SaaS / Growth Analytics",
+    size: "startup",
+    growthInfo: "제품 지표 기반 의사결정 문화가 강하고 PM 권한이 비교적 넓음.",
+    productDescription: "중소 B2B 고객사를 위한 그로스 분석 SaaS 제품.",
+    interestLevel: 4,
+    applicationPriority: "medium",
+    priorityReason: "제품 데이터 중심 의사결정 문화와 PM 자율성이 매력적임.",
+    discoveryReason: "product-growth",
+    firstImpressionNote: "제품 지표 기반 의사결정 언급이 인상적이었음.",
+    candidateReason: "그로스 루프 설계, 지표 정의, 기능 우선순위 결정 과제가 있어 보임.",
+    designerFit: {
+      canImproveProcess: true,
+      hasDocumentationCulture: true,
+    },
+    greenFlags: [
+      signal("growthlab_green_data", "제품 지표 기반 의사결정 언급", "공고에서 'data-driven decision making'을 핵심 문화로 소개함.", "", 3),
+    ],
+    redFlags: [
+      signal("growthlab_red_review", "우선순위 변경이 잦다는 후기", "외부 후기에서 로드맵 변경이 잦다는 언급이 있음.", "", 2),
+    ],
+    unknowns: [
+      signal("growthlab_unknown_pm", "PM의 실제 의사결정 권한", "실제로 PM이 얼마나 독립적으로 결정할 수 있는지 확인 필요.", "", 2),
+    ],
+    scores: {
+      ...standardScores,
+      businessProduct: { solvesProblem: 4, sustainable: 4, marketStability: 3, productQuality: 4 },
+      organizationCulture: { reviewQuality: 4, burnoutRisk: 3, decisionClarity: 3, retention: 3 },
+    },
+  }),
+  company({
+    id: "sample_stackhouse",
+    name: "스택하우스",
+    homepageUrl: "",
+    jobPostUrl: "",
+    industry: "DevTools / B2B SaaS",
+    size: "startup",
+    growthInfo: "테스트 자동화와 배포 파이프라인 구축이 잘 되어 있는 편.",
+    productDescription: "개발팀 협업과 코드 품질 관리를 위한 DevOps 도구를 제공.",
+    interestLevel: 4,
+    applicationPriority: "medium",
+    priorityReason: "테스트/배포 자동화 문화가 좋고 코드 리뷰 프로세스가 잘 갖춰진 것으로 보임.",
+    discoveryReason: "design-system",
+    firstImpressionNote: "배포 자동화와 테스트 문화가 공고에 명시되어 있어 신뢰감이 생김.",
+    candidateReason: "프론트엔드 아키텍처, 컴포넌트 시스템, CI/CD 개선 과제가 있어 보임.",
+    designerFit: {
+      hasDesignSystemOpportunity: true,
+      hasDocumentationCulture: true,
+      canImproveProcess: true,
+    },
+    greenFlags: [
+      signal("stackhouse_green_ci", "테스트/배포 자동화 언급", "공고에서 테스트 커버리지와 배포 파이프라인 경험을 우대함.", "", 3),
+    ],
+    redFlags: [
+      signal("stackhouse_red_legacy", "레거시 전환 과제 존재", "일부 모듈이 구형 아키텍처로 유지 중이라 전환 비용이 있음.", "", 2),
+    ],
+    unknowns: [
+      signal("stackhouse_unknown_review", "코드 리뷰 문화", "PR 리뷰 빈도와 팀 내 피드백 문화를 직접 확인해야 함.", "", 2),
+    ],
+    scores: {
+      ...standardScores,
+      designGrowth: { strategicRole: 3, systemOpportunity: 4, collaboration: 4, portfolioProblem: 4 },
+      organizationCulture: { reviewQuality: 4, burnoutRisk: 4, decisionClarity: 4, retention: 4 },
+    },
+  }),
+];
+
 const ALL_SAMPLE_COMPANIES: Company[] = [
+  ...BASE_SAMPLE_COMPANIES,
   company({
     id: "company_toss",
     name: "[샘플] 디자이너 직군 예시",
@@ -628,17 +735,8 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
 ];
 
-const ROLE_SAMPLE_INDEX: Record<UserRole, number> = {
-  designer: 0,
-  pm: 1,
-  frontend: 9,
-  ux_researcher: 3,
-  marketer: 7,
-};
-
-export function getSampleCompaniesForRole(role: UserRole = "designer"): Company[] {
-  const sample = ALL_SAMPLE_COMPANIES[ROLE_SAMPLE_INDEX[role]] ?? ALL_SAMPLE_COMPANIES[0];
-  return sample ? [sample] : [];
+export function getSampleCompaniesForRole(_role: UserRole = "designer"): Company[] {
+  return BASE_SAMPLE_COMPANIES;
 }
 
-export const SAMPLE_COMPANIES: Company[] = getSampleCompaniesForRole("designer");
+export const SAMPLE_COMPANIES: Company[] = BASE_SAMPLE_COMPANIES;

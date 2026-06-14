@@ -266,6 +266,6 @@ export function normalizeSamplesForRole(
   role: UserRole = "designer",
 ): Company[] {
   const userCompanies = companies.filter((company) => !company.isSampleData);
-  const [sampleCompany] = cloneSampleCompaniesForUser(role);
-  return sampleCompany ? [...userCompanies, sampleCompany] : userCompanies;
+  const sampleCompanies = cloneSampleCompaniesForUser(role);
+  return [...userCompanies, ...sampleCompanies];
 }
