@@ -130,6 +130,6 @@ function getBearerToken(request: Request) {
 function parseAllowlist(value?: string) {
   return (value ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item) => item.trim().replace(/^<+|>+$/g, ""))
     .filter(Boolean);
 }

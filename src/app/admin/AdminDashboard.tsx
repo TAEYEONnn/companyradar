@@ -379,13 +379,27 @@ export function AdminDashboard({
   async function handleReplyOpen(table: string, id: string, replyBody: string) {
     const token = await getAccessToken();
     if (!token) { showToast("로그인이 필요합니다."); return; }
-    // Optimistic update so the textarea immediately reflects what was sent.
+
+    // Snapshot current state for rollback on failure.
+    const snapSupport = support;
+    const snapRefunds = refunds;
+    const snapDeletions = deletions;
+
     const replied_at = new Date().toISOString();
     if (table === "support_requests") setSupport((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
     if (table === "refund_requests") setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
     if (table === "account_deletion_requests") setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+
     const ok = await updateStatus(table, id, token, { replyBody, markReplied: true });
-    if (!ok) showToast("답장 내용 저장에 실패했습니다. DB 스키마를 확인해주세요.");
+    if (ok) {
+      // Clear the local draft so the textarea now reflects req.reply_body (what was saved to DB).
+      setReplyDrafts((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    } else {
+      setSupport(snapSupport);
+      setRefunds(snapRefunds);
+      setDeletions(snapDeletions);
+      showToast("답장 내용 저장에 실패했습니다. 운영자 권한 또는 DB 스키마를 확인해주세요.");
+    }
   }
 
   const pendingSupportCount = support.filter((r) => !r.archived_at && ["open", "in_review"].includes(r.status)).length;
