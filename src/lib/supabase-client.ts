@@ -16,6 +16,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!client) {
     client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
+        flowType: "pkce",
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: false, // /auth/confirm handles code exchange explicitly

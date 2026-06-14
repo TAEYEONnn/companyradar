@@ -1,14 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase-client";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      queueMicrotask(() => {
+        if (mounted) setHasSession(false);
+      });
+      return;
+    }
+    void supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setHasSession(Boolean(data.session));
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +41,11 @@ export default function ResetPasswordPage() {
     setStatus("loading");
     setErrorMsg("");
     const supabase = getSupabaseClient();
+    if (!supabase || !hasSession) {
+      setErrorMsg("비밀번호 재설정 링크를 다시 열어주세요.");
+      setStatus("error");
+      return;
+    }
     const { error } = (await supabase?.auth.updateUser({ password })) ?? {};
     if (error) {
       setErrorMsg("비밀번호 변경에 실패했습니다. 링크가 만료되었을 수 있습니다.");
@@ -38,7 +61,19 @@ export default function ResetPasswordPage() {
         <h1 className="mb-1 text-xl font-semibold text-slate-900">비밀번호 재설정</h1>
         <p className="mb-6 text-sm text-slate-500">새 비밀번호를 입력해주세요.</p>
 
-        {status === "done" ? (
+        {hasSession === false ? (
+          <div className="space-y-4">
+            <p className="rounded-md bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              비밀번호 재설정 세션이 없습니다. 메일에서 받은 재설정 버튼을 다시 열어주세요.
+            </p>
+            <Link
+              className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"
+              href="/"
+            >
+              로그인 화면으로 돌아가기
+            </Link>
+          </div>
+        ) : status === "done" ? (
           <div className="space-y-4">
             <p className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
               비밀번호가 변경되었습니다.
@@ -50,6 +85,8 @@ export default function ResetPasswordPage() {
               홈으로 돌아가기
             </Link>
           </div>
+        ) : hasSession === null ? (
+          <div className="py-8 text-center text-sm text-slate-500">재설정 링크 확인 중...</div>
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
