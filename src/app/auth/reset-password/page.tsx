@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase-client";
 
 export default function ResetPasswordPage() {
@@ -20,9 +21,49 @@ export default function ResetPasswordPage() {
       });
       return;
     }
-    void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) setHasSession(Boolean(data.session));
-    });
+    const client = supabase;
+
+    async function prepareRecoverySession() {
+      const currentUrl = new URL(window.location.href);
+      const hashParams = new URLSearchParams(currentUrl.hash.replace(/^#/, ""));
+      const code = currentUrl.searchParams.get("code");
+      const tokenHash = currentUrl.searchParams.get("token_hash");
+      const type = currentUrl.searchParams.get("type");
+      const hashType = hashParams.get("type");
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+
+      try {
+        if (code) {
+          const { error } = await client.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        } else if (tokenHash && type === "recovery") {
+          const { error } = await client.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as EmailOtpType,
+          });
+          if (error) throw error;
+        } else if (accessToken && refreshToken && (!hashType || hashType === "recovery")) {
+          const { error } = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+        }
+
+        const { data } = await client.auth.getSession();
+        if (!mounted) return;
+        setHasSession(Boolean(data.session));
+        if (data.session && (code || tokenHash || accessToken)) {
+          window.history.replaceState(null, "", "/auth/reset-password");
+        }
+      } catch (error) {
+        console.error("[auth/reset-password] recovery session error:", error);
+        if (mounted) setHasSession(false);
+      }
+    }
+
+    void prepareRecoverySession();
     return () => {
       mounted = false;
     };

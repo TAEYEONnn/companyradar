@@ -7,6 +7,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const type = searchParams.get("type");
+  const tokenHash = searchParams.get("token_hash");
+  const error = searchParams.get("error");
 
   if (code) {
     const confirmUrl = new URL("/auth/confirm", origin);
@@ -15,6 +17,17 @@ export async function GET(request: Request) {
       confirmUrl.searchParams.set("next", "/auth/reset-password");
     }
     return NextResponse.redirect(confirmUrl.toString());
+  }
+
+  if (tokenHash && type === "recovery") {
+    const resetUrl = new URL("/auth/reset-password", origin);
+    resetUrl.searchParams.set("token_hash", tokenHash);
+    resetUrl.searchParams.set("type", type);
+    return NextResponse.redirect(resetUrl.toString());
+  }
+
+  if (!error) {
+    return NextResponse.redirect(new URL("/auth/reset-password", origin));
   }
 
   // No code → show a friendly error page

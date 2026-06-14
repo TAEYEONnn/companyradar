@@ -725,7 +725,7 @@ export function CompanyTrackerApp() {
     if (!userEmail) return;
     const supabase = getSupabaseClient();
     const { error } = await supabase?.auth.resetPasswordForEmail(userEmail, {
-      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      redirectTo: `${window.location.origin}/auth/reset-password`,
     }) ?? { error: null };
     if (error) {
       showToast("메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
