@@ -42,7 +42,7 @@ import {
   readLegacyCompanies,
   readUserScopedCompanies,
 } from "@/lib/storage";
-import { getSupabaseClient } from "@/lib/supabase-client";
+import { getPasswordResetRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
 import type {
   ApplicationStatus,
   CandidateInboxItem,
@@ -767,9 +767,10 @@ export function CompanyTrackerApp() {
       return false;
     }
     const supabase = getSupabaseClient();
-    console.log("[RESET_REQUEST_EMAIL]", userEmail);
+    const redirectTo = getPasswordResetRedirectUrl();
+    console.log("[RESET_REQUEST_EMAIL]", userEmail, redirectTo);
     const { error } = await supabase?.auth.resetPasswordForEmail(userEmail, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo,
     }) ?? { error: null };
     if (error) {
       showToast("메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");

@@ -31,3 +31,12 @@ export function getAuthRedirectUrl(): string | undefined {
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
   return `${base}/auth/callback`;
 }
+
+const PRODUCTION_ORIGIN = "https://companyradarkr.vercel.app";
+
+export function getPasswordResetRedirectUrl(): string {
+  // Always use the canonical production origin so recovery emails link to the
+  // real domain, not a Vercel preview URL that Supabase hasn't allowlisted.
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? PRODUCTION_ORIGIN;
+  return `${base}/auth/reset-password`;
+}

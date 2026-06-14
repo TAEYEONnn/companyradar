@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
-import { getSupabaseClient } from "@/lib/supabase-client";
+import { getPasswordResetRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
 
 type AuthMode = "login" | "signup" | "reset";
 
@@ -165,8 +165,8 @@ export function AuthGate() {
     setLoading(true);
     setError("");
     setMessage("");
-    const redirectTo = `${window.location.origin}/auth/reset-password`;
-    console.log("[RESET_REQUEST_EMAIL]", nextEmail);
+    const redirectTo = getPasswordResetRedirectUrl();
+    console.log("[RESET_REQUEST_EMAIL]", nextEmail, redirectTo);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(nextEmail, {
       redirectTo,
     });
