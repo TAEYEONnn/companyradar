@@ -17,22 +17,23 @@ export function AuthGate() {
   const [error, setError] = useState("");
   const [devError, setDevError] = useState("");
 
-  // When a ?code= is in the URL, supabase-js (detectSessionInUrl: true) exchanges it
-  // automatically on client init. Show a loading screen until onAuthStateChange fires.
-  const hasCode =
-    typeof window !== "undefined" &&
-    Boolean(new URLSearchParams(window.location.search).get("code"));
-  const [exchanging] = useState(hasCode);
+  const [recoveringCode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(new URLSearchParams(window.location.search).get("code"));
+  });
 
   const supabase = getSupabaseClient();
 
-  // Clean the code from URL after it has been consumed so it isn't reused on refresh.
   useEffect(() => {
-    if (!hasCode) return;
-    const clean = new URL(window.location.href);
-    clean.searchParams.delete("code");
-    window.history.replaceState({}, "", clean.toString());
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!recoveringCode) return;
+    const current = new URL(window.location.href);
+    const code = current.searchParams.get("code");
+    if (!code) return;
+
+    const confirmUrl = new URL("/auth/confirm", window.location.origin);
+    confirmUrl.searchParams.set("code", code);
+    window.location.replace(confirmUrl.toString());
+  }, [recoveringCode]);
 
   function toggleAdminLogin() {
     setAdminOpen((open) => !open);
@@ -119,12 +120,12 @@ export function AuthGate() {
     // 성공 시 onAuthStateChange가 세션을 잡아 앱으로 진입합니다.
   }
 
-  if (exchanging) {
+  if (recoveringCode) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="text-center text-sm text-slate-500">
           <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
-          로그인 중...
+          로그인 링크 확인 중...
         </div>
       </main>
     );

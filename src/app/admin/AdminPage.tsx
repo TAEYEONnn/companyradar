@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { AdminDashboard } from "./AdminDashboard";
 
@@ -76,7 +77,7 @@ export function AdminPage() {
             {errorDetail}
           </p>
         )}
-        <a className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</a>
+        <Link className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</Link>
       </div>
     );
   }
@@ -90,7 +91,7 @@ export function AdminPage() {
             {errorDetail}
           </p>
         )}
-        <a className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</a>
+        <Link className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</Link>
       </div>
     );
   }
@@ -102,7 +103,7 @@ export function AdminPage() {
         <p className="text-xs text-slate-400">
           운영자 계정(profiles.role = owner 또는 AI_ALLOWED_EMAILS)으로 로그인 후 다시 시도해 주세요.
         </p>
-        <a className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</a>
+        <Link className="mt-2 text-xs text-sky-600 underline" href="/">홈으로</Link>
       </div>
     );
   }

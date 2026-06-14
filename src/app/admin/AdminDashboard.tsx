@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -147,33 +148,72 @@ function buildGmailLink(email: string, subject: string, body: string) {
 }
 
 function getSupportReplyBody(req: SupportRequest) {
+  const answerByStatus: Record<string, string> = {
+    open: "(문의 내용을 확인한 뒤 답변을 작성해 주세요)",
+    in_review:
+      "문의 내용을 확인하고 있습니다.\n재현 환경과 계정 상태를 함께 점검한 뒤 추가 안내드리겠습니다.",
+    resolved:
+      "문의하신 내용을 확인해 안내드립니다.\n\n(해결 내용과 사용자가 다음에 할 일을 작성해 주세요)",
+    closed:
+      "이 문의는 추가 조치 없이 종료되었습니다.\n다시 도움이 필요하시면 이 메일로 회신해 주세요.",
+  };
+
   return (
     `안녕하세요.\n\nCompanyRadar를 이용해 주셔서 감사합니다.\n` +
     `문의 내용을 확인했습니다.\n\n[문의 내용]\n${req.message}\n\n` +
-    `[답변]\n(이 부분을 작성해 주세요)\n\n` +
+    `[답변]\n${answerByStatus[req.status] ?? answerByStatus.open}\n\n` +
     `추가 문의사항이 있으시면 이 메일로 회신해 주세요.${REPLY_SIGNATURE}`
   );
 }
 
 function getRefundReplyBody(req: RefundRequest) {
+  const resultByStatus: Record<string, string> = {
+    requested: "(결제 이력과 사용 이력을 확인한 뒤 승인/거절 여부를 작성해 주세요)",
+    in_review:
+      "환불 가능 여부를 확인하고 있습니다.\n결제 이력, 유료 크레딧 사용 여부, 중복 결제 여부를 확인한 뒤 안내드리겠습니다.",
+    approved:
+      "환불 요청을 승인했습니다.\n결제 수단에 따라 실제 환불 완료까지 3-5 영업일이 걸릴 수 있습니다.",
+    rejected:
+      "환불 요청을 검토했으나 환불 가능 조건에 해당하지 않아 승인하기 어렵습니다.\n\n(거절 사유를 구체적으로 작성해 주세요)",
+    canceled:
+      "환불 요청은 취소 처리되었습니다.\n다시 환불 확인이 필요하시면 이 메일로 회신해 주세요.",
+  };
+
   return (
     `안녕하세요.\n\nCompanyRadar를 이용해 주셔서 감사합니다.\n` +
     `환불 요청을 확인했습니다.\n\n[요청 내용]\n${req.reason}` +
     `${req.order_id ? `\n주문 ID: ${req.order_id}` : ""}\n\n` +
-    `[처리 결과]\n(승인/거절 여부와 사유를 작성해 주세요)\n\n` +
-    `환불 승인 시 결제 수단에 따라 3–5 영업일 내 처리됩니다.\n` +
+    `[처리 결과]\n${resultByStatus[req.status] ?? resultByStatus.requested}\n\n` +
     `추가 문의는 이 메일로 회신해 주세요.${REPLY_SIGNATURE}`
   );
 }
 
 function getDeletionReplyBody(req: DeletionRequest) {
+  const resultByStatus: Record<string, string> = {
+    requested:
+      "회원탈퇴 요청을 접수했습니다.\n계정 삭제 전 미처리 결제나 환불 건이 있는지 먼저 확인해 드립니다.",
+    in_review:
+      "회원탈퇴 처리를 검토하고 있습니다.\n결제, 환불, 보관 의무가 있는 정보를 확인한 뒤 처리 결과를 안내드리겠습니다.",
+    completed:
+      "회원탈퇴 처리가 완료되었습니다.\n법령상 보관이 필요한 결제/분쟁 대응 정보 외의 서비스 이용 데이터는 삭제 처리했습니다.",
+    canceled:
+      "회원탈퇴 요청은 취소 처리되었습니다.\n서비스 이용 중 도움이 필요하시면 이 메일로 회신해 주세요.",
+  };
+
   return (
-    `안녕하세요.\n\n회원탈퇴 요청을 접수했습니다.\n\n` +
+    `안녕하세요.\n\n회원탈퇴 요청 관련 안내드립니다.\n\n` +
     `[요청 사유]\n${req.reason || "사유 없음"}\n\n` +
-    `계정 삭제 전 미처리된 결제나 환불 건이 있는지 먼저 확인해 드립니다.\n` +
-    `처리가 완료되면 이 메일로 안내 드리겠습니다.\n\n` +
-    `처리 예정일: 영업일 기준 3일 이내${REPLY_SIGNATURE}`
+    `[처리 상태]\n${resultByStatus[req.status] ?? resultByStatus.requested}\n\n` +
+    `추가 확인이 필요하면 이 메일로 회신해 주세요.${REPLY_SIGNATURE}`
   );
+}
+
+function getStatusToast(status: string) {
+  const doneStatuses = ["resolved", "closed", "approved", "rejected", "canceled", "completed"];
+  if (doneStatuses.includes(status)) {
+    return "상태가 완료로 바뀌었습니다. 미처리 필터에서는 목록에서 사라질 수 있어요.";
+  }
+  return "상태가 업데이트됐습니다. 답장 내용도 새 상태에 맞게 바뀌었습니다.";
 }
 
 async function updateStatus(
@@ -244,7 +284,7 @@ export function AdminDashboard({
     const ok = await updateStatus("support_requests", id, status, token);
     if (ok) {
       setSupport((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-      showToast("상태가 업데이트됐습니다.");
+      showToast(getStatusToast(status));
     } else {
       showToast("상태 업데이트에 실패했습니다.");
     }
@@ -258,7 +298,7 @@ export function AdminDashboard({
     const ok = await updateStatus("refund_requests", id, status, token);
     if (ok) {
       setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-      showToast("상태가 업데이트됐습니다.");
+      showToast(getStatusToast(status));
     } else {
       showToast("상태 업데이트에 실패했습니다.");
     }
@@ -272,7 +312,7 @@ export function AdminDashboard({
     const ok = await updateStatus("account_deletion_requests", id, status, token);
     if (ok) {
       setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-      showToast("상태가 업데이트됐습니다.");
+      showToast(getStatusToast(status));
     } else {
       showToast("상태 업데이트에 실패했습니다.");
     }
@@ -317,13 +357,13 @@ export function AdminDashboard({
             >
               테스트 데이터
             </button>
-            <a
+            <Link
               className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
               href="/"
             >
               <ArrowLeft className="h-4 w-4" />
               앱으로 돌아가기
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -422,13 +462,13 @@ export function AdminDashboard({
                       {req.status === "open" && (
                         <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "in_review")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          검토 중으로
+                          검토 안내
                         </Button>
                       )}
                       {["open", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleSupportStatus(req.id, "resolved")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          완료
+                          답변 완료
                         </Button>
                       )}
                       {req.status === "resolved" && (
@@ -498,12 +538,12 @@ export function AdminDashboard({
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleRefundStatus(req.id, "approved")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          환불 승인
+                          승인 안내
                         </Button>
                       )}
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleRefundStatus(req.id, "rejected")} size="sm" variant="ghost">
-                          거절
+                          거절 안내
                         </Button>
                       )}
                       {["approved", "rejected"].includes(req.status) && (
@@ -572,7 +612,7 @@ export function AdminDashboard({
                       {["requested", "in_review"].includes(req.status) && (
                         <Button disabled={updating === req.id} onClick={() => void handleDeletionStatus(req.id, "completed")} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          처리 완료
+                          완료 안내
                         </Button>
                       )}
                       {req.status === "requested" && (
