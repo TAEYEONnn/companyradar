@@ -40,7 +40,7 @@ import {
   INTERVIEW_ROUND_TYPE_OPTIONS,
   JOB_STATUS_LABELS,
   PRIORITY_LABELS,
-  RISK_CHECKLIST,
+  ROLE_RISK_CHECKLIST,
   ROLE_FIT_CHECKLIST_TITLE,
   ROLE_FIT_LABELS,
   getRoleScoreCategories,
@@ -721,7 +721,7 @@ export function CompanyDetailPanel({
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">리스크 체크리스트</h3>
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {RISK_CHECKLIST.map((flag) => {
+            {ROLE_RISK_CHECKLIST[userRole].map((flag) => {
               const checked = company.riskFlags.includes(flag);
               return (
                 <label

@@ -202,12 +202,7 @@ export function CompanyTable({
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-slate-500">마감일</dt>
-                    <dd className={cn(
-                      "mt-1 flex items-center gap-1.5 font-medium",
-                      !company.jobDeadline && (company.status === "interested" || company.status === "planned")
-                        ? "text-amber-600"
-                        : "text-slate-700",
-                    )}>
+                    <dd className="mt-1 flex items-center gap-1.5 font-medium text-slate-700">
                       {company.jobDeadline || "미확인"}
                       {(() => {
                         const d = company.jobDeadline ? getDaysUntil(company.jobDeadline) : null;
@@ -343,8 +338,6 @@ export function CompanyTable({
                           </div>
                         );
                       })()
-                    ) : (company.status === "interested" || company.status === "planned") ? (
-                      <p className="mt-0.5 text-xs text-amber-600">마감일 미확인</p>
                     ) : null}
                     <ChecklistDots checklist={company.applicationChecklist} />
                   </td>

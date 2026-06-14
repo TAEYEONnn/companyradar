@@ -18,7 +18,7 @@ export function getSupabaseClient(): SupabaseClient | null {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false, // /auth/confirm handles code exchange explicitly
       },
     });
   }

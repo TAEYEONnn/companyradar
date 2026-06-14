@@ -15,7 +15,7 @@ import {
   EVIDENCE_LEVEL_OPTIONS,
   JOB_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
-  RISK_CHECKLIST,
+  ROLE_RISK_CHECKLIST,
   ROLE_FIT_CHECKLIST_TITLE,
   ROLE_FIT_LABELS,
   getRoleScoreCategories,
@@ -614,7 +614,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
           <section className="rounded-md border border-slate-200 p-3">
             <h3 className="text-sm font-semibold">리스크 체크리스트</h3>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {RISK_CHECKLIST.map((flag) => (
+              {ROLE_RISK_CHECKLIST[userRole].map((flag) => (
                 <label
                   className="flex items-start gap-2 rounded-md border border-slate-200 p-2 text-sm"
                   key={flag}
