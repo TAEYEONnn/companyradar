@@ -720,7 +720,7 @@ export const ROLE_FIT_LABELS: Record<UserRole, Record<keyof DesignerFitChecklist
     hasComponentOwnership: "역할 자율성",
     hasDocumentationCulture: "문서화 및 협업 문화",
     canImproveProcess: "업무 방식 개선 가능",
-    isOnlyVisualProductionRole: "단순 반복 업무 위주 역할 여부",
+    isOnlyVisualProductionRole: "문제 해결을 주도할 수 있음",
   },
 };
 
