@@ -137,6 +137,21 @@ export function CompanyTrackerApp() {
   const effectiveUserId = userId || (devToolsEnabled ? "dev_local_user" : "");
 
   useEffect(() => {
+    // Recovery code at the root URL (e.g. /?code=...&type=recovery) means Supabase
+    // redirected to Site URL instead of /auth/callback. Hand off to reset-password
+    // before any session logic runs, regardless of existing session.
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const type = params.get("type");
+      if (code && (!type || type === "recovery")) {
+        const dest = new URL("/auth/reset-password", window.location.origin);
+        dest.searchParams.set("code", code);
+        window.location.replace(dest.toString());
+        return;
+      }
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       queueMicrotask(() => setIsAuthLoading(false));
@@ -152,7 +167,13 @@ export function CompanyTrackerApp() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // PASSWORD_RECOVERY means the user followed a reset link — redirect to the
+      // reset form instead of treating it as a normal sign-in.
+      if (event === "PASSWORD_RECOVERY") {
+        window.location.replace("/auth/reset-password");
+        return;
+      }
       setSession(nextSession);
       if (!nextSession) {
         setCompanies([]);

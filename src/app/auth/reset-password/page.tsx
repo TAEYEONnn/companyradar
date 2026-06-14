@@ -33,20 +33,31 @@ export default function ResetPasswordPage() {
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
 
+      const hasRecoveryParam = Boolean(code || tokenHash || accessToken);
+
+      // No recovery params → do not fall back to existing session.
+      // An operator session in localStorage must not grant access to this form.
+      if (!hasRecoveryParam) {
+        if (mounted) setHasSession(false);
+        return;
+      }
+
       try {
         if (code) {
-          // Sign out any existing session first — prevents a logged-in user's session
-          // from being mistakenly used if code exchange fails (wrong-account bug).
+          // Sign out any existing session first — prevents a logged-in operator's session
+          // from being used if code exchange fails (wrong-account bleed).
           await client.auth.signOut();
           const { error } = await client.auth.exchangeCodeForSession(code);
           if (error) throw error;
         } else if (tokenHash && type === "recovery") {
+          await client.auth.signOut();
           const { error } = await client.auth.verifyOtp({
             token_hash: tokenHash,
             type: type as EmailOtpType,
           });
           if (error) throw error;
         } else if (accessToken && refreshToken && (!hashType || hashType === "recovery")) {
+          await client.auth.signOut();
           const { error } = await client.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -57,7 +68,7 @@ export default function ResetPasswordPage() {
         const { data } = await client.auth.getSession();
         if (!mounted) return;
         setHasSession(Boolean(data.session));
-        if (data.session && (code || tokenHash || accessToken)) {
+        if (data.session) {
           window.history.replaceState(null, "", "/auth/reset-password");
         }
       } catch (error) {
@@ -95,6 +106,9 @@ export default function ResetPasswordPage() {
       setErrorMsg("비밀번호 변경에 실패했습니다. 링크가 만료되었을 수 있습니다.");
       setStatus("error");
     } else {
+      // Sign out the recovery session — prevents the reset user from being
+      // auto-logged in and confusing a browser that had an operator session.
+      await supabase?.auth.signOut();
       setStatus("done");
     }
   }
@@ -128,13 +142,13 @@ export default function ResetPasswordPage() {
         ) : status === "done" ? (
           <div className="space-y-4">
             <p className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
-              비밀번호가 변경되었습니다.
+              비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해주세요.
             </p>
             <Link
               className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"
               href="/"
             >
-              홈으로 돌아가기
+              로그인 화면으로 이동
             </Link>
           </div>
         ) : hasSession === null ? (
