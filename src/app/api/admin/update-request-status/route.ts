@@ -30,6 +30,8 @@ export async function POST(request: Request) {
     archived?: boolean;
     replyBody?: string;
     markReplied?: boolean;
+    deleteUser?: boolean;
+    userEmail?: string;
   };
   try {
     body = await request.json();
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!body.status && body.archived === undefined && body.replyBody === undefined && !body.markReplied) {
+  if (!body.status && body.archived === undefined && body.replyBody === undefined && !body.markReplied && !body.deleteUser) {
     return NextResponse.json(
       { error: { code: "empty_patch", message: "변경할 내용이 없습니다." } },
       { status: 400 },
@@ -99,5 +101,30 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // Auto-delete the Supabase auth user when a deletion request is completed.
+  let userDeletedId: string | null = null;
+  if (
+    body.deleteUser === true &&
+    table === "account_deletion_requests" &&
+    body.userEmail
+  ) {
+    try {
+      const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      const target = usersPage?.users?.find(
+        (u) => u.email?.toLowerCase() === body.userEmail!.toLowerCase(),
+      );
+      if (target) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(target.id);
+        if (delErr) {
+          console.error("[admin] auth user deletion failed", delErr);
+        } else {
+          userDeletedId = target.id;
+        }
+      }
+    } catch (e) {
+      console.error("[admin] user lookup failed", e);
+    }
+  }
+
+  return NextResponse.json({ ok: true, userDeletedId });
 }

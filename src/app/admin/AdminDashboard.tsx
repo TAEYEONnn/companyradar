@@ -229,7 +229,7 @@ async function updateStatus(
   table: string,
   id: string,
   accessToken: string,
-  patch: { status?: string; archived?: boolean; replyBody?: string; markReplied?: boolean },
+  patch: { status?: string; archived?: boolean; replyBody?: string; markReplied?: boolean; deleteUser?: boolean; userEmail?: string },
 ): Promise<boolean> {
   const res = await fetch("/api/admin/update-request-status", {
     method: "POST",
@@ -326,14 +326,24 @@ export function AdminDashboard({
     setUpdating(null);
   }
 
-  async function handleDeletionStatus(id: string, status: string) {
+  async function handleDeletionStatus(id: string, status: string, userEmail?: string) {
+    if (status === "completed" && userEmail) {
+      const confirmed = window.confirm(
+        `탈퇴 처리를 완료하면 '${userEmail}' 계정이 Supabase에서 삭제됩니다.\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`
+      );
+      if (!confirmed) return;
+    }
     setUpdating(id);
     const token = await getAccessToken();
     if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
-    const ok = await updateStatus("account_deletion_requests", id, token, { status });
+    const deleteUser = status === "completed" && Boolean(userEmail);
+    const ok = await updateStatus("account_deletion_requests", id, token, {
+      status,
+      ...(deleteUser ? { deleteUser: true, userEmail } : {}),
+    });
     if (ok) {
       setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-      showToast(getStatusToast(status));
+      showToast(deleteUser ? "탈퇴 처리 완료. 사용자 계정을 삭제했습니다." : getStatusToast(status));
     } else {
       showToast("상태 업데이트에 실패했습니다.");
     }
@@ -541,7 +551,19 @@ export function AdminDashboard({
                   </p>
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                        <select
+                          className="rounded border border-sky-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none"
+                          value=""
+                          onChange={(e) => changeReplyDraft(req.id, getSupportReplyBody({ ...req, status: e.target.value }))}
+                        >
+                          <option value="">템플릿 선택</option>
+                          <option value="in_review">검토 중 안내</option>
+                          <option value="resolved">해결 완료 안내</option>
+                          <option value="closed">종료 안내</option>
+                        </select>
+                      </div>
                       <textarea
                         className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
                         onChange={(event) => changeReplyDraft(req.id, event.target.value)}
@@ -625,7 +647,20 @@ export function AdminDashboard({
                   </p>
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                        <select
+                          className="rounded border border-sky-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none"
+                          value=""
+                          onChange={(e) => changeReplyDraft(req.id, getRefundReplyBody({ ...req, status: e.target.value }))}
+                        >
+                          <option value="">템플릿 선택</option>
+                          <option value="in_review">환불 검토 중</option>
+                          <option value="approved">환불 승인 안내</option>
+                          <option value="rejected">환불 거절 안내</option>
+                          <option value="canceled">환불 취소 안내</option>
+                        </select>
+                      </div>
                       <textarea
                         className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
                         onChange={(event) => changeReplyDraft(req.id, event.target.value)}
@@ -683,9 +718,9 @@ export function AdminDashboard({
                         답장 내용
                       </button>
                       {["requested", "in_review"].includes(req.status) && (
-                        <Button disabled={updating === req.id} onClick={() => void handleDeletionStatus(req.id, "completed")} size="sm" variant="secondary">
+                        <Button disabled={updating === req.id} onClick={() => void handleDeletionStatus(req.id, "completed", req.email)} size="sm" variant="secondary">
                           {updating === req.id && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                          완료로 표시
+                          탈퇴 완료 처리
                         </Button>
                       )}
                       {req.status === "requested" && (
@@ -710,7 +745,19 @@ export function AdminDashboard({
                   )}
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                        <select
+                          className="rounded border border-sky-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none"
+                          value=""
+                          onChange={(e) => changeReplyDraft(req.id, getDeletionReplyBody({ ...req, status: e.target.value }))}
+                        >
+                          <option value="">템플릿 선택</option>
+                          <option value="in_review">탈퇴 검토 중</option>
+                          <option value="completed">탈퇴 완료 안내</option>
+                          <option value="canceled">탈퇴 취소 안내</option>
+                        </select>
+                      </div>
                       <textarea
                         className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
                         onChange={(event) => changeReplyDraft(req.id, event.target.value)}

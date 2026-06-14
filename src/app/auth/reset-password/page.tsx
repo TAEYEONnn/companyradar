@@ -35,19 +35,11 @@ export default function ResetPasswordPage() {
 
       try {
         if (code) {
+          // Sign out any existing session first — prevents a logged-in user's session
+          // from being mistakenly used if code exchange fails (wrong-account bug).
+          await client.auth.signOut();
           const { error } = await client.auth.exchangeCodeForSession(code);
-          if (error) {
-            // Code exchange may fail if PKCE verifier is missing (different browser/device).
-            // Fall back to any existing recovery session before showing error.
-            const { data: existing } = await client.auth.getSession();
-            if (!mounted) return;
-            if (existing.session) {
-              setHasSession(true);
-              window.history.replaceState(null, "", "/auth/reset-password");
-              return;
-            }
-            throw error;
-          }
+          if (error) throw error;
         } else if (tokenHash && type === "recovery") {
           const { error } = await client.auth.verifyOtp({
             token_hash: tokenHash,
@@ -114,13 +106,20 @@ export default function ResetPasswordPage() {
         <p className="mb-6 text-sm text-slate-500">새 비밀번호를 입력해주세요.</p>
 
         {hasSession === false ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <p className="rounded-md bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-              재설정 링크를 확인하지 못했습니다. 링크가 만료됐거나, 계정이 삭제됐거나,
-              아직 가입되지 않은 이메일일 수 있습니다. 먼저 회원가입을 완료한 뒤 새 재설정 메일을 요청해주세요.
+              재설정 링크가 만료됐거나 이미 사용된 링크입니다.
+              메일 링크는 같은 브라우저에서만 사용할 수 있습니다.
+              새 재설정 메일을 요청해주세요.
             </p>
             <Link
               className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"
+              href="/?reset=1"
+            >
+              새 재설정 메일 요청하기
+            </Link>
+            <Link
+              className="block w-full rounded-md border border-slate-200 px-4 py-2 text-center text-sm font-medium text-slate-600 hover:bg-slate-50"
               href="/"
             >
               로그인 화면으로 돌아가기

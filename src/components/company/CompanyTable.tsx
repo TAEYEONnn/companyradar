@@ -228,21 +228,24 @@ export function CompanyTable({
             );
           })}
         </div>
-        {companies.length === 0 && (
-          <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
-            <span>{onResetFilter ? "조건에 맞는 회사가 없습니다." : "아직 등록된 회사가 없습니다. 첫 번째 회사를 추가해보세요."}</span>
-            <div className="flex gap-2">
-              {onResetFilter && (
-                <Button onClick={onResetFilter} size="sm" variant="secondary">
-                  필터 초기화
-                </Button>
-              )}
-              {onAddCompany && (
-                <Button onClick={onAddCompany} size="sm">
-                  회사 추가
-                </Button>
-              )}
+        {companies.length === 0 && !onResetFilter && (
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">첫 회사를 추가하고 지원 기준을 만들어보세요</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">회사 정보를 직접 입력하면 점수와 면접 준비 흐름이 이어집니다.</p>
             </div>
+            {onAddCompany && (
+              <Button onClick={onAddCompany} size="sm">
+                회사 직접 추가
+              </Button>
+            )}
+          </div>
+        )}
+        {companies.length === 0 && onResetFilter && (
+          <div className="flex h-32 items-center justify-center">
+            <Button onClick={onResetFilter} size="sm" variant="secondary">
+              필터 초기화
+            </Button>
           </div>
         )}
       </div>
@@ -376,21 +379,24 @@ export function CompanyTable({
             })}
           </tbody>
         </table>
-        {companies.length === 0 && (
-          <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
-            <span>{onResetFilter ? "조건에 맞는 회사가 없습니다." : "아직 등록된 회사가 없습니다. 첫 번째 회사를 추가해보세요."}</span>
-            <div className="flex gap-2">
-              {onResetFilter && (
-                <Button onClick={onResetFilter} size="sm" variant="secondary">
-                  필터 초기화
-                </Button>
-              )}
-              {onAddCompany && (
-                <Button onClick={onAddCompany} size="sm">
-                  회사 추가
-                </Button>
-              )}
+        {companies.length === 0 && !onResetFilter && (
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">첫 회사를 추가하고 지원 기준을 만들어보세요</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">회사 정보를 직접 입력하면 점수와 면접 준비 흐름이 이어집니다.</p>
             </div>
+            {onAddCompany && (
+              <Button onClick={onAddCompany} size="sm">
+                회사 직접 추가
+              </Button>
+            )}
+          </div>
+        )}
+        {companies.length === 0 && onResetFilter && (
+          <div className="flex h-32 items-center justify-center">
+            <Button onClick={onResetFilter} size="sm" variant="secondary">
+              필터 초기화
+            </Button>
           </div>
         )}
       </div>

@@ -1099,27 +1099,6 @@ export function CompanyTrackerApp() {
                   sortMode={sortMode}
                   statusFilter={statusFilter}
                 />
-                {companies.length === 0 ? (
-                  <div className="border-b border-slate-100 bg-slate-50 px-4 py-6">
-                    <div className="mx-auto max-w-2xl text-center">
-                      <h2 className="text-base font-semibold text-slate-900">
-                        첫 회사를 추가하고 지원 기준을 만들어보세요
-                      </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        채용공고를 먼저 보관하거나, 회사 정보를 직접 입력하면 점수와 면접 준비 흐름이 이어집니다.
-                      </p>
-                      <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        <Button onClick={startCreate}>
-                          <Plus className="h-4 w-4" />
-                          회사 직접 추가
-                        </Button>
-                        <Button onClick={() => setViewMode("inbox")} variant="secondary">
-                          채용공고 붙여넣기
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
                 {selectedCompanyIds.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-100 bg-sky-50 px-4 py-2 text-sm">
                     <div>

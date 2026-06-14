@@ -22,7 +22,10 @@ function getAuthErrorMessage(message?: string) {
 }
 
 export function AuthGate() {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(() => {
+    if (typeof window === "undefined") return "login";
+    return new URLSearchParams(window.location.search).get("reset") === "1" ? "reset" : "login";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
