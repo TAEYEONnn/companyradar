@@ -80,7 +80,12 @@ export function AuthGate() {
       }
       return;
     }
-    setMessage(`${nextEmail}로 로그인 링크를 보냈습니다. 메일함을 확인하고 링크를 클릭하면 바로 이어서 사용할 수 있어요.`);
+    const isLocalhost = redirectUrl?.includes("localhost") ?? false;
+    setMessage(
+      isLocalhost
+        ? `${nextEmail}로 로그인 링크를 보냈습니다. 메일함에서 링크를 클릭하기 전에 로컬 서버(npm run dev)가 실행 중이어야 합니다.`
+        : `${nextEmail}로 로그인 링크를 보냈습니다. 메일함을 확인하고 링크를 클릭하면 바로 이어서 사용할 수 있어요.`,
+    );
   }
 
   async function signInWithPassword(event: FormEvent<HTMLFormElement>) {

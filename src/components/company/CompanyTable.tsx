@@ -13,8 +13,15 @@ import {
 } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { Company, CompanyScoreResult } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate, today } from "@/lib/utils";
 import { getPriorityTone, STATUS_TONE } from "./shared";
+
+function getDaysUntil(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const deadline = parseLocalDate(dateStr);
+  const now = parseLocalDate(today());
+  return Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
+}
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -152,8 +159,13 @@ export function CompanyTable({
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-slate-500">마감일</dt>
-                    <dd className="mt-1 font-medium text-slate-700">
+                    <dd className="mt-1 flex items-center gap-1.5 font-medium text-slate-700">
                       {company.jobDeadline || "미확인"}
+                      {(() => {
+                        const d = company.jobDeadline ? getDaysUntil(company.jobDeadline) : null;
+                        if (d === null || d > 7 || d < 0) return null;
+                        return <Badge tone={d <= 3 ? "red" : "amber"}>{d === 0 ? "D-day" : `D-${d}`}</Badge>;
+                      })()}
                     </dd>
                   </div>
                 </dl>
@@ -273,6 +285,15 @@ export function CompanyTable({
                         </Badge>
                       </div>
                     )}
+                    {(() => {
+                      const d = company.jobDeadline ? getDaysUntil(company.jobDeadline) : null;
+                      if (d === null || d > 7 || d < 0) return null;
+                      return (
+                        <div className="mt-1">
+                          <Badge tone={d <= 3 ? "red" : "amber"}>{d === 0 ? "D-day" : `D-${d}`}</Badge>
+                        </div>
+                      );
+                    })()}
                     <ChecklistDots checklist={company.applicationChecklist} />
                   </td>
 

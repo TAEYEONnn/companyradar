@@ -84,14 +84,6 @@ interface MigrationPromptState {
   remoteCompanies: Company[];
 }
 
-const ROLE_SAMPLE_NAMES: Record<string, string> = {
-  designer: "무드테크 · 그로스랩 · 스택하우스",
-  pm: "무드테크 · 그로스랩 · 스택하우스",
-  frontend: "무드테크 · 그로스랩 · 스택하우스",
-  ux_researcher: "무드테크 · 그로스랩 · 스택하우스",
-  marketer: "무드테크 · 그로스랩 · 스택하우스",
-};
-
 export function CompanyTrackerApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -121,7 +113,6 @@ export function CompanyTrackerApp() {
     useState<MigrationPromptState | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
-  const [sampleResetOpen, setSampleResetOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [deletionRequested, setDeletionRequested] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -625,21 +616,6 @@ export function CompanyTrackerApp() {
     showToast("예시 데이터를 추가했습니다.");
   }
 
-  function resetSampleData() {
-    if (!effectiveUserId) return;
-    const ownedSeed = cloneSampleCompaniesForUser(settings.userRole ?? "designer");
-    localStorageRepository.reset(effectiveUserId);
-    setCompanies(ownedSeed);
-    setSettings(DEFAULT_CRITERIA_SETTINGS);
-    setSelectedId(ownedSeed[0]?.id ?? "");
-    setSelectedCompanyIds([]);
-    setRemotePushEnabled(true);
-    if (isRemoteSyncEnabled() && userId) {
-      void pushRemoteCompanies(ownedSeed, userId);
-    }
-    setSampleResetOpen(false);
-  }
-
   function createCandidate(draft: {
     sourceUrl: string;
     rawText: string;
@@ -1105,7 +1081,6 @@ export function CompanyTrackerApp() {
                 ) : null}
                 <Toolbar
                   advancedFilter={advancedFilter}
-                  devToolsEnabled={devToolsEnabled}
                   hasSampleCompanies={hasSampleCompanies}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
@@ -1113,7 +1088,6 @@ export function CompanyTrackerApp() {
                   onDeleteSamples={deleteSampleCompanies}
                   onListModeChange={setListMode}
                   onQueryChange={setQuery}
-                  onReset={() => setSampleResetOpen(true)}
                   onSortModeChange={setSortMode}
                   onStatusFilterChange={setStatusFilter}
                   query={query}
@@ -1270,20 +1244,6 @@ export function CompanyTrackerApp() {
         onConfirm={confirmSelectedDeleteCompanies}
         open={selectedDeleteOpen}
         title="선택한 회사를 삭제할까요?"
-      />
-
-      <ConfirmDialog
-        confirmLabel="예시 데이터로 교체"
-        description={(() => {
-          const role = settings.userRole ?? "designer";
-          const sampleName = ROLE_SAMPLE_NAMES[role] ?? "";
-          const roleName = ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role;
-          return `현재 목록을 지우고 ${roleName} 직군 예시 데이터(${sampleName})로 교체합니다. 기존 데이터는 JSON 백업 후 진행하는 것을 권장합니다.`;
-        })()}
-        onCancel={() => setSampleResetOpen(false)}
-        onConfirm={resetSampleData}
-        open={sampleResetOpen}
-        title="예시 데이터로 교체할까요?"
       />
 
       {toast ? (

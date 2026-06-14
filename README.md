@@ -14,6 +14,9 @@
 
 ## 이번 빌드 변경사항
 
+- **Magic link 로컬호스트 경고**: 성공 메시지에 로컬 서버 실행 여부 안내 추가. dev 환경에서 발송 실패 시 Supabase redirect URL 진단 힌트 인라인 표시.
+- **예시 데이터 교체 아이콘 제거**: 툴바 devTools RotateCcw 버튼 및 관련 `resetSampleData` 로직 제거.
+- **마감일 D-day 배지**: 마감일 7일 이내 시 테이블 카드·행에 `D-N` 배지 표시 (3일 이내 빨간색, 4–7일 주황색).
 - **Magic link 에러 메시지 개선**: rate limit 판별 메시지 분리, dev 환경에서 실제 오류 텍스트 + Supabase redirect URL 등록 안내 인라인 표시.
 - **직군 선택 모달 필수화**: devTools 환경에서도 "나중에 설정" 건너뛰기 불가 (`allowSkip` 항상 `false`).
 - **지원 제출 완료 → 지원 목표 카운팅**: "지원 제출 완료" 체크 시 status가 초기 단계(`interested`/`planned`)이면 자동으로 `applied`로 업데이트. 사이드바 지원 목표 카운터에 즉시 반영. 토스트 안내.

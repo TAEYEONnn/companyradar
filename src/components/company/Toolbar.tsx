@@ -4,7 +4,6 @@ import {
   ArrowDownWideNarrow,
   Kanban,
   ListFilter,
-  RotateCcw,
   Search,
   SlidersHorizontal,
   Table2,
@@ -48,7 +47,6 @@ function isFilterActive(f: AdvancedFilter) {
 }
 
 interface ToolbarProps {
-  devToolsEnabled?: boolean;
   hasSampleCompanies?: boolean;
   listMode: ListMode;
   query: string;
@@ -60,13 +58,11 @@ interface ToolbarProps {
   onDeleteSamples?: () => void;
   onListModeChange: (mode: ListMode) => void;
   onQueryChange: (query: string) => void;
-  onReset: () => void;
   onSortModeChange: (mode: SortMode) => void;
   onStatusFilterChange: (status: ApplicationStatus | "all") => void;
 }
 
 export function Toolbar({
-  devToolsEnabled = false,
   hasSampleCompanies = false,
   listMode,
   query,
@@ -78,7 +74,6 @@ export function Toolbar({
   onDeleteSamples,
   onListModeChange,
   onQueryChange,
-  onReset,
   onSortModeChange,
   onStatusFilterChange,
 }: ToolbarProps) {
@@ -207,13 +202,6 @@ export function Toolbar({
           <Button onClick={onDeleteSamples} size="sm" variant="ghost">
             샘플 삭제
           </Button>
-        ) : null}
-        {devToolsEnabled ? (
-        <div className="flex items-center gap-1">
-          <Button aria-label="직군 예시 데이터 초기화" onClick={onReset} size="sm" title="직군 예시 데이터 초기화" variant="ghost">
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
         ) : null}
       </div>
 
