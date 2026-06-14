@@ -12,7 +12,13 @@
 - AI 공고 파싱, 회사 조사, 비교 분석, 주간 전략, 면접 질문, 메일 초안, 회사 요약
 - AI 유료 베타: 계정당 첫 성공 1회 무료, 이후 10회권 4,900원
 
-## 이번 빌드 변경사항 (Radar Sprint)
+## 이번 빌드 변경사항
+
+- **검증 뱃지 단순화**: Drawer 헤더의 여러 노란 뱃지 → 단일 "공고 재확인 필요" 뱃지 + CircleHelp 툴팁으로 통합. 툴팁에 항목별 자세한 안내 표시.
+- **예시 데이터 관리 UI 통합**: 툴바의 "샘플 삭제" 버튼과 "예시 데이터" devTools 버튼을 인라인 `<select>`로 통합. "예시 추가"는 기존 데이터를 보존하는 비파괴 추가(`normalizeSamplesForRole`). "샘플 삭제"는 샘플 항목만 제거.
+- **Magic Link 로컬호스트 인증 수정**: supabase-js `detectSessionInUrl: true`의 자동 code exchange와 AuthGate 수동 exchange 간 이중 교환 경쟁 조건 해결. AuthGate에서 수동 `exchangeCodeForSession` 제거. `NEXT_PUBLIC_SITE_URL` 환경변수 추가로 redirect URL 명시적 설정 가능.
+
+## 이전 빌드 변경사항 (Radar Sprint)
 
 - 서비스명 전면 교체: `CareerTrack` / `Career Company Tracker` → `CompanyRadar`. AppSidebar, manifest, User-Agent 모두 반영.
 - Drawer 요약카드 행 간격 축소: 두 metric 그리드 섹션을 `space-y-2` 래퍼로 묶어 행 간격을 좁힘.
@@ -75,6 +81,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 # 테스트 도구를 노출할 개발 호스트/오리진(선택)
 NEXT_PUBLIC_DEV_TOOL_ORIGINS=
 
+# Magic Link redirect URL 명시적 지정 (로컬 개발 또는 커스텀 도메인용, 선택)
+# 예: http://localhost:3000 (미설정 시 window.location.origin 자동 사용)
+NEXT_PUBLIC_SITE_URL=
+
 # 관리자 답장·설정 화면에 표시할 서비스 이메일(선택)
 NEXT_PUBLIC_SUPPORT_EMAIL=
 ```
@@ -82,6 +92,19 @@ NEXT_PUBLIC_SUPPORT_EMAIL=
 `service_role` key와 `TOSS_SECRET_KEY`는 서버 API route에서만 사용합니다. `NEXT_PUBLIC_` prefix가 붙은 값만 브라우저에 노출됩니다.
 
 ## Supabase 설정
+
+### Magic Link Redirect URL 설정
+
+Supabase 대시보드 → Authentication → URL Configuration → **Redirect URLs**에 아래 URL을 추가합니다.
+
+```
+http://localhost:3000/**
+https://your-production-domain/**
+```
+
+로컬 개발 시 `NEXT_PUBLIC_SITE_URL=http://localhost:3000`을 `.env.local`에 추가합니다.
+
+### DB 마이그레이션
 
 Supabase SQL Editor에서 아래 migration을 순서대로 적용합니다.
 

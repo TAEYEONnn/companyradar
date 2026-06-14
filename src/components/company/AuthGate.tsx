@@ -13,33 +13,24 @@ export function AuthGate() {
   const [password, setPassword] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [exchanging, setExchanging] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // When a ?code= is in the URL, supabase-js (detectSessionInUrl: true) exchanges it
+  // automatically on client init. Show a loading screen until onAuthStateChange fires.
+  const hasCode =
+    typeof window !== "undefined" &&
+    Boolean(new URLSearchParams(window.location.search).get("code"));
+  const [exchanging] = useState(hasCode);
+
   const supabase = getSupabaseClient();
 
-  // Exchange PKCE code from URL after magic link redirect
+  // Clean the code from URL after it has been consumed so it isn't reused on refresh.
   useEffect(() => {
-    if (!supabase) return;
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    if (!code) return;
-
-    setExchanging(true);
-    supabase.auth
-      .exchangeCodeForSession(code)
-      .then(({ error: err }) => {
-        if (err) {
-          setError("로그인 링크가 만료됐거나 올바르지 않습니다. 새 링크를 요청해 주세요.");
-        }
-        // On success, onAuthStateChange in CompanyTrackerApp catches the session.
-        // Remove the code from the URL to keep it clean.
-        const clean = new URL(window.location.href);
-        clean.searchParams.delete("code");
-        window.history.replaceState({}, "", clean.toString());
-      })
-      .finally(() => setExchanging(false));
+    if (!hasCode) return;
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete("code");
+    window.history.replaceState({}, "", clean.toString());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleAdminLogin() {

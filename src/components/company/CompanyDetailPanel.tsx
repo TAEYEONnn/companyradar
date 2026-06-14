@@ -456,12 +456,24 @@ export function CompanyDetailPanel({
             ) : null}
           </div>
           {validationReasons.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {validationReasons.map((reason) => (
-                <Badge key={reason} tone="amber">
-                  {VALIDATION_DISPLAY_LABELS[reason] ?? reason}
-                </Badge>
-              ))}
+            <div className="mt-2 flex items-center gap-1.5">
+              <Badge tone="amber">공고 재확인 필요</Badge>
+              <span className="group relative inline-flex align-middle">
+                <button
+                  aria-label="확인이 필요한 항목 보기"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-amber-500 hover:bg-amber-100 focus:bg-amber-100 focus:outline-none"
+                  type="button"
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                </button>
+                <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden min-w-56 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-800 shadow-lg group-focus-within:block group-hover:block">
+                  {validationReasons.map((r) => (
+                    <span className="block" key={r}>
+                      · {VALIDATION_DISPLAY_LABELS[r] ?? r}
+                    </span>
+                  ))}
+                </span>
+              </span>
             </div>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">

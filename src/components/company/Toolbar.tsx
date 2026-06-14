@@ -8,7 +8,6 @@ import {
   Search,
   SlidersHorizontal,
   Table2,
-  Trash2,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -57,6 +56,7 @@ interface ToolbarProps {
   statusFilter: ApplicationStatus | "all";
   advancedFilter?: AdvancedFilter;
   onAdvancedFilterChange?: (f: AdvancedFilter) => void;
+  onAddSamples?: () => void;
   onDeleteSamples?: () => void;
   onListModeChange: (mode: ListMode) => void;
   onQueryChange: (query: string) => void;
@@ -74,6 +74,7 @@ export function Toolbar({
   statusFilter,
   advancedFilter = EMPTY_ADVANCED_FILTER,
   onAdvancedFilterChange,
+  onAddSamples,
   onDeleteSamples,
   onListModeChange,
   onQueryChange,
@@ -197,17 +198,27 @@ export function Toolbar({
           </button>
         )}
 
-        {hasSampleCompanies && onDeleteSamples ? (
-          <Button aria-label="샘플 데이터 모두 삭제" onClick={onDeleteSamples} size="sm" variant="ghost">
-            <Trash2 className="h-3.5 w-3.5" />
-            샘플 삭제
-          </Button>
+        {(onAddSamples || (hasSampleCompanies && onDeleteSamples)) ? (
+          <select
+            aria-label="예시 데이터 관리"
+            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 focus:border-slate-400 focus:outline-none"
+            onChange={(e) => {
+              const val = e.target.value;
+              e.target.value = "";
+              if (val === "add") onAddSamples?.();
+              if (val === "delete") onDeleteSamples?.();
+            }}
+            defaultValue=""
+          >
+            <option value="" disabled>예시 데이터</option>
+            <option value="add">예시 추가</option>
+            {hasSampleCompanies ? <option value="delete">샘플 삭제</option> : null}
+          </select>
         ) : null}
         {devToolsEnabled ? (
         <div className="flex items-center gap-1">
-          <Button aria-label="직군 예시 데이터 보기" onClick={onReset} size="sm" title="직군 예시 데이터 보기" variant="ghost">
+          <Button aria-label="직군 예시 데이터 초기화" onClick={onReset} size="sm" title="직군 예시 데이터 초기화" variant="ghost">
             <RotateCcw className="h-3.5 w-3.5" />
-            예시 데이터
           </Button>
         </div>
         ) : null}

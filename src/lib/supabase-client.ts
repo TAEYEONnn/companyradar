@@ -27,5 +27,7 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 export function getAuthRedirectUrl(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return `${window.location.origin}/auth/callback`;
+  // NEXT_PUBLIC_SITE_URL overrides auto-detection (useful for localhost dev or custom domains)
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+  return `${base}/auth/callback`;
 }

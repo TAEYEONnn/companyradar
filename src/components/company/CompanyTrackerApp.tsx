@@ -614,6 +614,17 @@ export function CompanyTrackerApp() {
     showToast("샘플 데이터를 삭제했습니다.");
   }
 
+  function addSampleCompanies() {
+    if (!effectiveUserId) return;
+    const updated = normalizeSamplesForRole(companies, settings.userRole ?? "designer");
+    setCompanies(updated);
+    localStorageRepository.saveCompanies(updated, effectiveUserId);
+    if (isRemoteSyncEnabled() && userId) {
+      void pushRemoteCompanies(updated, userId);
+    }
+    showToast("예시 데이터를 추가했습니다.");
+  }
+
   function resetSampleData() {
     if (!effectiveUserId) return;
     const ownedSeed = cloneSampleCompaniesForUser(settings.userRole ?? "designer");
@@ -1098,6 +1109,7 @@ export function CompanyTrackerApp() {
                   hasSampleCompanies={hasSampleCompanies}
                   listMode={listMode}
                   onAdvancedFilterChange={setAdvancedFilter}
+                  onAddSamples={addSampleCompanies}
                   onDeleteSamples={deleteSampleCompanies}
                   onListModeChange={setListMode}
                   onQueryChange={setQuery}
