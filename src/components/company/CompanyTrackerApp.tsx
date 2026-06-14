@@ -60,6 +60,7 @@ import { CandidateInboxPanel } from "./CandidateInboxPanel";
 import { CompanyDrawer } from "./CompanyDrawer";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyTable } from "./CompanyTable";
+import { QuickAddPanel } from "./QuickAddPanel";
 import { CriteriaSettingsPanel } from "./CriteriaSettingsPanel";
 import { CoachPanel } from "./CoachPanel";
 import { KanbanBoard } from "./KanbanBoard";
@@ -1110,6 +1111,18 @@ export function CompanyTrackerApp() {
                 }}
                 scoreMap={scoreMap}
               />
+            ) : viewMode === "quick-add" ? (
+              <QuickAddPanel
+                onCancel={() => setViewMode("dashboard")}
+                onOpenFullForm={(company) => {
+                  setEditingCompany(company);
+                  setViewMode("form");
+                }}
+                onSave={(company) => {
+                  upsertCompany(company);
+                  showToast("회사 목록에 추가했어요. 상세에서 더 자세히 입력할 수 있어요.");
+                }}
+              />
             ) : viewMode === "form" && editingCompany ? (
               <CompanyForm
                 company={editingCompany}
@@ -1349,7 +1362,7 @@ export function CompanyTrackerApp() {
             }
             setShowOnboarding(false);
             if (startMode === "ai") setViewMode("inbox");
-            else if (startMode === "manual") startCreate();
+            else if (startMode === "manual") setViewMode("quick-add");
           }}
         />
       )}

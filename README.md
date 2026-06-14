@@ -14,6 +14,8 @@
 
 ## 이번 빌드 변경사항
 
+- **온보딩 "직접 추가하기" → 간단 추가 화면**: 온보딩에서 "회사명만 먼저 저장하기"를 선택하면 구 전체 폼 대신 최소 입력만 받는 QuickAddPanel로 연결. 회사명·채용공고 URL·지원 상태만 입력 후 바로 저장 가능. "자세히 입력할래요" 링크로 전체 폼 접근 가능.
+
 - **비밀번호 재설정 근본 버그 수정**: 복구 코드가 `/auth/confirm`으로 라우팅될 때 `PASSWORD_RECOVERY` 이벤트를 감지하지 않고 즉시 로그인 처리하던 문제 수정. 이제 `/auth/confirm`이 exchange 전에 `onAuthStateChange`를 구독하여 `PASSWORD_RECOVERY` 이벤트가 발생하면 `/auth/reset-password?recovery=1`으로 전달. `/auth/reset-password`는 `?recovery=1`을 인식해 이미 수립된 세션을 재사용. 설정 화면의 `resetPassword()`도 `redirectTo`를 `/auth/reset-password` → `/auth/callback`으로 수정해 AuthGate 경로와 통일.
 - **비밀번호 재설정 하드닝**: `[RESET_REQUEST_EMAIL]` 콘솔 로그를 두 경로 모두에 추가. 비밀번호 변경 성공 후 2초 뒤 로그인 화면으로 자동 이동.
 - **AI 무료 사용 5회 제한 버그 수정**: `getEntitlement`(server-billing.ts)이 계정을 1회로 초기화하던 버그 수정. 이제 처음 로그인 시 5회로 올바르게 초기화됨. 탈퇴 후 재가입해도 동일 이메일은 `ai_free_used_emails` 테이블로 0회 처리. DB `consume_ai_credit` 함수 fallback도 1→5로 수정. `getOrCreateAiEntitlement`의 중복 로직 제거, `getEntitlement` 위임으로 통일. v044 마이그레이션: 기존 1회 계정(미사용) 5회로 업그레이드.

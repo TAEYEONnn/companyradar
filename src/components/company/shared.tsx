@@ -1,7 +1,7 @@
 import type { ApplicationPriority, ApplicationStatus, Company } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export type ViewMode = "dashboard" | "form" | "settings" | "stats" | "inbox" | "timeline" | "compare" | "today" | "coach";
+export type ViewMode = "dashboard" | "form" | "quick-add" | "settings" | "stats" | "inbox" | "timeline" | "compare" | "today" | "coach";
 export type ListMode = "table" | "kanban";
 export type DrawerDetailTab = "summary" | "prep" | "research" | "interview" | "private" | "ai";
 

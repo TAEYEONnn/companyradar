@@ -40,8 +40,8 @@ const START_OPTIONS: {
   {
     mode: "manual",
     icon: Plus,
-    title: "직접 추가하기",
-    description: "회사명과 상태만 입력해요.",
+    title: "회사명만 먼저 저장하기",
+    description: "나중에 상세에서 내용을 채울 수 있어요.",
   },
   {
     mode: "samples",
