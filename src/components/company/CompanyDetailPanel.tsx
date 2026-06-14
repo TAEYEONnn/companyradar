@@ -775,7 +775,7 @@ export function CompanyDetailPanel({
             >
               {EVIDENCE_LEVEL_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  Lv.{option.value} {option.label}
+                  {option.label}
                 </option>
               ))}
             </Select>
@@ -1257,7 +1257,7 @@ function SignalGroup({
             <div className="flex items-center justify-between gap-2">
               <strong className="text-sm">{signal.label}</strong>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Lv.{signal.confidence}</span>
+                <span className="text-xs text-slate-400">{EVIDENCE_LEVEL_LABELS[signal.confidence]}</span>
                 <button
                   aria-label="기록 삭제"
                   className="text-slate-400 hover:text-red-600"
