@@ -7,6 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { getAuthRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
 
+const MAGIC_LINK_COOLDOWN_MS = 60_000;
+
+function getMagicLinkCooldownKey(email: string) {
+  return `companyradar:magic-link-sent-at:${email.toLowerCase()}`;
+}
+
+function getRemainingCooldownSeconds(email: string) {
+  if (typeof window === "undefined") return 0;
+  const sentAt = Number(window.localStorage.getItem(getMagicLinkCooldownKey(email)) ?? 0);
+  if (!sentAt) return 0;
+  return Math.max(0, Math.ceil((MAGIC_LINK_COOLDOWN_MS - (Date.now() - sentAt)) / 1000));
+}
+
+function rememberMagicLinkSent(email: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(getMagicLinkCooldownKey(email), String(Date.now()));
+}
+
 export function AuthGate() {
   const [email, setEmail] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -52,6 +70,17 @@ export function AuthGate() {
       setError("이메일을 입력해주세요.");
       return;
     }
+    const remainingSeconds = getRemainingCooldownSeconds(nextEmail);
+    if (remainingSeconds > 0) {
+      setMessage("");
+      setError(`이미 로그인 링크를 보냈습니다. 메일함을 확인하거나 ${remainingSeconds}초 후 다시 시도해주세요.`);
+      setDevError(
+        process.env.NODE_ENV === "development"
+          ? "[dev] Supabase email rate limit을 피하기 위해 로컬에서 재발송을 잠시 막았습니다. Redirect URL 설정 문제는 아닙니다."
+          : "",
+      );
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -71,6 +100,7 @@ export function AuthGate() {
       const msg = signInError.message?.toLowerCase() ?? "";
       const isRateLimit = msg.includes("rate") || msg.includes("limit") || signInError.status === 429;
       if (isRateLimit) {
+        rememberMagicLinkSent(nextEmail);
         setError("이미 최근에 링크를 발송했습니다. 메일함을 확인하거나 60초 후 다시 시도해주세요.");
       } else {
         setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
@@ -78,12 +108,13 @@ export function AuthGate() {
       if (process.env.NODE_ENV === "development") {
         setDevError(
           isRateLimit
-            ? `[dev] ${signInError.message ?? String(signInError)}`
+            ? `[dev] ${signInError.message ?? String(signInError)}\n\n이 에러는 Supabase 이메일 발송 rate limit입니다. Site URL 또는 Redirect URLs 설정 문제가 아니며, 60초 후 다시 시도하거나 메일함의 최신 링크를 사용하세요.`
             : `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n→ Supabase 대시보드 › Authentication › URL Configuration › Redirect URLs 에 이 URL이 등록되어 있는지 확인하세요.`,
         );
       }
       return;
     }
+    rememberMagicLinkSent(nextEmail);
     const isLocalhost = redirectUrl?.includes("localhost") ?? false;
     setMessage(
       isLocalhost
@@ -139,11 +170,19 @@ export function AuthGate() {
           CompanyRadar
         </div>
         <h1 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
-          지원할 회사를 정리하세요
+          지원할 회사를 기준 있게 정리하세요
         </h1>
         <p className="mt-1.5 text-sm leading-5 text-slate-500">
-          채용 공고, 회사 조사, 면접 준비 기록을 로그인한 계정별로 저장합니다.
+          회사핏 점수, 리스크, 면접 준비 기록을 한 곳에서 관리하는 개인용 지원 트래커입니다.
         </p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          {["회사 추가", "점수 확인", "면접 준비"].map((step, index) => (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2" key={step}>
+              <div className="text-[11px] font-semibold text-sky-600">{index + 1}</div>
+              <div className="mt-0.5 text-xs font-medium text-slate-700">{step}</div>
+            </div>
+          ))}
+        </div>
 
         <form className="mt-5 space-y-3" onSubmit={requestMagicLink}>
           <div className="space-y-1.5">
