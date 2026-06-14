@@ -24,18 +24,7 @@ export const VALIDATION_DISPLAY_LABELS: Record<string, string> = {
 };
 
 export function getPrimaryValidationBadge(validationReasons: string[]): string | null {
-  if (validationReasons.includes(VALIDATION_REASON_LABELS.unknownJobStatus) ||
-      validationReasons.includes(VALIDATION_REASON_LABELS.missingDeadline)) {
-    return "마감 확인 필요";
-  }
-  if (validationReasons.includes(VALIDATION_REASON_LABELS.staleJobCheck) ||
-      validationReasons.includes(VALIDATION_REASON_LABELS.staleVerification)) {
-    return "확인 필요";
-  }
-  if (validationReasons.length > 0) {
-    return "확인 필요";
-  }
-  return null;
+  return validationReasons.length > 0 ? "공고 재확인 필요" : null;
 }
 
 function daysSince(dateStr: string, now: string): number {

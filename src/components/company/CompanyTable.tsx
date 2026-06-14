@@ -175,7 +175,7 @@ export function CompanyTable({
         </div>
         {companies.length === 0 && (
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
-            <span>조건에 맞는 회사가 없습니다.</span>
+            <span>{onResetFilter ? "조건에 맞는 회사가 없습니다." : "아직 등록된 회사가 없습니다. 첫 번째 회사를 추가해보세요."}</span>
             <div className="flex gap-2">
               {onResetFilter && (
                 <Button onClick={onResetFilter} size="sm" variant="secondary">
@@ -314,7 +314,7 @@ export function CompanyTable({
         </table>
         {companies.length === 0 && (
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
-            <span>조건에 맞는 회사가 없습니다.</span>
+            <span>{onResetFilter ? "조건에 맞는 회사가 없습니다." : "아직 등록된 회사가 없습니다. 첫 번째 회사를 추가해보세요."}</span>
             <div className="flex gap-2">
               {onResetFilter && (
                 <Button onClick={onResetFilter} size="sm" variant="secondary">

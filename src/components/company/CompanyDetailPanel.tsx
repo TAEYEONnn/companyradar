@@ -82,6 +82,7 @@ interface CompanyDetailPanelProps {
   onDelete: (companyId: string) => void;
   onEdit: (company: Company) => void;
   onPatch: (companyId: string, patch: Partial<Company>) => void;
+  onStatusAutoChanged?: () => void;
   onToast?: (message: string) => void;
 }
 
@@ -95,6 +96,7 @@ export function CompanyDetailPanel({
   onDelete,
   onEdit,
   onPatch,
+  onStatusAutoChanged,
   onToast,
 }: CompanyDetailPanelProps) {
   const userRole = settings?.userRole ?? "designer";
@@ -663,14 +665,23 @@ export function CompanyDetailPanel({
                     ]
                   }
                   className="accent-slate-900"
-                  onChange={(event) =>
-                    onPatch(company.id, {
+                  onChange={(event) => {
+                    const patch: Partial<Company> = {
                       applicationChecklist: {
                         ...company.applicationChecklist,
                         [key]: event.target.checked,
                       },
-                    })
-                  }
+                    };
+                    if (
+                      key === "submitted" &&
+                      event.target.checked &&
+                      (company.status === "interested" || company.status === "planned")
+                    ) {
+                      patch.status = "applied";
+                      onStatusAutoChanged?.();
+                    }
+                    onPatch(company.id, patch);
+                  }}
                   type="checkbox"
                 />
                 <span>{label}</span>

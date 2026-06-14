@@ -119,9 +119,9 @@ export function KanbanBoard({
                   );
                 })}
                 {columnCompanies.length === 0 ? (
-                  <p className="px-1 py-4 text-center text-xs text-slate-400">
+                  <div className="mx-1 rounded-lg border-2 border-dashed border-slate-200 py-6 text-center text-xs text-slate-400">
                     여기로 드래그
-                  </p>
+                  </div>
                 ) : null}
               </div>
             </div>

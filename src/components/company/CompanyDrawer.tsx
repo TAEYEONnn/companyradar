@@ -41,6 +41,7 @@ interface CompanyDrawerProps {
   onPatch: (id: string, patch: Partial<Company>) => void;
   onPrev?: () => void;
   onNext?: () => void;
+  onStatusAutoChanged?: () => void;
   onToast?: (message: string) => void;
 }
 
@@ -59,6 +60,7 @@ export function CompanyDrawer({
   onPatch,
   onPrev,
   onNext,
+  onStatusAutoChanged,
   onToast,
 }: CompanyDrawerProps) {
   useEffect(() => {
@@ -131,6 +133,7 @@ export function CompanyDrawer({
               }}
               onEdit={onEdit}
               onPatch={onPatch}
+              onStatusAutoChanged={onStatusAutoChanged}
               onToast={onToast}
               score={score}
               userId={userId}

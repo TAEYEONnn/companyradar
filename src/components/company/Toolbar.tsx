@@ -198,22 +198,15 @@ export function Toolbar({
           </button>
         )}
 
-        {(onAddSamples || (hasSampleCompanies && onDeleteSamples)) ? (
-          <select
-            aria-label="예시 데이터 관리"
-            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-600 focus:border-slate-400 focus:outline-none"
-            onChange={(e) => {
-              const val = e.target.value;
-              e.target.value = "";
-              if (val === "add") onAddSamples?.();
-              if (val === "delete") onDeleteSamples?.();
-            }}
-            defaultValue=""
-          >
-            <option value="" disabled>예시 데이터</option>
-            <option value="add">예시 추가</option>
-            {hasSampleCompanies ? <option value="delete">샘플 삭제</option> : null}
-          </select>
+        {onAddSamples ? (
+          <Button onClick={onAddSamples} size="sm" variant="ghost">
+            예시 추가
+          </Button>
+        ) : null}
+        {hasSampleCompanies && onDeleteSamples ? (
+          <Button onClick={onDeleteSamples} size="sm" variant="ghost">
+            샘플 삭제
+          </Button>
         ) : null}
         {devToolsEnabled ? (
         <div className="flex items-center gap-1">

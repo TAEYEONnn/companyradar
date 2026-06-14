@@ -15,6 +15,7 @@ export function AuthGate() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [devError, setDevError] = useState("");
 
   // When a ?code= is in the URL, supabase-js (detectSessionInUrl: true) exchanges it
   // automatically on client init. Show a loading screen until onAuthStateChange fires.
@@ -53,17 +54,30 @@ export function AuthGate() {
 
     setLoading(true);
     setError("");
+    setDevError("");
     setMessage("");
+    const redirectUrl = getAuthRedirectUrl();
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: nextEmail,
       options: {
-        emailRedirectTo: getAuthRedirectUrl(),
+        emailRedirectTo: redirectUrl,
       },
     });
     setLoading(false);
 
     if (signInError) {
-      setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      console.error("[AuthGate] signInWithOtp error:", signInError);
+      const msg = signInError.message?.toLowerCase() ?? "";
+      if (msg.includes("rate") || msg.includes("limit") || signInError.status === 429) {
+        setError("이미 최근에 링크를 발송했습니다. 메일함을 확인하거나 60초 후 다시 시도해주세요.");
+      } else {
+        setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+      if (process.env.NODE_ENV === "development") {
+        setDevError(
+          `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n→ Supabase 대시보드 › Authentication › URL Configuration › Redirect URLs 에 이 URL이 등록되어 있는지 확인하세요.`,
+        );
+      }
       return;
     }
     setMessage(`${nextEmail}로 로그인 링크를 보냈습니다. 메일함을 확인하고 링크를 클릭하면 바로 이어서 사용할 수 있어요.`);
@@ -149,6 +163,11 @@ export function AuthGate() {
           <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
             {error}
           </div>
+        ) : null}
+        {devError ? (
+          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-slate-100 px-3 py-2 text-[11px] leading-5 text-slate-600">
+            {devError}
+          </pre>
         ) : null}
 
         <div className="mt-4 border-t border-slate-100 pt-3">

@@ -193,7 +193,7 @@ export function CompanyTrackerApp() {
       const preferredRole = loadedSettings.userRole ?? loadUserRole(effectiveUserId) ?? "designer";
       const migrationCompletedAt = getMigrationCompletedAt(effectiveUserId);
       setSettings(loadedSettings);
-      if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
+      if (shouldShowOnboarding(loadedSettings)) {
         setShowOnboarding(true);
       }
 
@@ -289,7 +289,7 @@ export function CompanyTrackerApp() {
       setSelectedId(ownedSeed[0]?.id ?? "");
       setStorageWriteEnabled(true);
       setIsReady(true);
-      if (shouldShowOnboarding(loadedSettings, userEmail, devToolsEnabled)) {
+      if (shouldShowOnboarding(loadedSettings)) {
         setShowOnboarding(true);
       }
       if (isRemoteSyncEnabled() && userId) {
@@ -1243,6 +1243,7 @@ export function CompanyTrackerApp() {
           const prev = filteredCompanies[idx - 1];
           if (prev) openCompanyDrawer(prev.id);
         }}
+        onStatusAutoChanged={() => showToast("지원 상태를 '지원 완료'로 업데이트했습니다.")}
         onToast={showToast}
         open={drawerOpen}
         score={selectedScore ?? null}
@@ -1306,7 +1307,7 @@ export function CompanyTrackerApp() {
 
       {showOnboarding && (
         <OnboardingModal
-          allowSkip={devToolsEnabled}
+          allowSkip={false}
           userId={userId}
           onComplete={(role, patch) => {
             setSettings((prev) => ({ ...prev, ...patch }));
@@ -1374,15 +1375,8 @@ function getHostLabel(url: string): string {
   }
 }
 
-function shouldShowOnboarding(
-  settings: CriteriaSettings,
-  userEmail: string,
-  devToolsEnabled: boolean,
-): boolean {
-  return (
-    (devToolsEnabled && userEmail.toLowerCase() === "dev@example.com") ||
-    !settings.userRole
-  );
+function shouldShowOnboarding(settings: CriteriaSettings): boolean {
+  return !settings.userRole;
 }
 
 function SyncStatusBadge({

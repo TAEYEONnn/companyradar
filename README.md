@@ -14,9 +14,13 @@
 
 ## 이번 빌드 변경사항
 
-- **검증 뱃지 단순화**: Drawer 헤더의 여러 노란 뱃지 → 단일 "공고 재확인 필요" 뱃지 + CircleHelp 툴팁으로 통합. 툴팁에 항목별 자세한 안내 표시.
-- **예시 데이터 관리 UI 통합**: 툴바의 "샘플 삭제" 버튼과 "예시 데이터" devTools 버튼을 인라인 `<select>`로 통합. "예시 추가"는 기존 데이터를 보존하는 비파괴 추가(`normalizeSamplesForRole`). "샘플 삭제"는 샘플 항목만 제거.
-- **Magic Link 로컬호스트 인증 수정**: supabase-js `detectSessionInUrl: true`의 자동 code exchange와 AuthGate 수동 exchange 간 이중 교환 경쟁 조건 해결. AuthGate에서 수동 `exchangeCodeForSession` 제거. `NEXT_PUBLIC_SITE_URL` 환경변수 추가로 redirect URL 명시적 설정 가능.
+- **Magic link 에러 메시지 개선**: rate limit 판별 메시지 분리, dev 환경에서 실제 오류 텍스트 + Supabase redirect URL 등록 안내 인라인 표시.
+- **직군 선택 모달 필수화**: devTools 환경에서도 "나중에 설정" 건너뛰기 불가 (`allowSkip` 항상 `false`).
+- **지원 제출 완료 → 지원 목표 카운팅**: "지원 제출 완료" 체크 시 status가 초기 단계(`interested`/`planned`)이면 자동으로 `applied`로 업데이트. 사이드바 지원 목표 카운터에 즉시 반영. 토스트 안내.
+- **예시 데이터 버튼 분리**: 툴바 인라인 `<select>` 제거 → "예시 추가" / "샘플 삭제" 개별 버튼으로 분리.
+- **검증 뱃지 텍스트 통일**: 테이블과 드로어 모두 "공고 재확인 필요"로 통일 (`getPrimaryValidationBadge` 단순화).
+- **테이블 빈 상태 구분**: 필터 결과 없음 vs 등록 회사 없음 메시지 구분.
+- **칸반 빈 컬럼 드롭존**: dashed border 컨테이너로 시각적 드롭 영역 표시.
 
 ## 이전 빌드 변경사항 (Radar Sprint)
 
