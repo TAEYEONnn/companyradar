@@ -53,7 +53,7 @@ import type {
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { AppSidebar, type SidebarBadges } from "./AppSidebar";
-import { OnboardingModal } from "./OnboardingModal";
+import { OnboardingModal, type OnboardingStartMode } from "./OnboardingModal";
 import { AuthGate } from "./AuthGate";
 import { BillingPrompt } from "./BillingPrompt";
 import { CandidateInboxPanel } from "./CandidateInboxPanel";
@@ -116,6 +116,7 @@ export function CompanyTrackerApp() {
   const [toast, setToast] = useState("");
   const [deletionRequested, setDeletionRequested] = useState(false);
   const [coachStrategy, setCoachStrategy] = useState("");
+  const [aiCredit, setAiCredit] = useState<{ freeUsesRemaining: number; unlimited: boolean } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: "idle",
     lastAt: "",
@@ -342,9 +343,39 @@ export function CompanyTrackerApp() {
     localStorageRepository.saveSettings(settings, effectiveUserId);
   }, [settings, isReady, userId, effectiveUserId]);
 
+  useEffect(() => {
+    if (!userId) { setAiCredit(null); return; }
+    void fetchAiCredit();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   function showToast(message: string) {
     setToast(message);
     setTimeout(() => setToast(""), 3000);
+  }
+
+  async function fetchAiCredit() {
+    if (!userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/billing/entitlement", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        entitlement?: { freeUsesRemaining: number; unlimited: boolean };
+      };
+      if (json.entitlement) {
+        setAiCredit({
+          freeUsesRemaining: json.entitlement.freeUsesRemaining,
+          unlimited: json.entitlement.unlimited,
+        });
+      }
+    } catch { /* non-fatal */ }
   }
 
   const scoreMap = useMemo(() => {
@@ -1036,12 +1067,14 @@ export function CompanyTrackerApp() {
               />
             ) : viewMode === "inbox" ? (
               <CandidateInboxPanel
+                aiCredit={aiCredit}
                 candidates={candidates}
                 companies={companies}
                 onBack={() => setViewMode("dashboard")}
                 onCreate={createCandidate}
                 onDelete={removeCandidate}
                 onPatch={patchCandidate}
+                onParseSuccess={() => void fetchAiCredit()}
                 onPromote={promoteCandidate}
                 onSelectCompany={(id) => {
                   setViewMode("dashboard");
@@ -1103,6 +1136,13 @@ export function CompanyTrackerApp() {
             ) : (
               /* ─── Companies (table / kanban) ─── */
               <div className="rounded-lg border border-slate-200 bg-white">
+                {companies.length === 0 ? (
+                  <StartGuide
+                    aiCredit={aiCredit}
+                    onAddCompany={startCreate}
+                    onOpenInbox={() => setViewMode("inbox")}
+                  />
+                ) : null}
                 {hasOnlySampleCompanies ? (
                   <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">
                     현재 직군 예시 회사 3개만 표시 중입니다. 새 회사를 추가하면 로그인 계정 기준으로 자동 저장됩니다.
@@ -1177,11 +1217,15 @@ export function CompanyTrackerApp() {
                     companies={filteredCompanies}
                     onAddCompany={startCreate}
                     onEdit={startEdit}
-                    onResetFilter={() => {
-                      setQuery("");
-                      setStatusFilter("all");
-                      setAdvancedFilter(EMPTY_ADVANCED_FILTER);
-                    }}
+                    onResetFilter={
+                      query || statusFilter !== "all" || advancedFilter !== EMPTY_ADVANCED_FILTER
+                        ? () => {
+                            setQuery("");
+                            setStatusFilter("all");
+                            setAdvancedFilter(EMPTY_ADVANCED_FILTER);
+                          }
+                        : undefined
+                    }
                     onSelect={openCompanyDrawer}
                     onSetSelectedIds={setSelectedCompanyIds}
                     onToggleSelected={(id) =>
@@ -1297,16 +1341,89 @@ export function CompanyTrackerApp() {
 
       {showOnboarding && (
         <OnboardingModal
-          allowSkip={false}
           userId={userId}
-          onComplete={(role, patch) => {
+          onComplete={(role, patch, startMode: OnboardingStartMode) => {
             setSettings((prev) => ({ ...prev, ...patch }));
-            setCompanies((current) => normalizeSamplesForRole(current, role));
+            if (startMode === "samples") {
+              const sampled = normalizeSamplesForRole([], role);
+              setCompanies(sampled);
+              if (effectiveUserId) {
+                localStorageRepository.saveCompanies(sampled, effectiveUserId);
+                if (isRemoteSyncEnabled() && userId) {
+                  void pushRemoteCompanies(sampled, userId);
+                }
+              }
+            } else {
+              setCompanies((current) => normalizeSamplesForRole(current, role));
+            }
             setShowOnboarding(false);
+            if (startMode === "ai") setViewMode("inbox");
+            else if (startMode === "manual") startCreate();
           }}
-          onSkip={() => setShowOnboarding(false)}
         />
       )}
+    </div>
+  );
+}
+
+function StartGuide({
+  aiCredit,
+  onAddCompany,
+  onOpenInbox,
+}: {
+  aiCredit: { freeUsesRemaining: number; unlimited: boolean } | null;
+  onAddCompany: () => void;
+  onOpenInbox: () => void;
+}) {
+  const hasAiCredit = aiCredit ? (aiCredit.unlimited || aiCredit.freeUsesRemaining > 0) : true;
+  const steps = [
+    { num: "1", title: "공고 저장", desc: "URL 또는 텍스트로 공고를 저장해요" },
+    { num: "2", title: "신호 정리", desc: "좋은 점·걱정되는 점·확인할 점을 기록해요" },
+    { num: "3", title: "지원 상태 관리", desc: "단계별로 지원 현황을 추적해요" },
+    { num: "4", title: "오늘 할 일", desc: "다음 행동을 체크하며 관리해요" },
+  ];
+  return (
+    <div className="p-6">
+      <h3 className="text-sm font-semibold text-slate-700">CompanyRadar 핵심 흐름</h3>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {steps.map((step, i) => (
+          <div key={step.num} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {i < steps.length - 1 ? (
+              <span className="absolute -right-2 top-1/2 z-10 hidden -translate-y-1/2 text-slate-300 sm:block">→</span>
+            ) : null}
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white">
+              {step.num}
+            </div>
+            <div className="mt-2 text-sm font-semibold text-slate-800">{step.title}</div>
+            <div className="mt-0.5 text-xs leading-5 text-slate-500">{step.desc}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          disabled={!hasAiCredit}
+          onClick={onOpenInbox}
+          type="button"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M5 3l14 9-14 9V3z" fill="currentColor" />
+          </svg>
+          AI로 공고 정리하기
+          {aiCredit && !aiCredit.unlimited ? (
+            <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">
+              {aiCredit.freeUsesRemaining > 0 ? "무료 1회" : "사용 완료"}
+            </span>
+          ) : null}
+        </button>
+        <button
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          onClick={onAddCompany}
+          type="button"
+        >
+          + 관심 회사 직접 추가하기
+        </button>
+      </div>
     </div>
   );
 }

@@ -22,13 +22,20 @@ interface CandidateDraft {
   firstImpressionNote: string;
 }
 
+interface AiCredit {
+  freeUsesRemaining: number;
+  unlimited: boolean;
+}
+
 interface CandidateInboxPanelProps {
   candidates: CandidateInboxItem[];
   companies: Company[];
+  aiCredit?: AiCredit | null;
   onBack: () => void;
   onCreate: (draft: CandidateDraft) => void;
   onDelete: (candidateId: string) => void;
   onPatch: (id: string, patch: Partial<CandidateInboxItem>) => void;
+  onParseSuccess?: () => void;
   onPromote: (candidate: CandidateInboxItem) => void;
   onSelectCompany?: (id: string) => void;
 }
@@ -54,10 +61,12 @@ const EMPTY_DRAFT: CandidateDraft = {
 export function CandidateInboxPanel({
   candidates,
   companies,
+  aiCredit,
   onBack,
   onCreate,
   onDelete,
   onPatch,
+  onParseSuccess,
   onPromote,
   onSelectCompany,
 }: CandidateInboxPanelProps) {
@@ -111,6 +120,7 @@ export function CandidateInboxPanel({
         parseStatus: data.result.name ? "parsed" : "partial",
         needsReview: true,
       });
+      onParseSuccess?.();
     } catch {
       setParseError({ id: candidate.id, msg: "네트워크 오류가 발생했습니다." });
       onPatch(candidate.id, { parseStatus: "failed" });
@@ -118,6 +128,8 @@ export function CandidateInboxPanel({
       setParsingId(null);
     }
   }
+
+  const hasAiCredit = aiCredit ? (aiCredit.unlimited || aiCredit.freeUsesRemaining > 0) : true;
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white">
@@ -131,6 +143,21 @@ export function CandidateInboxPanel({
           <p className="mt-1 text-sm text-slate-500">
             아직 확정하지 않은 공고 URL과 원문 메모를 회사 목록과 분리해 둡니다.
           </p>
+          {aiCredit && !aiCredit.unlimited ? (
+            <p
+              className={[
+                "mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
+                aiCredit.freeUsesRemaining > 0
+                  ? "bg-sky-50 text-sky-700"
+                  : "bg-slate-100 text-slate-500",
+              ].join(" ")}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {aiCredit.freeUsesRemaining > 0
+                ? "AI 공고 분석 무료 1회가 남아있어요."
+                : "무료 AI 분석을 모두 사용했어요. 추가 사용은 추후 제공될 예정이에요."}
+            </p>
+          ) : null}
         </div>
         <Button onClick={onBack} variant="secondary">
           대시보드
@@ -220,7 +247,11 @@ export function CandidateInboxPanel({
               candidate.parsedCompany?.name ||
               null;
             const isParsing = parsingId === candidate.id;
-            const canParse = !isParsing && !candidate.promotedCompanyId && (Boolean(candidate.sourceUrl) || Boolean(candidate.rawText));
+            const canParse =
+              !isParsing &&
+              !candidate.promotedCompanyId &&
+              (Boolean(candidate.sourceUrl) || Boolean(candidate.rawText)) &&
+              hasAiCredit;
             return (
               <article className="rounded-md border border-slate-200 p-3" key={candidate.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -270,7 +301,13 @@ export function CandidateInboxPanel({
                       ) : (
                         <Sparkles className="h-3.5 w-3.5" />
                       )}
-                      {isParsing ? "분석 중" : "AI 분석"}
+                      {isParsing
+                        ? "분석 중"
+                        : !hasAiCredit && !candidate.promotedCompanyId
+                          ? "AI 분석 완료"
+                          : aiCredit && !aiCredit.unlimited && aiCredit.freeUsesRemaining === 1
+                            ? "AI 분석 · 무료 1회"
+                            : "AI 분석"}
                     </Button>
                     <Button
                       aria-label="회사 목록에 추가"
@@ -296,6 +333,12 @@ export function CandidateInboxPanel({
                   <p className="mt-2 text-xs text-red-600">{parseError.msg}</p>
                 ) : null}
 
+                {(candidate.parseStatus === "parsed" || candidate.parseStatus === "partial") &&
+                !candidate.promotedCompanyId ? (
+                  <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs leading-5 text-amber-700">
+                    AI 정리는 초안이에요. 저장 전 회사명, 공고명, 마감일을 직접 확인해주세요.
+                  </p>
+                ) : null}
                 {candidate.parsedCompany?.name && !candidate.companyName ? (
                   <p className="mt-2 text-xs text-slate-500">
                     AI 추출: <span className="font-medium text-slate-700">{candidate.parsedCompany.name}</span>
