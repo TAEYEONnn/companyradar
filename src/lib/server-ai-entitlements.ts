@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AI_CREDIT_PRODUCT, type AiEntitlement } from "@/lib/billing";
+import { getEntitlement } from "@/lib/server-billing";
 import { type AiRequestFeature, logAiRequest } from "@/lib/server-ai-usage";
 import {
   authError,
@@ -102,53 +103,7 @@ export async function consumeAiCredit(
 }
 
 export async function getOrCreateAiEntitlement(userId: string): Promise<AiEntitlement> {
-  const admin = getSupabaseAdminClient();
-
-  // Check whether this email has already consumed a free credit under any previous account.
-  let initialFreeUses = 5;
-  try {
-    const { data: authData } = await admin.auth.admin.getUserById(userId);
-    const email = authData.user?.email;
-    if (email) {
-      const { data: usedRow } = await admin
-        .from("ai_free_used_emails")
-        .select("email")
-        .eq("email", email)
-        .maybeSingle<{ email: string }>();
-      if (usedRow) initialFreeUses = 0;
-    }
-  } catch { /* non-fatal — default to 1 */ }
-
-  await admin.from("ai_credit_accounts").upsert(
-    {
-      user_id: userId,
-      free_uses_remaining: initialFreeUses,
-      paid_credits_remaining: 0,
-    },
-    { onConflict: "user_id", ignoreDuplicates: true },
-  );
-
-  const { data, error } = await admin
-    .from("ai_credit_accounts")
-    .select("free_uses_remaining, paid_credits_remaining")
-    .eq("user_id", userId)
-    .single<{
-      free_uses_remaining: number;
-      paid_credits_remaining: number;
-    }>();
-
-  if (error || !data) {
-    throw new Error("AI entitlement lookup failed");
-  }
-
-  const freeUsesRemaining = data.free_uses_remaining;
-  const paidCreditsRemaining = data.paid_credits_remaining;
-  return {
-    unlimited: false,
-    freeUsesRemaining,
-    paidCreditsRemaining,
-    totalRemaining: freeUsesRemaining + paidCreditsRemaining,
-  };
+  return getEntitlement(userId);
 }
 
 function isConsumeResult(value: unknown): value is { ok: boolean } {

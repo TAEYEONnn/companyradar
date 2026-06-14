@@ -130,10 +130,28 @@ export async function reconcileTossWebhook(data: TossPayment) {
 
 export async function getEntitlement(userId: string): Promise<AiEntitlement> {
   const admin = getSupabaseAdminClient();
+
+  // Determine the correct initial free-use count for this account.
+  // If the same email has already consumed credits under a previous account
+  // (re-registration scenario), start at 0 instead of 5.
+  let initialFreeUses = 5;
+  try {
+    const { data: authData } = await admin.auth.admin.getUserById(userId);
+    const email = authData.user?.email;
+    if (email) {
+      const { data: usedRow } = await admin
+        .from("ai_free_used_emails")
+        .select("email")
+        .eq("email", email)
+        .maybeSingle<{ email: string }>();
+      if (usedRow) initialFreeUses = 0;
+    }
+  } catch { /* non-fatal — default to 5 */ }
+
   await admin.from("ai_credit_accounts").upsert(
     {
       user_id: userId,
-      free_uses_remaining: 1,
+      free_uses_remaining: initialFreeUses,
       paid_credits_remaining: 0,
     },
     { onConflict: "user_id", ignoreDuplicates: true },
