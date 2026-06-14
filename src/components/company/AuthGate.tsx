@@ -165,18 +165,25 @@ export function AuthGate() {
     setLoading(true);
     setError("");
     setMessage("");
+    const redirectTo = `${window.location.origin}/auth/callback`;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(nextEmail, {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo,
     });
     setLoading(false);
 
     if (resetError) {
+      console.error("[AuthGate] resetPasswordForEmail error:", resetError);
       const normalized = resetError.message?.toLowerCase() ?? "";
-      setError(
-        normalized.includes("rate") || normalized.includes("limit")
-          ? "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
-          : "비밀번호 재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.",
-      );
+      const isRateLimit = normalized.includes("rate") || normalized.includes("limit");
+      if (isRateLimit) {
+        setError("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+      } else if (process.env.NODE_ENV === "development") {
+        setError(
+          `비밀번호 재설정 메일을 보내지 못했습니다.\n오류: ${resetError.message}\n\nSupabase 대시보드 → Authentication → Redirect URLs에 "${redirectTo}" 추가 여부를 확인하세요.`,
+        );
+      } else {
+        setError("비밀번호 재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
       return;
     }
     setResetCooldown(60);
@@ -295,7 +302,7 @@ export function AuthGate() {
           </div>
         ) : null}
         {error ? (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700 whitespace-pre-line">
             {error}
           </div>
         ) : null}
