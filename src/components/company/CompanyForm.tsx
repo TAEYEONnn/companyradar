@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, Sparkles } from "lucide-react";
+import { ChevronDown, Save, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,9 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
   const [parseSuccess, setParseSuccess] = useState("");
   const [rawTextMode, setRawTextMode] = useState(false);
   const [rawText, setRawText] = useState("");
+  // Show advanced fields by default when editing an existing company (has data filled in)
+  const isNew = !company.id || company.id === "";
+  const [showAdvanced, setShowAdvanced] = useState(!isNew);
 
   function update<K extends keyof Company>(key: K, value: Company[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -328,6 +331,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
 
       <div className="grid grid-cols-1 gap-5 p-4 lg:grid-cols-[420px_1fr]">
         <div className="space-y-4">
+          {/* ── 필수 정보 ── */}
           <Field label="회사명">
             <Input
               onChange={(event) => update("name", event.target.value)}
@@ -335,22 +339,48 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
               value={draft.name}
             />
           </Field>
+          <Field label="채용공고 URL">
+            <Input
+              onChange={(event) => update("jobPostUrl", event.target.value)}
+              placeholder="https://"
+              value={draft.jobPostUrl}
+            />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="홈페이지 URL">
-              <Input
-                onChange={(event) => update("homepageUrl", event.target.value)}
-                placeholder="https://"
-                value={draft.homepageUrl}
-              />
+            <Field label="지원 상태">
+              <Select
+                onChange={(event) =>
+                  update("status", event.target.value as ApplicationStatus)
+                }
+                value={draft.status}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
-            <Field label="채용공고 URL">
-              <Input
-                onChange={(event) => update("jobPostUrl", event.target.value)}
-                placeholder="https://"
-                value={draft.jobPostUrl}
-              />
+            <Field label="지원 우선순위">
+              <Select
+                onChange={(event) =>
+                  update(
+                    "applicationPriority",
+                    event.target.value as ApplicationPriority,
+                  )
+                }
+                value={draft.applicationPriority}
+              >
+                {PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
           </div>
+
+          {/* AI 자동 채우기 */}
           <div className="space-y-2">
             {rawTextMode ? (
               <Textarea
@@ -395,174 +425,163 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
               <p className="text-xs text-emerald-600">{parseSuccess}</p>
             ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="산업군">
-              <Input
-                onChange={(event) => update("industry", event.target.value)}
-                placeholder="B2B SaaS, Fintech..."
-                value={draft.industry}
+
+          {/* ── 추가 정보 (accordion) ── */}
+          <div className="border-t border-slate-100 pt-2">
+            <button
+              className="flex w-full items-center justify-between py-1.5 text-sm font-medium text-slate-600 hover:text-slate-800"
+              onClick={() => setShowAdvanced((v) => !v)}
+              type="button"
+            >
+              <span>추가 정보</span>
+              <ChevronDown
+                className={`h-4 w-4 text-slate-400 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
               />
-            </Field>
-            <Field label="회사 규모">
-              <Select
-                onChange={(event) =>
-                  update("size", event.target.value as Company["size"])
-                }
-                value={draft.size}
-              >
-                {COMPANY_SIZE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            </button>
+            {showAdvanced ? (
+              <div className="mt-3 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="홈페이지 URL">
+                    <Input
+                      onChange={(event) => update("homepageUrl", event.target.value)}
+                      placeholder="https://"
+                      value={draft.homepageUrl}
+                    />
+                  </Field>
+                  <Field label="산업군">
+                    <Input
+                      onChange={(event) => update("industry", event.target.value)}
+                      placeholder="Fintech, B2B SaaS..."
+                      value={draft.industry}
+                    />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="회사 규모">
+                    <Select
+                      onChange={(event) =>
+                        update("size", event.target.value as Company["size"])
+                      }
+                      value={draft.size}
+                    >
+                      {COMPANY_SIZE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="공고 상태">
+                    <Select
+                      onChange={(event) =>
+                        update("jobStatus", event.target.value as JobStatus)
+                      }
+                      value={draft.jobStatus}
+                    >
+                      {JOB_STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="공고 마감일">
+                    <Input
+                      onChange={(event) => update("jobDeadline", event.target.value)}
+                      type="date"
+                      value={draft.jobDeadline}
+                    />
+                  </Field>
+                  <Field label="최근 확인일">
+                    <Input
+                      onChange={(event) => update("lastCheckedAt", event.target.value)}
+                      type="date"
+                      value={draft.lastCheckedAt}
+                    />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="관심도">
+                    <Input
+                      max={5}
+                      min={1}
+                      onChange={(event) =>
+                        update("interestLevel", Number(event.target.value))
+                      }
+                      type="number"
+                      value={draft.interestLevel}
+                    />
+                  </Field>
+                  <Field label="정보 출처">
+                    <Select
+                      onChange={(event) =>
+                        update("evidenceLevel", Number(event.target.value) as EvidenceLevel)
+                      }
+                      value={draft.evidenceLevel}
+                    >
+                      {EVIDENCE_LEVEL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="발견 이유">
+                    <Select
+                      onChange={(event) =>
+                        update(
+                          "discoveryReason",
+                          event.target.value as Company["discoveryReason"],
+                        )
+                      }
+                      value={draft.discoveryReason}
+                    >
+                      {DISCOVERY_REASON_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <Field label="우선순위 이유">
+                  <Textarea
+                    onChange={(event) => update("priorityReason", event.target.value)}
+                    placeholder="이 회사를 우선적으로 고려하는 이유"
+                    value={draft.priorityReason}
+                  />
+                </Field>
+                <Field label="제품/서비스 설명">
+                  <Textarea
+                    onChange={(event) => update("productDescription", event.target.value)}
+                    value={draft.productDescription}
+                  />
+                </Field>
+                <Field label="투자/성장 정보">
+                  <Textarea
+                    onChange={(event) => update("growthInfo", event.target.value)}
+                    value={draft.growthInfo}
+                  />
+                </Field>
+                <Field label="첫인상 메모">
+                  <Textarea
+                    onChange={(event) => update("firstImpressionNote", event.target.value)}
+                    value={draft.firstImpressionNote}
+                  />
+                </Field>
+                <Field label="메모">
+                  <Textarea
+                    onChange={(event) => update("memo", event.target.value)}
+                    value={draft.memo}
+                  />
+                </Field>
+              </div>
+            ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="관심도">
-              <Input
-                max={5}
-                min={1}
-                onChange={(event) =>
-                  update("interestLevel", Number(event.target.value))
-                }
-                type="number"
-                value={draft.interestLevel}
-              />
-            </Field>
-            <Field label="지원 상태">
-              <Select
-                onChange={(event) =>
-                  update("status", event.target.value as ApplicationStatus)
-                }
-                value={draft.status}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="지원 우선순위">
-              <Select
-                onChange={(event) =>
-                  update(
-                    "applicationPriority",
-                    event.target.value as ApplicationPriority,
-                  )
-                }
-                value={draft.applicationPriority}
-              >
-                {PRIORITY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="정보 믿을만함">
-              <Select
-                onChange={(event) =>
-                  update("evidenceLevel", Number(event.target.value) as EvidenceLevel)
-                }
-                value={draft.evidenceLevel}
-              >
-                {EVIDENCE_LEVEL_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    Lv.{option.value} {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Field label="우선순위 이유">
-            <Textarea
-              onChange={(event) => update("priorityReason", event.target.value)}
-              value={draft.priorityReason}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="발견 이유">
-              <Select
-                onChange={(event) =>
-                  update(
-                    "discoveryReason",
-                    event.target.value as Company["discoveryReason"],
-                  )
-                }
-                value={draft.discoveryReason}
-              >
-                {DISCOVERY_REASON_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="공고 상태">
-              <Select
-                onChange={(event) =>
-                  update("jobStatus", event.target.value as JobStatus)
-                }
-                value={draft.jobStatus}
-              >
-                {JOB_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="공고 마감일">
-              <Input
-                onChange={(event) => update("jobDeadline", event.target.value)}
-                type="date"
-                value={draft.jobDeadline}
-              />
-            </Field>
-            <Field label="최근 확인일">
-              <Input
-                onChange={(event) => update("lastCheckedAt", event.target.value)}
-                type="date"
-                value={draft.lastCheckedAt}
-              />
-            </Field>
-          </div>
-          <Field label="첫인상 메모">
-            <Textarea
-              onChange={(event) => update("firstImpressionNote", event.target.value)}
-              value={draft.firstImpressionNote}
-            />
-          </Field>
-          <Field label="후보 저장 이유">
-            <Textarea
-              onChange={(event) => update("candidateReason", event.target.value)}
-              value={draft.candidateReason}
-            />
-          </Field>
-          <Field label="투자/매출/성장 정보">
-            <Textarea
-              onChange={(event) => update("growthInfo", event.target.value)}
-              value={draft.growthInfo}
-            />
-          </Field>
-          <Field label="제품/서비스 설명">
-            <Textarea
-              onChange={(event) => update("productDescription", event.target.value)}
-              value={draft.productDescription}
-            />
-          </Field>
-          <Field label="메모">
-            <Textarea
-              onChange={(event) => update("memo", event.target.value)}
-              value={draft.memo}
-            />
-          </Field>
         </div>
 
         <div className="space-y-5">

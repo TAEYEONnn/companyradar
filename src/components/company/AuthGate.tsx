@@ -1,8 +1,8 @@
 "use client";
 
-import { KeyRound, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { KeyRound, Mail, ShieldCheck } from "lucide-react";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { getAuthRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
@@ -13,10 +13,34 @@ export function AuthGate() {
   const [password, setPassword] = useState("");
   const [adminOpen, setAdminOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exchanging, setExchanging] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const supabase = getSupabaseClient();
+
+  // Exchange PKCE code from URL after magic link redirect
+  useEffect(() => {
+    if (!supabase) return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (!code) return;
+
+    setExchanging(true);
+    supabase.auth
+      .exchangeCodeForSession(code)
+      .then(({ error: err }) => {
+        if (err) {
+          setError("로그인 링크가 만료됐거나 올바르지 않습니다. 새 링크를 요청해 주세요.");
+        }
+        // On success, onAuthStateChange in CompanyTrackerApp catches the session.
+        // Remove the code from the URL to keep it clean.
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete("code");
+        window.history.replaceState({}, "", clean.toString());
+      })
+      .finally(() => setExchanging(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleAdminLogin() {
     setAdminOpen((open) => !open);
@@ -48,10 +72,10 @@ export function AuthGate() {
     setLoading(false);
 
     if (signInError) {
-      setError(signInError.message);
+      setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
-    setMessage(`${nextEmail}로 로그인 링크를 보냈습니다. 메일에서 링크를 열면 바로 이어서 사용할 수 있어요.`);
+    setMessage(`${nextEmail}로 로그인 링크를 보냈습니다. 메일함을 확인하고 링크를 클릭하면 바로 이어서 사용할 수 있어요.`);
   }
 
   async function signInWithPassword(event: FormEvent<HTMLFormElement>) {
@@ -61,12 +85,8 @@ export function AuthGate() {
       return;
     }
     const nextEmail = adminEmail.trim();
-    if (!nextEmail) {
-      setError("관리자 이메일을 입력해주세요.");
-      return;
-    }
-    if (!password) {
-      setError("비밀번호를 입력해주세요.");
+    if (!nextEmail || !password) {
+      setError("이메일과 비밀번호를 모두 입력해주세요.");
       return;
     }
 
@@ -80,34 +100,36 @@ export function AuthGate() {
     setLoading(false);
 
     if (signInError) {
-      setError(signInError.message);
+      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
       return;
     }
     // 성공 시 onAuthStateChange가 세션을 잡아 앱으로 진입합니다.
   }
 
+  if (exchanging) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="text-center text-sm text-slate-500">
+          <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
+          로그인 중...
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 text-slate-950">
-      <section className="w-full max-w-[460px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="w-full max-w-[420px] rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          Career Company Tracker
+          CompanyRadar
         </div>
-        <h1 className="mt-3 text-2xl font-semibold tracking-normal">
-          지원할 회사를 안전하게 정리하세요
+        <h1 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
+          지원할 회사를 정리하세요
         </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          채용 공고, 회사 조사, 면접 준비 기록을 로그인한 계정별로 저장하는 개인용 지원 관리 도구입니다.
+        <p className="mt-1.5 text-sm leading-5 text-slate-500">
+          채용 공고, 회사 조사, 면접 준비 기록을 로그인한 계정별로 저장합니다.
         </p>
-
-        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
-          <div className="flex gap-2">
-            <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-            <p>
-              비밀번호 없이 이메일 링크로 로그인합니다. 같은 이메일로 접속하면 내 회사 목록과 설정만 불러옵니다.
-            </p>
-          </div>
-        </div>
 
         <form className="mt-5 space-y-3" onSubmit={requestMagicLink}>
           <div className="space-y-1.5">
@@ -127,9 +149,20 @@ export function AuthGate() {
           </Button>
         </form>
 
+        {message ? (
+          <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+            {message}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
         <div className="mt-4 border-t border-slate-100 pt-3">
           <button
-            className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
             onClick={toggleAdminLogin}
             type="button"
           >
@@ -139,7 +172,10 @@ export function AuthGate() {
         </div>
 
         {adminOpen ? (
-          <form className="mt-3 space-y-3 rounded-md border border-slate-200 bg-white p-3" onSubmit={signInWithPassword}>
+          <form
+            className="mt-3 space-y-3 rounded-lg border border-slate-200 p-3"
+            onSubmit={signInWithPassword}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="admin-email">관리자 이메일</Label>
               <Input
@@ -162,21 +198,10 @@ export function AuthGate() {
                 value={password}
               />
             </div>
-            <Button className="w-full" disabled={loading} type="submit">
+            <Button className="w-full" disabled={loading} type="submit" variant="secondary">
               {loading ? "로그인 중..." : "로그인"}
             </Button>
           </form>
-        ) : null}
-
-        {message ? (
-          <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            {message}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
         ) : null}
       </section>
     </main>

@@ -88,7 +88,7 @@ export function CompanyDrawer({
       <aside
         aria-label="회사 상세"
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-full w-full flex-col bg-white shadow-2xl transition-transform duration-200 ease-in-out sm:w-[520px]",
+          "fixed right-0 top-0 z-50 flex h-full w-full flex-col bg-white shadow-2xl transition-transform duration-200 ease-in-out sm:w-[600px] lg:w-[720px] xl:w-[800px]",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >

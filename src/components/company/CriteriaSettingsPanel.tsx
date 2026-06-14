@@ -119,6 +119,30 @@ export function CriteriaSettingsPanel({
       : undefined;
   }
 
+  function openGmailCompose(type: "support" | "refund" | "deletion") {
+    const to = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "";
+    const subjects = {
+      support: "[CompanyRadar] 서비스 문의",
+      refund: "[CompanyRadar] 결제/환불 문의",
+      deletion: "[CompanyRadar] 회원탈퇴 문의",
+    };
+    const bodies = {
+      support: "문의 유형:\n사용 중인 브라우저:\n문제가 발생한 화면:\n문의 내용:\n",
+      refund: "결제일:\n결제 수단:\n환불 사유:\n",
+      deletion: "탈퇴 사유 (선택):\n",
+    };
+    const url =
+      `https://mail.google.com/mail/?view=cm&fs=1` +
+      `&to=${encodeURIComponent(to)}` +
+      `&su=${encodeURIComponent(subjects[type])}` +
+      `&body=${encodeURIComponent(bodies[type])}`;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      // Popup blocked — show the email address so user can copy it
+      onToast(`팝업이 차단됐습니다. 직접 메일을 보내주세요: ${to || "설정된 이메일 없음"}`);
+    }
+  }
+
   async function submitSupportRequest() {
     if (!supportMessage.trim()) {
       onToast("문의 내용을 입력해 주세요.");
@@ -523,18 +547,26 @@ export function CriteriaSettingsPanel({
               value={supportMessage}
             />
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">
-                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL
-                  ? `긴급 문의는 ${process.env.NEXT_PUBLIC_SUPPORT_EMAIL} 으로도 받을 수 있습니다.`
-                  : "접수 후 이메일로 답변 드립니다."}
-              </p>
-              <Button
-                disabled={submitting === "support"}
-                onClick={() => void submitSupportRequest()}
-                variant="secondary"
-              >
-                문의 접수
-              </Button>
+              <p className="text-xs text-slate-500">접수 후 이메일로 답변 드립니다.</p>
+              <div className="flex gap-2">
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? (
+                  <Button
+                    onClick={() => openGmailCompose("support")}
+                    variant="secondary"
+                    type="button"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    Gmail로 문의
+                  </Button>
+                ) : null}
+                <Button
+                  disabled={submitting === "support"}
+                  onClick={() => void submitSupportRequest()}
+                  variant="secondary"
+                >
+                  {submitting === "support" ? "접수 중..." : "문의 접수"}
+                </Button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -576,13 +608,25 @@ export function CriteriaSettingsPanel({
                 rows={3}
                 value={refundReason}
               />
-              <Button
-                disabled={submitting === "refund"}
-                onClick={() => void submitRefundRequest()}
-                variant="secondary"
-              >
-                환불 요청 접수
-              </Button>
+              <div className="flex gap-2">
+                {process.env.NEXT_PUBLIC_SUPPORT_EMAIL ? (
+                  <Button
+                    onClick={() => openGmailCompose("refund")}
+                    variant="secondary"
+                    type="button"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    Gmail로 문의
+                  </Button>
+                ) : null}
+                <Button
+                  disabled={submitting === "refund"}
+                  onClick={() => void submitRefundRequest()}
+                  variant="secondary"
+                >
+                  {submitting === "refund" ? "접수 중..." : "환불 요청 접수"}
+                </Button>
+              </div>
             </div>
           ) : (
             <p className="rounded-md border border-slate-100 bg-slate-50 p-3 text-sm text-slate-500">

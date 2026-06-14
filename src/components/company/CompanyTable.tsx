@@ -110,6 +110,7 @@ export function CompanyTable({
                       {company.name}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {company.isSampleData ? <Badge tone="blue">샘플</Badge> : null}
                       <Badge tone={STATUS_TONE[company.status]}>
                         {STATUS_LABELS[company.status]}
                       </Badge>
@@ -263,7 +264,10 @@ export function CompanyTable({
 
                   {/* 회사 */}
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-950">{company.name}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-slate-950">{company.name}</span>
+                      {company.isSampleData ? <Badge tone="blue">샘플</Badge> : null}
+                    </div>
                     <div className="mt-0.5 text-xs text-slate-500">
                       {company.industry} · {COMPANY_SIZE_LABELS[company.size]}
                     </div>

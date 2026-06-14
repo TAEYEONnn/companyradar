@@ -27,5 +27,5 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 export function getAuthRedirectUrl(): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.location.origin;
+  return `${window.location.origin}/auth/callback`;
 }

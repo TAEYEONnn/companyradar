@@ -192,7 +192,7 @@ const standardScores = {
 const ALL_SAMPLE_COMPANIES: Company[] = [
   company({
     id: "company_toss",
-    name: "토스",
+    name: "[샘플] 디자이너 직군 예시",
     homepageUrl: "https://toss.im/",
     jobPostUrl: "https://toss.im/career/jobs",
     industry: "Fintech / Consumer Finance",
@@ -222,7 +222,7 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
   company({
     id: "company_daangn",
-    name: "당근",
+    name: "[샘플] PM/PO 직군 예시",
     homepageUrl: "https://www.daangn.com/",
     jobPostUrl: "https://www.daangn.com/kr/careers/jobs/",
     industry: "Local Community / Marketplace",
@@ -279,7 +279,7 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
   company({
     id: "company_line_plus",
-    name: "LINE Plus",
+    name: "[샘플] UX 리서처 직군 예시",
     homepageUrl: "https://linecorp.com/",
     jobPostUrl: "https://careers.linecorp.com/ko/jobs",
     industry: "Global Messenger / Platform",
@@ -391,7 +391,7 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
   company({
     id: "company_kakaostyle",
-    name: "카카오스타일",
+    name: "[샘플] 마케터 직군 예시",
     homepageUrl: "https://kakaostyle.com/",
     jobPostUrl: "https://kakaostyle.career.greetinghr.com/",
     industry: "Fashion Commerce",
@@ -447,7 +447,7 @@ const ALL_SAMPLE_COMPANIES: Company[] = [
   }),
   company({
     id: "company_channel_corp",
-    name: "채널코퍼레이션",
+    name: "[샘플] 개발자 직군 예시",
     homepageUrl: "https://channel.io/",
     jobPostUrl: "https://channel.io/ko/careers",
     industry: "B2B SaaS / Customer Support",
