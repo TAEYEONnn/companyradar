@@ -193,16 +193,19 @@ export function Toolbar({
           </button>
         )}
 
-        {onAddSamples ? (
-          <Button onClick={onAddSamples} size="sm" variant="ghost">
-            예시 추가
-          </Button>
-        ) : null}
-        {hasSampleCompanies && onDeleteSamples ? (
-          <Button onClick={onDeleteSamples} size="sm" variant="ghost">
-            샘플 삭제
-          </Button>
-        ) : null}
+        {hasSampleCompanies ? (
+          onDeleteSamples ? (
+            <Button onClick={onDeleteSamples} size="sm" variant="ghost">
+              예시 삭제
+            </Button>
+          ) : null
+        ) : (
+          onAddSamples ? (
+            <Button onClick={onAddSamples} size="sm" variant="ghost">
+              예시 추가
+            </Button>
+          ) : null
+        )}
       </div>
 
       {showAdvanced && onAdvancedFilterChange && (

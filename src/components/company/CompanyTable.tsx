@@ -230,13 +230,10 @@ export function CompanyTable({
         </div>
         {companies.length === 0 && !onResetFilter && (
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">첫 회사를 추가하고 지원 기준을 만들어보세요</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">회사 정보를 직접 입력하면 점수와 면접 준비 흐름이 이어집니다.</p>
-            </div>
+            <p className="text-sm font-semibold text-slate-900">아직 저장한 공고가 없어요.</p>
             {onAddCompany && (
               <Button onClick={onAddCompany} size="sm">
-                회사 직접 추가
+                AI로 공고 정리하기
               </Button>
             )}
           </div>
@@ -381,13 +378,10 @@ export function CompanyTable({
         </table>
         {companies.length === 0 && !onResetFilter && (
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">첫 회사를 추가하고 지원 기준을 만들어보세요</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">회사 정보를 직접 입력하면 점수와 면접 준비 흐름이 이어집니다.</p>
-            </div>
+            <p className="text-sm font-semibold text-slate-900">아직 저장한 공고가 없어요.</p>
             {onAddCompany && (
               <Button onClick={onAddCompany} size="sm">
-                회사 직접 추가
+                AI로 공고 정리하기
               </Button>
             )}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, CloudOff, Loader2, Menu, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, CloudOff, Loader2, Menu, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -298,16 +298,12 @@ export function CompanyTrackerApp() {
         return;
       }
 
-      const ownedSeed = normalizeSamplesForRole([], preferredRole);
-      setCompanies(ownedSeed);
-      setSelectedId(ownedSeed[0]?.id ?? "");
+      setCompanies([]);
+      setSelectedId("");
       setStorageWriteEnabled(true);
       setIsReady(true);
       if (shouldShowOnboarding(loadedSettings)) {
         setShowOnboarding(true);
-      }
-      if (isRemoteSyncEnabled() && userId) {
-        void pushRemoteCompanies(ownedSeed, userId);
       }
     });
   }, [devToolsEnabled, userEmail, userId, effectiveUserId]);
@@ -1027,9 +1023,9 @@ export function CompanyTrackerApp() {
             />
           ) : null}
           <div className="flex-1" />
-          <Button onClick={startCreate}>
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">회사 추가</span>
+          <Button onClick={() => setViewMode("inbox")}>
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">AI로 공고 정리하기</span>
           </Button>
         </header>
 
@@ -1142,7 +1138,8 @@ export function CompanyTrackerApp() {
                     onAddCompany={startCreate}
                     onOpenInbox={() => setViewMode("inbox")}
                   />
-                ) : null}
+                ) : (
+                  <>
                 {hasOnlySampleCompanies ? (
                   <div className="border-b border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-800">
                     현재 직군 예시 회사 3개만 표시 중입니다. 새 회사를 추가하면 로그인 계정 기준으로 자동 저장됩니다.
@@ -1215,7 +1212,7 @@ export function CompanyTrackerApp() {
                 ) : (
                   <CompanyTable
                     companies={filteredCompanies}
-                    onAddCompany={startCreate}
+                    onAddCompany={() => setViewMode("inbox")}
                     onEdit={startEdit}
                     onResetFilter={
                       query || statusFilter !== "all" || advancedFilter !== EMPTY_ADVANCED_FILTER
@@ -1240,6 +1237,8 @@ export function CompanyTrackerApp() {
                     selectedId={selectedCompany?.id ?? ""}
                     onStatusChange={(id, status) => patchCompany(id, { status })}
                   />
+                )}
+                  </>
                 )}
               </div>
             )}
