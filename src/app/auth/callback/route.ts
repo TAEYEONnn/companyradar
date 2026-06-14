@@ -11,11 +11,13 @@ export async function GET(request: Request) {
   const error = searchParams.get("error");
 
   if (code) {
+    if (!type || type === "recovery") {
+      const resetUrl = new URL("/auth/reset-password", origin);
+      resetUrl.searchParams.set("code", code);
+      return NextResponse.redirect(resetUrl.toString());
+    }
     const confirmUrl = new URL("/auth/confirm", origin);
     confirmUrl.searchParams.set("code", code);
-    if (type === "recovery") {
-      confirmUrl.searchParams.set("next", "/auth/reset-password");
-    }
     return NextResponse.redirect(confirmUrl.toString());
   }
 

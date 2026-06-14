@@ -19,18 +19,18 @@ export async function GET(request: Request) {
   const [supportRes, refundRes, deletionRes] = await Promise.all([
     admin
       .from("support_requests")
-      .select("id,email,request_type,subject,message,status,created_at")
+      .select("id,email,request_type,subject,message,status,created_at,archived_at,reply_body,replied_at")
       .order("created_at", { ascending: false })
       .limit(200),
     admin
       .from("refund_requests")
-      .select("id,email,order_id,payment_key,reason,status,created_at")
+      .select("id,email,order_id,payment_key,reason,status,created_at,archived_at,reply_body,replied_at")
       .order("created_at", { ascending: false })
       .limit(200),
     admin
       .from("account_deletion_requests")
-      .select("id,email,reason,status,operator_note,created_at")
-      .order("created_at", { ascending: false })
+      .select("id,email,reason,status,operator_note,created_at:requested_at,archived_at,reply_body,replied_at")
+      .order("requested_at", { ascending: false })
       .limit(200),
   ]);
 

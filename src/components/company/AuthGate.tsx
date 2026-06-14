@@ -44,9 +44,9 @@ export function AuthGate() {
     const code = current.searchParams.get("code");
     if (!code) return;
 
-    const confirmUrl = new URL("/auth/confirm", window.location.origin);
-    confirmUrl.searchParams.set("code", code);
-    window.location.replace(confirmUrl.toString());
+    const resetUrl = new URL("/auth/reset-password", window.location.origin);
+    resetUrl.searchParams.set("code", code);
+    window.location.replace(resetUrl.toString());
   }, [recoveringCode]);
 
   useEffect(() => {
@@ -131,6 +131,9 @@ export function AuthGate() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: nextEmail,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
+      },
     });
     setLoading(false);
 

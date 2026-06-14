@@ -77,6 +77,9 @@ type SupportRequest = {
   message: string;
   status: string;
   created_at: string;
+  archived_at?: string | null;
+  reply_body?: string;
+  replied_at?: string | null;
 };
 
 type RefundRequest = {
@@ -87,6 +90,9 @@ type RefundRequest = {
   reason: string;
   status: string;
   created_at: string;
+  archived_at?: string | null;
+  reply_body?: string;
+  replied_at?: string | null;
 };
 
 type DeletionRequest = {
@@ -96,6 +102,9 @@ type DeletionRequest = {
   status: string;
   operator_note: string;
   created_at: string;
+  archived_at?: string | null;
+  reply_body?: string;
+  replied_at?: string | null;
 };
 
 type Tab = "support" | "refund" | "deletion";
@@ -219,8 +228,8 @@ function getStatusToast(status: string) {
 async function updateStatus(
   table: string,
   id: string,
-  status: string,
   accessToken: string,
+  patch: { status?: string; archived?: boolean; replyBody?: string; markReplied?: boolean },
 ): Promise<boolean> {
   const res = await fetch("/api/admin/update-request-status", {
     method: "POST",
@@ -228,7 +237,7 @@ async function updateStatus(
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ table, id, status }),
+    body: JSON.stringify({ table, id, ...patch }),
   });
   return res.ok;
 }
@@ -256,13 +265,14 @@ export function AdminDashboard({
   initialDeletions,
 }: AdminDashboardProps) {
   const [tab, setTab] = useState<Tab>("support");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done">("pending");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done" | "archived">("pending");
   const [support, setSupport] = useState(initialSupport);
   const [refunds, setRefunds] = useState(initialRefunds);
   const [deletions, setDeletions] = useState(initialDeletions);
   const [updating, setUpdating] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
@@ -277,11 +287,22 @@ export function AdminDashboard({
     setPreviewId((prev) => (prev === id ? null : id));
   }
 
+  function getReplyDraft<T extends { id: string; reply_body?: string }>(
+    req: T,
+    fallback: string,
+  ) {
+    return replyDrafts[req.id] ?? req.reply_body ?? fallback;
+  }
+
+  function changeReplyDraft(id: string, value: string) {
+    setReplyDrafts((prev) => ({ ...prev, [id]: value }));
+  }
+
   async function handleSupportStatus(id: string, status: string) {
     setUpdating(id);
     const token = await getAccessToken();
     if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
-    const ok = await updateStatus("support_requests", id, status, token);
+    const ok = await updateStatus("support_requests", id, token, { status });
     if (ok) {
       setSupport((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
       showToast(getStatusToast(status));
@@ -295,7 +316,7 @@ export function AdminDashboard({
     setUpdating(id);
     const token = await getAccessToken();
     if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
-    const ok = await updateStatus("refund_requests", id, status, token);
+    const ok = await updateStatus("refund_requests", id, token, { status });
     if (ok) {
       setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
       showToast(getStatusToast(status));
@@ -309,7 +330,7 @@ export function AdminDashboard({
     setUpdating(id);
     const token = await getAccessToken();
     if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
-    const ok = await updateStatus("account_deletion_requests", id, status, token);
+    const ok = await updateStatus("account_deletion_requests", id, token, { status });
     if (ok) {
       setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
       showToast(getStatusToast(status));
@@ -320,14 +341,46 @@ export function AdminDashboard({
   }
 
   function filterByStatus<T extends { status: string }>(items: T[]) {
-    if (statusFilter === "pending") return items.filter((r) => ["open", "requested", "in_review"].includes(r.status));
-    if (statusFilter === "done") return items.filter((r) => ["resolved", "closed", "approved", "rejected", "canceled", "completed"].includes(r.status));
-    return items;
+    const rows = items as (T & { archived_at?: string | null })[];
+    if (statusFilter === "archived") return rows.filter((r) => r.archived_at);
+    const visible = rows.filter((r) => !r.archived_at);
+    if (statusFilter === "pending") return visible.filter((r) => ["open", "requested", "in_review"].includes(r.status));
+    if (statusFilter === "done") return visible.filter((r) => ["resolved", "closed", "approved", "rejected", "canceled", "completed"].includes(r.status));
+    return visible;
   }
 
-  const pendingSupportCount = support.filter((r) => ["open", "in_review"].includes(r.status)).length;
-  const pendingRefundCount = refunds.filter((r) => ["requested", "in_review"].includes(r.status)).length;
-  const pendingDeletionCount = deletions.filter((r) => ["requested", "in_review"].includes(r.status)).length;
+  async function handleArchive(table: string, id: string, archived: boolean) {
+    setUpdating(id);
+    const token = await getAccessToken();
+    if (!token) { setUpdating(null); showToast("로그인이 필요합니다."); return; }
+    const ok = await updateStatus(table, id, token, { archived });
+    const archived_at = archived ? new Date().toISOString() : null;
+    if (ok) {
+      if (table === "support_requests") setSupport((prev) => prev.map((r) => r.id === id ? { ...r, archived_at } : r));
+      if (table === "refund_requests") setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, archived_at } : r));
+      if (table === "account_deletion_requests") setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, archived_at } : r));
+      showToast(archived ? "아카이브로 보냈습니다." : "아카이브에서 복원했습니다.");
+    } else {
+      showToast("아카이브 처리에 실패했습니다.");
+    }
+    setUpdating(null);
+  }
+
+  async function handleReplyOpen(table: string, id: string, replyBody: string) {
+    const token = await getAccessToken();
+    if (!token) { showToast("로그인이 필요합니다."); return; }
+    const ok = await updateStatus(table, id, token, { replyBody, markReplied: true });
+    if (ok) {
+      const replied_at = new Date().toISOString();
+      if (table === "support_requests") setSupport((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+      if (table === "refund_requests") setRefunds((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+      if (table === "account_deletion_requests") setDeletions((prev) => prev.map((r) => r.id === id ? { ...r, reply_body: replyBody, replied_at } : r));
+    }
+  }
+
+  const pendingSupportCount = support.filter((r) => !r.archived_at && ["open", "in_review"].includes(r.status)).length;
+  const pendingRefundCount = refunds.filter((r) => !r.archived_at && ["requested", "in_review"].includes(r.status)).length;
+  const pendingDeletionCount = deletions.filter((r) => !r.archived_at && ["requested", "in_review"].includes(r.status)).length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -399,7 +452,7 @@ export function AdminDashboard({
 
         {/* 상태 필터 */}
         <div className="mb-4 flex gap-2">
-          {([["all", "전체"], ["pending", "미처리"], ["done", "완료"]] as const).map(([val, label]) => (
+          {([["all", "전체"], ["pending", "미처리"], ["done", "완료"], ["archived", "아카이브"]] as const).map(([val, label]) => (
             <button
               className={[
                 "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
@@ -425,7 +478,8 @@ export function AdminDashboard({
               </div>
             )}
             {filterByStatus(support).map((req) => {
-              const replyBody = getSupportReplyBody(req);
+              const templateBody = getSupportReplyBody(req);
+              const replyBody = getReplyDraft(req, templateBody);
               const gmailLink = buildGmailLink(req.email, `Re: [CompanyRadar] ${req.subject}`, replyBody);
               const isPreviewOpen = previewId === req.id;
               return (
@@ -446,6 +500,7 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
+                        onClick={() => void handleReplyOpen("support_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
@@ -476,6 +531,9 @@ export function AdminDashboard({
                           되돌리기
                         </Button>
                       )}
+                      <Button disabled={updating === req.id} onClick={() => void handleArchive("support_requests", req.id, !req.archived_at)} size="sm" variant="ghost">
+                        {req.archived_at ? "복원" : "아카이브"}
+                      </Button>
                     </div>
                   </div>
                   <p className="mt-3 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
@@ -483,8 +541,12 @@ export function AdminDashboard({
                   </p>
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">답장 템플릿 미리보기</p>
-                      <pre className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{replyBody}</pre>
+                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <textarea
+                        className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
+                        onChange={(event) => changeReplyDraft(req.id, event.target.value)}
+                        value={replyBody}
+                      />
                     </div>
                   )}
                 </div>
@@ -502,7 +564,8 @@ export function AdminDashboard({
               </div>
             )}
             {filterByStatus(refunds).map((req) => {
-              const replyBody = getRefundReplyBody(req);
+              const templateBody = getRefundReplyBody(req);
+              const replyBody = getReplyDraft(req, templateBody);
               const gmailLink = buildGmailLink(req.email, `Re: [CompanyRadar] 환불 처리 안내`, replyBody);
               const isPreviewOpen = previewId === req.id;
               return (
@@ -522,6 +585,7 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
+                        onClick={() => void handleReplyOpen("refund_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
@@ -551,6 +615,9 @@ export function AdminDashboard({
                           되돌리기
                         </Button>
                       )}
+                      <Button disabled={updating === req.id} onClick={() => void handleArchive("refund_requests", req.id, !req.archived_at)} size="sm" variant="ghost">
+                        {req.archived_at ? "복원" : "아카이브"}
+                      </Button>
                     </div>
                   </div>
                   <p className="mt-3 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
@@ -558,8 +625,12 @@ export function AdminDashboard({
                   </p>
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">답장 템플릿 미리보기</p>
-                      <pre className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{replyBody}</pre>
+                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <textarea
+                        className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
+                        onChange={(event) => changeReplyDraft(req.id, event.target.value)}
+                        value={replyBody}
+                      />
                     </div>
                   )}
                 </div>
@@ -577,7 +648,8 @@ export function AdminDashboard({
               </div>
             )}
             {filterByStatus(deletions).map((req) => {
-              const replyBody = getDeletionReplyBody(req);
+              const templateBody = getDeletionReplyBody(req);
+              const replyBody = getReplyDraft(req, templateBody);
               const gmailLink = buildGmailLink(req.email, `Re: [CompanyRadar] 회원탈퇴 요청 접수 확인`, replyBody);
               const isPreviewOpen = previewId === req.id;
               return (
@@ -596,6 +668,7 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
+                        onClick={() => void handleReplyOpen("account_deletion_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
@@ -625,6 +698,9 @@ export function AdminDashboard({
                           되돌리기
                         </Button>
                       )}
+                      <Button disabled={updating === req.id} onClick={() => void handleArchive("account_deletion_requests", req.id, !req.archived_at)} size="sm" variant="ghost">
+                        {req.archived_at ? "복원" : "아카이브"}
+                      </Button>
                     </div>
                   </div>
                   {req.reason && (
@@ -634,8 +710,12 @@ export function AdminDashboard({
                   )}
                   {isPreviewOpen && (
                     <div className="mt-2 rounded-md border border-sky-100 bg-sky-50 p-3">
-                      <p className="mb-1.5 text-xs font-medium text-sky-700">답장 템플릿 미리보기</p>
-                      <pre className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{replyBody}</pre>
+                      <p className="mb-1.5 text-xs font-medium text-sky-700">사용자에게 보낼 답장 내용</p>
+                      <textarea
+                        className="min-h-48 w-full rounded-md border border-sky-100 bg-white p-2 text-xs leading-relaxed text-slate-700 outline-none focus:ring-2 focus:ring-sky-200"
+                        onChange={(event) => changeReplyDraft(req.id, event.target.value)}
+                        value={replyBody}
+                      />
                     </div>
                   )}
                 </div>

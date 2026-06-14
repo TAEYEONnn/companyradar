@@ -377,7 +377,7 @@ export function CompanyDetailPanel({
   }
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <aside className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="shrink-0 border-b border-slate-200 px-3 pt-3 transition-[padding-bottom] duration-200" style={{ paddingBottom: headerCompact ? "8px" : "12px" }}>
         {/* 항상 보임: 내비 + 회사명 + 상태 + 액션 */}
         <div className="flex items-center justify-between gap-2">
@@ -517,7 +517,7 @@ export function CompanyDetailPanel({
       </nav>
 
       <div
-        className="min-h-0 flex-1 space-y-7 overflow-y-auto px-4 pb-8 pt-5"
+        className="min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-4 pb-32 pt-5"
         onScroll={(e) => {
           const y = e.currentTarget.scrollTop;
           if (y > 60 && !headerCompact) setHeaderCompact(true);

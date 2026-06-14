@@ -22,7 +22,15 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { table?: string; id?: string; status?: string; operatorNote?: string };
+  let body: {
+    table?: string;
+    id?: string;
+    status?: string;
+    operatorNote?: string;
+    archived?: boolean;
+    replyBody?: string;
+    markReplied?: boolean;
+  };
   try {
     body = await request.json();
   } catch {
@@ -41,9 +49,16 @@ export async function POST(request: Request) {
   }
 
   const allowedStatuses = ALLOWED_STATUSES[table];
-  if (!body.status || !allowedStatuses.includes(body.status)) {
+  if (body.status && !allowedStatuses.includes(body.status)) {
     return NextResponse.json(
       { error: { code: "invalid_status", message: "유효하지 않은 상태값입니다." } },
+      { status: 400 },
+    );
+  }
+
+  if (!body.status && body.archived === undefined && body.replyBody === undefined && !body.markReplied) {
+    return NextResponse.json(
+      { error: { code: "empty_patch", message: "변경할 내용이 없습니다." } },
       { status: 400 },
     );
   }
@@ -65,7 +80,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const patch: Record<string, unknown> = { status: body.status };
+  const patch: Record<string, unknown> = {};
+  if (body.status) patch.status = body.status;
+  if (body.archived !== undefined) patch.archived_at = body.archived ? new Date().toISOString() : null;
+  if (body.replyBody !== undefined) patch.reply_body = body.replyBody;
+  if (body.markReplied) patch.replied_at = new Date().toISOString();
   if (table === "account_deletion_requests" && body.operatorNote !== undefined) {
     patch.operator_note = body.operatorNote;
   }
