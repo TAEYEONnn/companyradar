@@ -550,46 +550,24 @@ export function CompanyDetailPanel({
           <InfoRow label="규모" value={COMPANY_SIZE_LABELS[company.size]} />
           <InfoRow
             label="우선순위"
-            value={`${PRIORITY_LABELS[company.applicationPriority]} · ${company.priorityReason}`}
+            value={[PRIORITY_LABELS[company.applicationPriority], company.priorityReason].filter(Boolean).join(" · ")}
           />
           <InfoRow
-            label="관심 갖게 된 계기"
-            value={`${DISCOVERY_REASON_LABELS[company.discoveryReason]} · ${company.firstImpressionNote || "첫인상 메모 없음"}`}
+            label="관심 계기"
+            value={[DISCOVERY_REASON_LABELS[company.discoveryReason], company.firstImpressionNote].filter(Boolean).join(" · ")}
           />
           <InfoRow
             label="공고 상태"
-            value={`${JOB_STATUS_LABELS[company.jobStatus]} · ${company.jobDeadline || "마감 미확인"}`}
+            value={[JOB_STATUS_LABELS[company.jobStatus], company.jobDeadline].filter(Boolean).join(" · ")}
           />
           <InfoRow
             label="정보 출처"
-            value={`${EVIDENCE_LEVEL_LABELS[company.evidenceLevel]} · ${company.needsRefresh ? "오래됐어요" : "최근에 확인했어요"}`}
+            value={EVIDENCE_LEVEL_LABELS[company.evidenceLevel]}
           />
           <InfoRow label="제품" value={company.productDescription} />
           <InfoRow label="성장 정보" value={company.growthInfo} />
-          <InfoRow label="관심 이유" value={company.candidateReason || "없음"} />
-          <InfoRow label="메모" value={company.memo || "없음"} />
-          <div className="flex gap-2 pt-1">
-            {company.homepageUrl ? (
-              <a
-                className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline"
-                href={company.homepageUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                홈페이지 <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : null}
-            {company.jobPostUrl ? (
-              <a
-                className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline"
-                href={company.jobPostUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                채용공고 <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : null}
-          </div>
+          <InfoRow label="관심 이유" value={company.candidateReason} />
+          <InfoRow label="메모" value={company.memo} />
         </section>
 
         <StatusHistorySection statusHistory={company.statusHistory ?? []} />

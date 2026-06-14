@@ -93,6 +93,7 @@ export function Metric({
 }
 
 export function InfoRow({ label, value }: { label: string; value: string }) {
+  if (!value || value === "없음") return null;
   return (
     <div className="grid grid-cols-[96px_1fr] items-start gap-4 text-sm leading-7">
       <span className="text-slate-500">{label}</span>
