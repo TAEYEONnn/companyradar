@@ -44,7 +44,7 @@ export function ScoreSlider({
       </span>
       <select
         aria-label={`${label} 근거 수준`}
-        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+        className="h-8 w-full truncate rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
         onChange={(event) =>
           onEvidenceChange(Number(event.target.value) as EvidenceLevel)
         }

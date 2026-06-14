@@ -69,7 +69,7 @@ import {
   importAndSaveEncryptionKey,
 } from "@/lib/crypto";
 import { getSupabaseClient } from "@/lib/supabase-client";
-import { createId, today } from "@/lib/utils";
+import { addDays, cn, createId, parseLocalDate, today } from "@/lib/utils";
 import { InfoRow, Metric, STATUS_TONE, type DrawerDetailTab, type DrawerFocusTarget } from "./shared";
 
 interface CompanyDetailPanelProps {
@@ -422,7 +422,6 @@ export function CompanyDetailPanel({
                 리스크 높음
               </Badge>
             ) : null}
-            {score.needsValidation ? <Badge tone="amber">확인 필요</Badge> : null}
             {company.isSampleData ? <Badge tone="blue">Sample</Badge> : null}
           </div>
         </div>
@@ -1070,27 +1069,58 @@ export function CompanyDetailPanel({
             <Flag className="h-4 w-4" />
             다음 할일
           </h3>
-          <div className="grid grid-cols-[1fr_128px_64px] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <Input
-              aria-label="할일"
-              id="follow-up-task-title"
-              onChange={(event) =>
-                setTaskDraft((draft) => ({ ...draft, title: event.target.value }))
-              }
-              placeholder="예: 채용담당자에게 팔로업 메일"
-              value={taskDraft.title}
-            />
-            <Input
-              aria-label="기한"
-              onChange={(event) =>
-                setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
-              }
-              type="date"
-              value={taskDraft.dueDate}
-            />
-            <Button onClick={addFollowUpTask} size="sm">
-              추가
-            </Button>
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="grid grid-cols-[1fr_128px_64px] items-center gap-2">
+              <Input
+                aria-label="할일"
+                id="follow-up-task-title"
+                onChange={(event) =>
+                  setTaskDraft((draft) => ({ ...draft, title: event.target.value }))
+                }
+                placeholder="예: 채용담당자에게 팔로업 메일"
+                value={taskDraft.title}
+              />
+              <Input
+                aria-label="기한"
+                onChange={(event) =>
+                  setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
+                }
+                type="date"
+                value={taskDraft.dueDate}
+              />
+              <Button onClick={addFollowUpTask} size="sm">
+                추가
+              </Button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-400">빠른 기한:</span>
+              {[
+                { label: "오늘", days: 0 },
+                { label: "3일", days: 3 },
+                { label: "이번 주", days: 7 },
+                { label: "2주", days: 14 },
+              ].map(({ label, days }) => {
+                const dateStr = days === 0 ? today() : (() => {
+                  const d = addDays(parseLocalDate(today()), days);
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                })();
+                return (
+                  <button
+                    className={cn(
+                      "rounded border px-2 py-0.5 text-xs transition-colors",
+                      taskDraft.dueDate === dateStr
+                        ? "border-slate-700 bg-slate-700 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-400",
+                    )}
+                    key={label}
+                    onClick={() => setTaskDraft((d) => ({ ...d, dueDate: dateStr }))}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {company.followUpTasks.filter((t) => !t.completed).map((task) => (
             <div

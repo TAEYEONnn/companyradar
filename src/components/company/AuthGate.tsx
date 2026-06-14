@@ -68,14 +68,17 @@ export function AuthGate() {
     if (signInError) {
       console.error("[AuthGate] signInWithOtp error:", signInError);
       const msg = signInError.message?.toLowerCase() ?? "";
-      if (msg.includes("rate") || msg.includes("limit") || signInError.status === 429) {
+      const isRateLimit = msg.includes("rate") || msg.includes("limit") || signInError.status === 429;
+      if (isRateLimit) {
         setError("이미 최근에 링크를 발송했습니다. 메일함을 확인하거나 60초 후 다시 시도해주세요.");
       } else {
         setError("링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
       if (process.env.NODE_ENV === "development") {
         setDevError(
-          `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n→ Supabase 대시보드 › Authentication › URL Configuration › Redirect URLs 에 이 URL이 등록되어 있는지 확인하세요.`,
+          isRateLimit
+            ? `[dev] ${signInError.message ?? String(signInError)}`
+            : `[dev] ${signInError.message ?? String(signInError)}\n\nRedirect URL: ${redirectUrl ?? "(없음)"}\n→ Supabase 대시보드 › Authentication › URL Configuration › Redirect URLs 에 이 URL이 등록되어 있는지 확인하세요.`,
         );
       }
       return;
