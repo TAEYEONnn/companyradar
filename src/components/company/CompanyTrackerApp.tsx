@@ -229,7 +229,6 @@ export function CompanyTrackerApp() {
           setRemotePushEnabled(false);
           setStorageWriteEnabled(true);
           setIsReady(true);
-          showToast("Supabase 데이터를 불러오지 못해 이 기기 저장소에 임시 저장합니다.");
           return;
         }
         remoteCompanies = remote ?? [];
@@ -255,11 +254,11 @@ export function CompanyTrackerApp() {
       }
 
       if (remoteCompanies.length > 0) {
-        const merged = mergeByUpdatedAt(loadedCompanies, remoteCompanies);
-        const localHasUserCompanies = hasUserCompanies(loadedCompanies);
-        const remoteHasUserCompanies = hasUserCompanies(remoteCompanies);
+        // Strip sample data from remote — samples are managed locally and explicitly
+        const userRemoteCompanies = remoteCompanies.filter((c) => !c.isSampleData);
+        const merged = mergeByUpdatedAt(loadedCompanies, userRemoteCompanies);
         const mergedDiffersFromRemote =
-          companySyncSignature(merged) !== companySyncSignature(remoteCompanies);
+          companySyncSignature(merged) !== companySyncSignature(userRemoteCompanies);
 
         setCompanies(merged);
         setSelectedId(merged[0]?.id ?? "");
@@ -270,11 +269,9 @@ export function CompanyTrackerApp() {
           void pushRemoteCompanies(merged, userId);
         }
 
-        showToast(
-          localHasUserCompanies && (mergedDiffersFromRemote || !remoteHasUserCompanies)
-            ? "기기 데이터와 Supabase 데이터를 병합했습니다."
-            : "Supabase에서 데이터를 동기화했습니다.",
-        );
+        if (hasUserCompanies(userRemoteCompanies)) {
+          showToast("저장한 공고가 동기화됐어요.");
+        }
         return;
       }
 
