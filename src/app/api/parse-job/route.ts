@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       const pageResponse = await fetch(url, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (compatible; CareerTrackerBot/1.0; personal job tracker)",
+            "Mozilla/5.0 (compatible; CompanyRadarBot/1.0; personal job tracker)",
           Accept: "text/html,application/xhtml+xml",
         },
         signal: AbortSignal.timeout(10_000),

@@ -150,7 +150,7 @@ export function AppSidebar({
         type="button"
       >
         <Building2 className="h-4 w-4 text-slate-500" />
-        <span className="text-sm font-semibold text-slate-900">CareerTrack</span>
+        <span className="text-sm font-semibold text-slate-900">CompanyRadar</span>
       </button>
 
       {/* Nav */}

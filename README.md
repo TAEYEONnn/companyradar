@@ -12,13 +12,16 @@
 - AI 공고 파싱, 회사 조사, 비교 분석, 주간 전략, 면접 질문, 메일 초안, 회사 요약
 - AI 유료 베타: 계정당 첫 성공 1회 무료, 이후 10회권 4,900원
 
-## 이번 빌드 변경사항 (UX Fix Sprint)
+## 이번 빌드 변경사항 (Radar Sprint)
 
-- 후보 검토(Candidate Inbox) → 회사 목록 승격 데이터 매핑 수정: `homepageUrl`이 구인공고 URL로 덮어쓰이던 버그 수정. `jobPostUrl`에만 sourceUrl 사용. 초기 `validationReason`에서 기술적 레이블 제거.
-- 승격 안내 문구 개선: `"Candidate Inbox에서 승격한 후보입니다."` → `"검토 후 관심 회사로 추가했습니다."`.
-- 확인 뱃지 단순화: 회사 목록에서 최대 1개 뱃지만 표시 (`확인 필요` / `마감 확인 필요`). 기술적 레이블("AI 추출 데이터", "근거 레벨 2 이하") 제거.
-- Drawer 상세 뱃지 친화적 표현: `VALIDATION_DISPLAY_LABELS`로 자연어 표시.
-- 샘플 데이터 교체: 실제 회사 대신 가상 회사 3개(무드테크·그로스랩·스택하우스). 디자이너/PM/개발자 직군 각 1개. 첫 로그인 시 3개 모두 표시.
+- 서비스명 전면 교체: `CareerTrack` / `Career Company Tracker` → `CompanyRadar`. AppSidebar, manifest, User-Agent 모두 반영.
+- Drawer 요약카드 행 간격 축소: 두 metric 그리드 섹션을 `space-y-2` 래퍼로 묶어 행 간격을 좁힘.
+- 리스크 체크리스트 Drawer 인라인 편집: 회사 조사 탭에서 `RISK_CHECKLIST` 항목을 직접 체크/해제 가능. 체크된 항목은 빨간 배경으로 구분.
+- 리스크 체크리스트 이름 통일: CompanyForm의 "걱정되는 점 체크리스트" → "리스크 체크리스트".
+- Candidate Inbox 회사명/직무명 직접 입력 필드 추가: URL 없이도 회사명·직무명으로 후보 저장 가능. 승격 시 직접 입력 값 우선 사용.
+- Candidate Inbox AI 분석 버튼: 카드마다 "AI 분석" 버튼 추가. `/api/parse-job` 호출 후 `parsedCompany` 저장, 파싱 상태 표시.
+- 기존 validationReason 레이블 마이그레이션: `normalizeCompany`에서 "AI 추출 데이터", "근거 레벨 2 이하" 등 기술적 레이블 자동 제거.
+- DB 스키마: `candidate_inbox_items` 테이블에 `company_name`, `job_title` 컬럼 추가 (migration v039).
 
 ## 이전 빌드 변경사항
 
@@ -89,6 +92,7 @@ supabase/migrations/20260613_v034_profiles_ai_requests.sql
 supabase/migrations/20260613_v035_ai_billing_credits.sql
 supabase/migrations/20260613_v036_support_account_requests.sql
 supabase/migrations/20260614_v038_profiles_trigger.sql
+supabase/migrations/20260614_v039_candidate_inbox_name_fields.sql
 ```
 
 `v038` 적용 후 운영자 계정을 `owner`로 설정:

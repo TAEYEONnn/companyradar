@@ -40,6 +40,7 @@ import {
   INTERVIEW_ROUND_TYPE_OPTIONS,
   JOB_STATUS_LABELS,
   PRIORITY_LABELS,
+  RISK_CHECKLIST,
   ROLE_FIT_CHECKLIST_TITLE,
   ROLE_FIT_LABELS,
   getRoleScoreCategories,
@@ -512,21 +513,23 @@ export function CompanyDetailPanel({
       >
         {activeTab === "summary" ? (
           <>
-        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" data-drawer-section="summary">
-          <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
-          <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
-          <Metric compact label="정보 깊이" value={`${Math.round(score.averageEvidenceLevel)} / 5`} />
-        </section>
-        <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-          <Metric
-            compact
-            label="리스크"
-            tone={score.highRisk ? "red" : "slate"}
-            value={`${score.riskCount}개`}
-          />
-          <Metric compact label="공고 상태" value={JOB_STATUS_LABELS[company.jobStatus]} />
-          <Metric compact label="관심도" value={`${company.interestLevel}/5`} />
-        </section>
+        <div className="space-y-2" data-drawer-section="summary">
+          <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            <Metric compact label="회사핏" value={formatScore(score.companyFitScore)} />
+            <Metric compact label="우선순위" value={PRIORITY_LABELS[company.applicationPriority]} />
+            <Metric compact label="정보 깊이" value={`${Math.round(score.averageEvidenceLevel)} / 5`} />
+          </section>
+          <section className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            <Metric
+              compact
+              label="리스크"
+              tone={score.highRisk ? "red" : "slate"}
+              value={`${score.riskCount}개`}
+            />
+            <Metric compact label="공고 상태" value={JOB_STATUS_LABELS[company.jobStatus]} />
+            <Metric compact label="관심도" value={`${company.interestLevel}/5`} />
+          </section>
+        </div>
 
         <NextActionBanner company={company} />
 
@@ -668,20 +671,37 @@ export function CompanyDetailPanel({
 
         {activeTab === "research" ? (
           <>
-        <section className="space-y-4">
+        <section className="space-y-3">
           <h3 className="text-sm font-semibold">리스크 체크리스트</h3>
-          {company.riskFlags.length > 0 ? (
-            <div className="space-y-1">
-              {company.riskFlags.map((flag) => (
-                <div className="flex items-start gap-2 text-sm text-red-700" key={flag}>
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {flag}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm leading-7 text-slate-500">걱정되는 항목이 없습니다.</p>
-          )}
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {RISK_CHECKLIST.map((flag) => {
+              const checked = company.riskFlags.includes(flag);
+              return (
+                <label
+                  className={[
+                    "flex cursor-pointer items-start gap-2 rounded-md border p-2 text-sm transition-colors",
+                    checked
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                  ].join(" ")}
+                  key={flag}
+                >
+                  <input
+                    checked={checked}
+                    className="mt-0.5 accent-red-600 shrink-0"
+                    onChange={() => {
+                      const next = checked
+                        ? company.riskFlags.filter((f) => f !== flag)
+                        : [...company.riskFlags, flag];
+                      onPatch(company.id, { riskFlags: next });
+                    }}
+                    type="checkbox"
+                  />
+                  <span className="leading-5">{flag}</span>
+                </label>
+              );
+            })}
+          </div>
         </section>
 
           <section className="space-y-4" data-drawer-section="prep">

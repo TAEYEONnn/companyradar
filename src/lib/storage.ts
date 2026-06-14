@@ -98,13 +98,14 @@ export function normalizeCompany(company: Company): Company {
     lastResearchedAt: company.lastResearchedAt ?? "",
     isSampleData: company.isSampleData ?? false,
     needsRefresh: company.needsRefresh ?? false,
-    validationReason:
+    validationReason: migrateValidationReasons(
       company.validationReason ??
-      getCompanyValidationReasons(
-        { ...company, validationReason: [] },
-        undefined,
-        { includeDataQualityReasons: true },
-      ),
+        getCompanyValidationReasons(
+          { ...company, validationReason: [] },
+          undefined,
+          { includeDataQualityReasons: true },
+        ),
+    ),
     privateSensitiveNote: company.privateSensitiveNote ?? "",
     privateSensitiveNotes: company.privateSensitiveNotes ?? [],
     scoreEvidence: company.scoreEvidence ?? makeDefaultScoreEvidence(1),
@@ -119,6 +120,12 @@ export function normalizeCompany(company: Company): Company {
     createdAt: company.createdAt ?? now,
     updatedAt: company.updatedAt ?? now,
   };
+}
+
+const STALE_VALIDATION_LABELS = ["AI 추출 데이터", "근거 레벨 2 이하", "aiExtracted", "lowEvidence"];
+
+function migrateValidationReasons(reasons: string[]): string[] {
+  return reasons.filter((r) => !STALE_VALIDATION_LABELS.includes(r));
 }
 
 export function makeDefaultScoreEvidence(level: EvidenceLevel = 1): ScoreEvidenceValues {

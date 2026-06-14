@@ -174,6 +174,8 @@ export interface CandidateInboxItem {
   id: string;
   sourceUrl: string;
   rawText: string;
+  companyName: string;
+  jobTitle: string;
   discoveryReason: DiscoveryReason;
   firstImpressionNote: string;
   parsedCompany: Partial<Company> | null;

@@ -8,6 +8,8 @@ interface CandidateInboxRow {
   user_id: string;
   source_url: string;
   raw_text: string;
+  company_name: string;
+  job_title: string;
   discovery_reason: CandidateInboxItem["discoveryReason"];
   first_impression_note: string;
   parsed_company: CandidateInboxItem["parsedCompany"];
@@ -84,6 +86,8 @@ function rowToCandidate(row: CandidateInboxRow): CandidateInboxItem {
     id: row.id,
     sourceUrl: row.source_url ?? "",
     rawText: row.raw_text ?? "",
+    companyName: row.company_name ?? "",
+    jobTitle: row.job_title ?? "",
     discoveryReason: row.discovery_reason ?? "manual",
     firstImpressionNote: row.first_impression_note ?? "",
     parsedCompany: row.parsed_company ?? null,
@@ -104,6 +108,8 @@ function candidateToRow(
     user_id: userId,
     source_url: item.sourceUrl,
     raw_text: item.rawText,
+    company_name: item.companyName ?? "",
+    job_title: item.jobTitle ?? "",
     discovery_reason: item.discoveryReason,
     first_impression_note: item.firstImpressionNote,
     parsed_company: item.parsedCompany,

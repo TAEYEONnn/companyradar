@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Career Company Tracker",
-    short_name: "CareerTrack",
+    name: "CompanyRadar",
+    short_name: "CompanyRadar",
     description: "좋은 회사 후보를 평가하고 추적하는 개인용 웹앱",
     start_url: "/",
     display: "standalone",

@@ -632,6 +632,8 @@ export function CompanyTrackerApp() {
   function createCandidate(draft: {
     sourceUrl: string;
     rawText: string;
+    companyName: string;
+    jobTitle: string;
     discoveryReason: DiscoveryReason;
     firstImpressionNote: string;
   }) {
@@ -641,6 +643,8 @@ export function CompanyTrackerApp() {
       id: createId("candidate"),
       sourceUrl: draft.sourceUrl.trim(),
       rawText: draft.rawText.trim(),
+      companyName: draft.companyName.trim(),
+      jobTitle: draft.jobTitle.trim(),
       discoveryReason: draft.discoveryReason,
       firstImpressionNote: draft.firstImpressionNote.trim(),
       parsedCompany: null,
@@ -655,6 +659,19 @@ export function CompanyTrackerApp() {
       void upsertCandidateInboxItem(candidate, userId).then((saved) => {
         if (!saved) showToast("후보 저장에 실패했습니다.");
       });
+    }
+  }
+
+  function patchCandidate(candidateId: string, patch: Partial<CandidateInboxItem>) {
+    if (!effectiveUserId) return;
+    setCandidates((current) =>
+      current.map((c) =>
+        c.id === candidateId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
+      ),
+    );
+    const updated = candidates.find((c) => c.id === candidateId);
+    if (userId && updated) {
+      void upsertCandidateInboxItem({ ...updated, ...patch }, userId);
     }
   }
 
@@ -1010,6 +1027,7 @@ export function CompanyTrackerApp() {
                 onBack={() => setViewMode("dashboard")}
                 onCreate={createCandidate}
                 onDelete={removeCandidate}
+                onPatch={patchCandidate}
                 onPromote={promoteCandidate}
                 onSelectCompany={(id) => {
                   setViewMode("dashboard");
@@ -1302,6 +1320,7 @@ function createCompanyFromCandidate(candidate: CandidateInboxItem): Company {
   const company = createEmptyCompany();
   const parsed = candidate.parsedCompany;
   const inferredName =
+    candidate.companyName ||
     parsed?.name ||
     getHostLabel(candidate.sourceUrl) ||
     "검토 후보";
