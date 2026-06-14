@@ -1165,6 +1165,7 @@ export function CompanyTrackerApp() {
                     scoreMap={scoreMap}
                     selectedIds={selectedCompanyIds}
                     selectedId={selectedCompany?.id ?? ""}
+                    onStatusChange={(id, status) => patchCompany(id, { status })}
                   />
                 )}
               </div>

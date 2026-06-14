@@ -10,9 +10,10 @@ import {
   COMPANY_SIZE_LABELS,
   PRIORITY_LABELS,
   STATUS_LABELS,
+  STATUS_OPTIONS,
 } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
-import type { Company, CompanyScoreResult } from "@/lib/types";
+import type { ApplicationStatus, Company, CompanyScoreResult } from "@/lib/types";
 import { cn, parseLocalDate, today } from "@/lib/utils";
 import { getPriorityTone, STATUS_TONE } from "./shared";
 
@@ -33,6 +34,7 @@ interface CompanyTableProps {
   selectedIds?: string[];
   onEdit: (company: Company) => void;
   onSelect: (id: string) => void;
+  onStatusChange?: (companyId: string, status: ApplicationStatus) => void;
   onSetSelectedIds?: (ids: string[]) => void;
   onToggleSelected?: (id: string) => void;
   onResetFilter?: () => void;
@@ -46,6 +48,7 @@ export function CompanyTable({
   selectedIds = [],
   onEdit,
   onSelect,
+  onStatusChange,
   onSetSelectedIds,
   onToggleSelected,
   onResetFilter,
@@ -53,6 +56,7 @@ export function CompanyTable({
 }: CompanyTableProps) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
+  const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
 
   const totalPages = Math.ceil(companies.length / pageSize);
   const safePage = Math.min(page, Math.max(totalPages - 1, 0));
@@ -63,8 +67,49 @@ export function CompanyTable({
   const allSelected =
     allCompanyIds.length > 0 && allCompanyIds.every((id) => selectedIds.includes(id));
 
+  function StatusDropdown({ companyId, currentStatus }: { companyId: string; currentStatus: ApplicationStatus }) {
+    const badge = <Badge tone={STATUS_TONE[currentStatus]}>{STATUS_LABELS[currentStatus]}</Badge>;
+    if (!onStatusChange) return badge;
+    return (
+      <div className="relative inline-block">
+        <button
+          className="rounded hover:opacity-75 focus:outline-none"
+          onClick={(e) => { e.stopPropagation(); setStatusDropdownId(statusDropdownId === companyId ? null : companyId); }}
+          title="상태 변경"
+          type="button"
+        >
+          {badge}
+        </button>
+        {statusDropdownId === companyId && (
+          <div className="absolute left-0 top-full z-20 mt-1 min-w-[120px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                className={cn(
+                  "block w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50",
+                  opt.value === currentStatus && "bg-slate-50 font-semibold text-slate-900",
+                )}
+                key={opt.value}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStatusChange(companyId, opt.value as ApplicationStatus);
+                  setStatusDropdownId(null);
+                }}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
+      {statusDropdownId && (
+        <div aria-hidden className="fixed inset-0 z-[15]" onClick={() => setStatusDropdownId(null)} />
+      )}
       <div className="md:hidden">
         <div className="space-y-3 px-3 py-3">
           {onToggleSelected && (
@@ -113,9 +158,7 @@ export function CompanyTable({
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {company.isSampleData ? <Badge tone="blue">샘플</Badge> : null}
-                      <Badge tone={STATUS_TONE[company.status]}>
-                        {STATUS_LABELS[company.status]}
-                      </Badge>
+                      <StatusDropdown companyId={company.id} currentStatus={company.status} />
                       <Badge tone={getPriorityTone(company.applicationPriority)}>
                         {PRIORITY_LABELS[company.applicationPriority]}
                       </Badge>
@@ -159,7 +202,12 @@ export function CompanyTable({
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-slate-500">마감일</dt>
-                    <dd className="mt-1 flex items-center gap-1.5 font-medium text-slate-700">
+                    <dd className={cn(
+                      "mt-1 flex items-center gap-1.5 font-medium",
+                      !company.jobDeadline && (company.status === "interested" || company.status === "planned")
+                        ? "text-amber-600"
+                        : "text-slate-700",
+                    )}>
                       {company.jobDeadline || "미확인"}
                       {(() => {
                         const d = company.jobDeadline ? getDaysUntil(company.jobDeadline) : null;
@@ -285,15 +333,19 @@ export function CompanyTable({
                         </Badge>
                       </div>
                     )}
-                    {(() => {
-                      const d = company.jobDeadline ? getDaysUntil(company.jobDeadline) : null;
-                      if (d === null || d > 7 || d < 0) return null;
-                      return (
-                        <div className="mt-1">
-                          <Badge tone={d <= 3 ? "red" : "amber"}>{d === 0 ? "D-day" : `D-${d}`}</Badge>
-                        </div>
-                      );
-                    })()}
+                    {company.jobDeadline ? (
+                      (() => {
+                        const d = getDaysUntil(company.jobDeadline);
+                        if (d === null || d > 7 || d < 0) return null;
+                        return (
+                          <div className="mt-1">
+                            <Badge tone={d <= 3 ? "red" : "amber"}>{d === 0 ? "D-day" : `D-${d}`}</Badge>
+                          </div>
+                        );
+                      })()
+                    ) : (company.status === "interested" || company.status === "planned") ? (
+                      <p className="mt-0.5 text-xs text-amber-600">마감일 미확인</p>
+                    ) : null}
                     <ChecklistDots checklist={company.applicationChecklist} />
                   </td>
 
@@ -308,10 +360,8 @@ export function CompanyTable({
                   </td>
 
                   {/* 상태 */}
-                  <td className="px-4 py-3">
-                    <Badge tone={STATUS_TONE[company.status]}>
-                      {STATUS_LABELS[company.status]}
-                    </Badge>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <StatusDropdown companyId={company.id} currentStatus={company.status} />
                   </td>
 
                   {/* 수정 */}

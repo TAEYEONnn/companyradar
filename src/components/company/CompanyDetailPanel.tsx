@@ -545,7 +545,17 @@ export function CompanyDetailPanel({
           </section>
         </div>
 
-        <NextActionBanner company={company} />
+        <NextActionBanner
+          company={company}
+          onAddTask={() => {
+            setActiveTab("prep");
+            setTimeout(() => {
+              const el = document.getElementById("follow-up-task-title") as HTMLInputElement | null;
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              el?.focus();
+            }, 50);
+          }}
+        />
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">
@@ -642,10 +652,25 @@ export function CompanyDetailPanel({
         </section>
 
         <section className="space-y-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <ClipboardCheck className="h-4 w-4" />
-            지원 준비 체크리스트
-          </h3>
+          {(() => {
+            const keys = ["resumeReady", "portfolioReady", "coverLetterReady", "referralChecked", "submitted"] as const;
+            const done = keys.filter((k) => company.applicationChecklist[k]).length;
+            return (
+              <div className="flex items-center gap-3">
+                <h3 className="flex flex-1 items-center gap-2 text-sm font-semibold">
+                  <ClipboardCheck className="h-4 w-4" />
+                  지원 준비 체크리스트
+                </h3>
+                <span className="shrink-0 text-xs text-slate-500">{done} / {keys.length}</span>
+                <div className="w-20 overflow-hidden rounded-full bg-slate-100" style={{ height: 6 }}>
+                  <div
+                    className={`h-full rounded-full transition-all ${done === keys.length ? "bg-emerald-500" : "bg-slate-700"}`}
+                    style={{ width: `${(done / keys.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
           <div className="grid grid-cols-1 gap-2">
             {[
               ["resumeReady", "이력서 준비"],
@@ -1048,6 +1073,7 @@ export function CompanyDetailPanel({
           <div className="grid grid-cols-[1fr_128px_64px] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <Input
               aria-label="할일"
+              id="follow-up-task-title"
               onChange={(event) =>
                 setTaskDraft((draft) => ({ ...draft, title: event.target.value }))
               }
@@ -1314,7 +1340,7 @@ function SignalGroup({
 }
 
 // Shows the next follow-up task for active applications.
-function NextActionBanner({ company }: { company: Company }) {
+function NextActionBanner({ company, onAddTask }: { company: Company; onAddTask?: () => void }) {
   const needsAction =
     company.status === "applied" || company.status === "interviewing";
   if (!needsAction) return null;
@@ -1327,11 +1353,22 @@ function NextActionBanner({ company }: { company: Company }) {
 
   if (!next) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-        <Flag className="h-3.5 w-3.5 shrink-0" />
-        <span className="leading-5">
-          <strong>다음 할 일 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 다음 할 일이 없습니다.
-        </span>
+      <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="flex items-center gap-2">
+          <Flag className="h-3.5 w-3.5 shrink-0" />
+          <span className="leading-5">
+            <strong>다음 할 일 없음</strong> — {STATUS_LABELS[company.status]} 상태인데 다음 할 일이 없습니다.
+          </span>
+        </div>
+        {onAddTask ? (
+          <button
+            className="shrink-0 rounded border border-amber-300 bg-white/60 px-2 py-0.5 font-medium text-amber-700 hover:bg-amber-100"
+            onClick={onAddTask}
+            type="button"
+          >
+            + 할 일 추가
+          </button>
+        ) : null}
       </div>
     );
   }

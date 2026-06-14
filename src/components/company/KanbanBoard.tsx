@@ -5,8 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/lib/criteria";
 import { formatScore } from "@/lib/scoring";
 import type { ApplicationStatus, Company, CompanyScoreResult } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate, today } from "@/lib/utils";
 import { getPriorityTone, STATUS_TONE } from "./shared";
+
+function getDaysUntil(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const deadline = parseLocalDate(dateStr);
+  const now = parseLocalDate(today());
+  return Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
+}
 
 const KANBAN_COLUMNS: ApplicationStatus[] = [
   "interested",
@@ -111,7 +118,13 @@ export function KanbanBoard({
                           {PRIORITY_LABELS[company.applicationPriority]}
                         </Badge>
                         {company.jobDeadline ? (
-                          <Badge tone="slate">~{company.jobDeadline.slice(5)}</Badge>
+                          (() => {
+                            const d = getDaysUntil(company.jobDeadline);
+                            if (d !== null && d >= 0 && d <= 7) {
+                              return <Badge tone={d <= 3 ? "red" : "amber"}>{d === 0 ? "D-day" : `D-${d}`}</Badge>;
+                            }
+                            return <Badge tone="slate">~{company.jobDeadline.slice(5)}</Badge>;
+                          })()
                         ) : null}
                         {score?.highRisk ? <Badge tone="red">리스크</Badge> : null}
                       </div>
