@@ -14,7 +14,8 @@
 
 ## 이번 빌드 변경사항
 
-- **비밀번호 재설정 하드닝**: `[RESET_REQUEST_EMAIL]` 콘솔 로그를 두 경로(AuthGate 비밀번호 재설정 폼, 설정 화면 비밀번호 변경) 모두에 추가 — 재설정 이메일이 사용자 입력값 그대로인지 언제든 콘솔에서 확인 가능. 비밀번호 변경 성공 후 2초 뒤 로그인 화면으로 자동 이동(기존: 버튼 클릭 필요).
+- **비밀번호 재설정 근본 버그 수정**: 복구 코드가 `/auth/confirm`으로 라우팅될 때 `PASSWORD_RECOVERY` 이벤트를 감지하지 않고 즉시 로그인 처리하던 문제 수정. 이제 `/auth/confirm`이 exchange 전에 `onAuthStateChange`를 구독하여 `PASSWORD_RECOVERY` 이벤트가 발생하면 `/auth/reset-password?recovery=1`으로 전달. `/auth/reset-password`는 `?recovery=1`을 인식해 이미 수립된 세션을 재사용. 설정 화면의 `resetPassword()`도 `redirectTo`를 `/auth/reset-password` → `/auth/callback`으로 수정해 AuthGate 경로와 통일.
+- **비밀번호 재설정 하드닝**: `[RESET_REQUEST_EMAIL]` 콘솔 로그를 두 경로 모두에 추가. 비밀번호 변경 성공 후 2초 뒤 로그인 화면으로 자동 이동.
 - **AI 무료 사용 5회 제한 버그 수정**: `getEntitlement`(server-billing.ts)이 계정을 1회로 초기화하던 버그 수정. 이제 처음 로그인 시 5회로 올바르게 초기화됨. 탈퇴 후 재가입해도 동일 이메일은 `ai_free_used_emails` 테이블로 0회 처리. DB `consume_ai_credit` 함수 fallback도 1→5로 수정. `getOrCreateAiEntitlement`의 중복 로직 제거, `getEntitlement` 위임으로 통일. v044 마이그레이션: 기존 1회 계정(미사용) 5회로 업그레이드.
 - **툴팁 클리핑 버그 수정**: `overflow-hidden` 부모로 인해 위쪽 방향 툴팁이 잘리던 문제 해결. 툴팁을 아래(`top-full`)에 표시하고 오른쪽 앵커(`right-0`)로 수정. 헤더 내 공고 확인 툴팁은 버튼 텍스트를 명확하게 해 툴팁 자체를 제거.
 - **다음 할일 날짜 필드 클리핑 수정**: `sm:contents` 래퍼 div를 제거하고 타이틀·날짜·버튼을 3-column 그리드에 직접 배치. 날짜 컬럼 너비 128px → 144px. 모바일에서는 각 항목이 세로로 쌓여 날짜 필드가 전체 너비를 사용.
