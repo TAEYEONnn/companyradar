@@ -2,9 +2,46 @@ import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegistration } from "@/components/company/ServiceWorkerRegistration";
 import "./globals.css";
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
+const title = "CompanyRadar";
+const description = "지원할 회사를 정리하고, 회사핏 점수와 면접 준비를 한 곳에서 관리하세요.";
+
 export const metadata: Metadata = {
-  title: "Career Company Tracker",
-  description: "좋은 회사 후보를 평가하고 추적하는 개인용 웹앱",
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title,
+    description,
+    url: "/",
+    siteName: "CompanyRadar",
+    locale: "ko_KR",
+    type: "website",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "CompanyRadar - 나만의 회사 지원 플랫폼",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: ["/opengraph-image"],
+  },
 };
 
 export const viewport: Viewport = {

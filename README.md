@@ -14,6 +14,10 @@
 
 ## 이번 빌드 변경사항
 
+- **OG/Twitter 공유 미리보기 추가**: 루트 페이지에 `og:title`, `og:description`, `og:url`, `og:site_name`, `og:image`, `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image` 메타데이터 추가. `/opengraph-image`에서 1200×630 PNG 공유 이미지를 동적 생성.
+- **브랜드 메타데이터 CompanyRadar 통일**: `layout.tsx` 기본 title/description을 CompanyRadar 기준으로 변경하고, `NEXT_PUBLIC_SITE_URL`/Vercel URL 기반 canonical URL을 사용.
+- **운영자 답장 템플릿 상태 반영**: 문의·환불·탈퇴 상태 변경 후 Gmail 답장 링크와 "답장 내용" 미리보기가 검토/완료/승인/거절/취소 상태별 문구로 즉시 갱신.
+- **인증 콜백 로딩 복구 보강**: `/auth/confirm` 코드 교환 timeout과 세션 fallback 추가. 루트에 `?code=`가 들어온 경우 `/auth/confirm`으로 복구 이동.
 - **매직링크 무한로딩 수정**: 콜백 라우트를 `/auth/confirm` 중간 페이지로 변경. 코드 교환을 명시적으로 처리한 뒤 루트로 이동하여 `detectSessionInUrl` 이중 처리 루프 제거.
 - **리스크 체크리스트 직군별 분리**: 디자이너/PM/프론트엔드/UX리서처/마케터 각각 직군에 맞는 리스크 항목으로 차별화. 회사 수정 폼과 드로어 조사 탭 모두 적용.
 - **테이블 마감일 중복 표시 제거**: 모바일 카드 마감일 amber 강조 색상·데스크톱 "마감일 미확인" 텍스트 제거. StatusDropdown 배지로 충분히 구분 가능.
