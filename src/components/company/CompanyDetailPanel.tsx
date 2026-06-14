@@ -375,7 +375,7 @@ export function CompanyDetailPanel({
 
   function markJobPostingChecked() {
     onPatch(company.id, { ...getValidationCompletePatch(today()), jobStatus: "open" as const });
-    onToast?.("공고 확인일을 오늘로 기록했습니다.");
+    onToast?.("공고 확인 날짜를 기록했어요.");
   }
 
   return (
@@ -489,12 +489,11 @@ export function CompanyDetailPanel({
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
             <span className="font-medium text-slate-700">
-              공고 상태 · 마지막 확인 {formatShortDate(company.lastCheckedAt)}
-              <DrawerHelpTip text="공고가 아직 열려 있는지 직접 확인했을 때 눌러주세요." />
+              마지막 확인 {formatShortDate(company.lastCheckedAt)}
             </span>
             <Button onClick={markJobPostingChecked} size="sm" variant="secondary">
               <ClipboardCheck className="h-3.5 w-3.5" />
-              공고 확인했어요
+              오늘 확인
             </Button>
           </div>
         </div>
@@ -608,7 +607,7 @@ export function CompanyDetailPanel({
         <section className="space-y-4">
           <h3 className="flex items-center gap-1 text-sm font-semibold">
             평가 점수
-            <DrawerHelpTip text="내가 정한 기준으로 이 회사가 얼마나 맞는지 계산한 점수입니다." />
+            <DrawerHelpTip text="내 기준으로 이 회사가 얼마나 맞는지 보여줘요." />
           </h3>
           {score.categoryScores.map((category) => {
             const displayCategory =
@@ -1080,33 +1079,30 @@ export function CompanyDetailPanel({
             다음 할일
           </h3>
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="space-y-2 sm:grid sm:grid-cols-[1fr_128px_64px] sm:items-center sm:space-y-0 sm:gap-2">
+            <div className="space-y-2 sm:grid sm:grid-cols-[1fr_144px_auto] sm:items-center sm:space-y-0 sm:gap-2">
               <Input
                 aria-label="할일"
                 id="follow-up-task-title"
                 onChange={(event) =>
                   setTaskDraft((draft) => ({ ...draft, title: event.target.value }))
                 }
-                placeholder="예: 채용담당자에게 팔로업 메일"
+                placeholder="예: 팔로업 메일 보내기"
                 value={taskDraft.title}
               />
-              <div className="flex items-center gap-2 sm:contents">
-                <Input
-                  aria-label="기한"
-                  className="flex-1 sm:flex-none"
-                  onChange={(event) =>
-                    setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
-                  }
-                  type="date"
-                  value={taskDraft.dueDate}
-                />
-                <Button onClick={addFollowUpTask} size="sm">
-                  추가
-                </Button>
-              </div>
+              <Input
+                aria-label="기한"
+                onChange={(event) =>
+                  setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))
+                }
+                type="date"
+                value={taskDraft.dueDate}
+              />
+              <Button onClick={addFollowUpTask} size="sm">
+                추가
+              </Button>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-400">빠른 기한:</span>
+              <span className="text-xs text-slate-400">기한:</span>
               {[
                 { label: "오늘", days: 0 },
                 { label: "3일", days: 3 },
@@ -1311,7 +1307,7 @@ function DrawerHelpTip({ text }: { text: string }) {
       </button>
       <span
         className={[
-          "pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg",
+          "pointer-events-none absolute top-full right-0 z-20 mt-1 w-56 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-normal leading-5 text-slate-600 shadow-lg",
           open ? "block" : "hidden group-hover:block",
         ].join(" ")}
       >
@@ -1409,7 +1405,7 @@ function NextActionBanner({ company, onAddTask }: { company: Company; onAddTask?
         <div className="flex items-center gap-2">
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="leading-5">
-            다음 할 일 없음 — {STATUS_LABELS[company.status]} 상태
+            {STATUS_LABELS[company.status]} 중인데 다음 할 일이 없어요.
           </span>
         </div>
         {onAddTask ? (
@@ -1499,7 +1495,7 @@ function EncryptedNoteSection({
       setKeyStatus("error");
       setFeedback({
         tone: "error",
-        message: "암호화 키를 준비하지 못했습니다. 다시 시도해 주세요.",
+        message: "키 준비 실패. 다시 시도해주세요.",
       });
     }
   }
@@ -1537,9 +1533,9 @@ function EncryptedNoteSection({
       });
       setTitle("");
       setContent("");
-      setFeedback({ tone: "success", message: "민감 메모가 저장되었습니다." });
+      setFeedback({ tone: "success", message: "저장했어요." });
     } catch {
-      setFeedback({ tone: "error", message: "민감 메모 저장에 실패했습니다. 잠시 후 다시 시도하세요." });
+      setFeedback({ tone: "error", message: "저장 실패. 다시 시도해주세요." });
     } finally {
       setSaving(false);
     }
@@ -1612,7 +1608,7 @@ function EncryptedNoteSection({
         </div>
         {keyStatus === "error" ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
-            <span>암호화 키를 준비하지 못했습니다. 다시 시도해 주세요.</span>
+            <span>키 준비 실패. 다시 시도해주세요.</span>
             <Button onClick={() => void retryLoadKey()} size="sm" variant="secondary">
               다시 시도
             </Button>

@@ -103,7 +103,7 @@ export function Toolbar({
             className="pl-9"
             data-shortcut="search"
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="회사명, 산업군, 제품 설명 검색"
+            placeholder="검색"
             value={query}
           />
         </div>
@@ -214,12 +214,12 @@ export function Toolbar({
 
           <FilterChip
             active={advancedFilter.hasGreenFlag}
-            label="Green 신호 있음"
+            label="좋은 신호"
             onClick={() => toggleChip("hasGreenFlag")}
           />
           <FilterChip
             active={advancedFilter.hasRedFlag}
-            label="Red 신호 있음"
+            label="걱정 신호"
             onClick={() => toggleChip("hasRedFlag")}
           />
           <FilterChip

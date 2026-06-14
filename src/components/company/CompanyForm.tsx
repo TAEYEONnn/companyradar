@@ -126,7 +126,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
     const hasRaw = rawText.trim().length >= 50;
 
     if (!hasUrl && !hasRaw) {
-      setParseError(rawTextMode ? "공고 텍스트를 50자 이상 입력해주세요." : "먼저 채용공고 URL을 입력해주세요.");
+      setParseError(rawTextMode ? "공고 내용을 더 입력해주세요." : "채용공고 URL을 입력해주세요.");
       return;
     }
 
@@ -168,14 +168,14 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
         })
         .then((d) => {
           if (!("ok" in d) || !d.ok) {
-            let message = "자동 채우기 요청에 실패했습니다.";
+            let message = "AI 분석 실패.";
             if ("error" in d) {
               message =
                 typeof d.error === "string"
                   ? d.error
                   : d.error.message ?? message;
             }
-            const err = new Error(message ?? "자동 채우기 요청에 실패했습니다.") as Error & { errorCode?: string };
+            const err = new Error(message ?? "AI 분석 실패.") as Error & { errorCode?: string };
             err.errorCode = "errorCode" in d ? d.errorCode : undefined;
             throw err;
           }
@@ -240,8 +240,8 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
         const fetchFailed = first?.errorCode === "fetch_failed" || first?.errorCode === "text_extraction_failed";
         setParseError(
           fetchFailed && !rawTextMode
-            ? `${first.message} → 아래 "텍스트 직접 붙여넣기"를 눌러주세요.`
-            : (first?.message ?? "자동 채우기 요청에 실패했습니다."),
+            ? `${first.message} → "텍스트 붙여넣기"를 눌러보세요.`
+            : (first?.message ?? "AI 분석 실패."),
         );
         return;
       }
@@ -292,7 +292,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
       }));
 
       if (errors.length > 0) {
-        setParseError(`일부 소스 파싱 실패 (${errors.map((e) => e.label).join(", ")})`);
+        setParseError(`일부 분석 실패 (${errors.map((e) => e.label).join(", ")})`);
       } else {
         setParseSuccess(
           successes.length >= 2
@@ -301,7 +301,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
         );
       }
     } catch {
-      setParseError("자동 채우기 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setParseError("AI 분석 실패. 잠시 후 다시 시도해주세요.");
     } finally {
       setParsing(false);
     }
@@ -322,9 +322,6 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
           <h2 className="text-lg font-semibold">
             {company.name ? "회사 수정" : "회사 추가"}
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            기본 정보, 평가 점수, 경고 신호를 함께 기록합니다.
-          </p>
         </div>
         <div className="hidden gap-2 sm:flex">
           <Button onClick={onCancel} variant="secondary">
@@ -393,7 +390,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
             {rawTextMode ? (
               <Textarea
                 onChange={(event) => setRawText(event.target.value)}
-                placeholder="채용공고 내용을 여기에 붙여넣으세요 (50자 이상)"
+                placeholder="채용공고 원문을 붙여넣으세요"
                 rows={5}
                 value={rawText}
               />
@@ -407,12 +404,12 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
               >
                 <Sparkles className="h-4 w-4" />
                 {parsing
-                  ? "공고 분석 중..."
+                  ? "분석 중..."
                   : rawTextMode
-                    ? "텍스트로 자동 채우기 (AI)"
+                    ? "텍스트 AI 분석"
                     : draft.homepageUrl.trim() && draft.jobPostUrl.trim()
-                      ? "공고+홈페이지 분석 (AI)"
-                      : "공고 URL에서 자동 채우기 (AI)"}
+                      ? "공고+홈페이지 AI 분석"
+                      : "공고 AI 분석"}
               </Button>
               <button
                 className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700"
@@ -423,7 +420,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
                 }}
                 type="button"
               >
-                {rawTextMode ? "URL로 전환" : "텍스트 직접 붙여넣기"}
+                {rawTextMode ? "URL로 전환" : "텍스트 붙여넣기"}
               </button>
             </div>
             {parseError ? (

@@ -34,21 +34,20 @@ const START_OPTIONS: {
     mode: "ai",
     icon: Sparkles,
     title: "AI로 공고 정리하기",
-    description:
-      "채용공고를 붙여넣으면 회사명, 좋은 신호, 걱정되는 점을 초안으로 정리해요.",
+    description: "공고를 붙여넣으면 AI가 신호와 걱정 포인트를 정리해요.",
     badge: "무료 5회",
   },
   {
     mode: "manual",
     icon: Plus,
-    title: "관심 회사 직접 추가하기",
-    description: "회사명과 지원 상태만 먼저 저장해요.",
+    title: "직접 추가하기",
+    description: "회사명과 상태만 입력해요.",
   },
   {
     mode: "samples",
     icon: LayoutGrid,
     title: "예시 데이터로 둘러보기",
-    description: "직군별 예시 회사로 사용법을 빠르게 확인해요.",
+    description: "예시 데이터로 앱을 둘러봐요.",
   },
 ];
 
@@ -79,9 +78,9 @@ export function OnboardingModal({ userId, onComplete }: OnboardingModalProps) {
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-sky-600">
                 1 / 2 · 직군 선택
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">내 직군을 선택해주세요</h2>
+              <h2 className="text-lg font-semibold text-slate-900">어떤 일을 하고 있나요?</h2>
               <p className="mt-1 text-sm text-slate-500">
-                디자인·개발·기획·마케팅·운영 등 IT/프로덕트 직군 모두를 위한 트래커예요. 직군별 평가 기준과 리스크 체크리스트를 맞춤 적용합니다.
+                직군에 맞는 평가 기준을 자동으로 적용해요.
               </p>
             </div>
 
@@ -130,10 +129,9 @@ export function OnboardingModal({ userId, onComplete }: OnboardingModalProps) {
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-sky-600">
                 2 / 2 · 시작 방식
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">먼저 어떻게 시작할까요?</h2>
+              <h2 className="text-lg font-semibold text-slate-900">어떻게 시작할까요?</h2>
               <p className="mt-1 text-sm text-slate-500">
-                공고를 붙여넣어 AI로 정리하거나, 관심 회사를 직접 추가하거나,
-                예시 데이터로 사용법을 먼저 볼 수 있어요.
+                언제든 방식을 바꿀 수 있어요.
               </p>
             </div>
 
