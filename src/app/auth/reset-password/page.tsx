@@ -105,7 +105,8 @@ export default function ResetPasswordPage() {
         {hasSession === false ? (
           <div className="space-y-4">
             <p className="rounded-md bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-              비밀번호 재설정 세션이 없습니다. 메일에서 받은 재설정 버튼을 다시 열어주세요.
+              재설정 링크를 확인하지 못했습니다. 링크가 만료됐거나, 계정이 삭제됐거나,
+              아직 가입되지 않은 이메일일 수 있습니다. 먼저 회원가입을 완료한 뒤 새 재설정 메일을 요청해주세요.
             </p>
             <Link
               className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"

@@ -43,7 +43,7 @@ interface CriteriaSettingsPanelProps {
   onExport: () => void;
   onImportFile: (file: File) => void;
   onDeleteAccount: (reason: string, confirmText: string) => Promise<boolean>;
-  onResetPassword: () => void;
+  onResetPassword: () => Promise<boolean>;
   onToast: (message: string) => void;
 }
 
@@ -72,6 +72,8 @@ export function CriteriaSettingsPanel({
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [submitting, setSubmitting] = useState<"support" | "refund" | "delete" | null>(null);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
   const [hasApprovedPayment, setHasApprovedPayment] = useState(false);
   const scoreThresholds = normalizeScoreThresholds(settings.scoreThresholds);
 
@@ -96,6 +98,14 @@ export function CriteriaSettingsPanel({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (resetCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResetCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resetCooldown]);
 
   function updateScoreThreshold(key: keyof ScoreThresholdSettings, value: number) {
     onChange({
@@ -235,6 +245,14 @@ export function CriteriaSettingsPanel({
     setSubmitting(null);
   }
 
+  async function handleResetPassword() {
+    if (resetSubmitting || resetCooldown > 0) return;
+    setResetSubmitting(true);
+    const ok = await onResetPassword();
+    setResetSubmitting(false);
+    if (ok) setResetCooldown(60);
+  }
+
   function flashSaved() {
     if (sliderSavedTimer.current) clearTimeout(sliderSavedTimer.current);
     setSliderSaved(true);
@@ -263,8 +281,16 @@ export function CriteriaSettingsPanel({
             icon={<KeyRound className="h-4 w-4" />}
             title="비밀번호 변경"
           >
-            <Button onClick={onResetPassword} variant="secondary">
-              재설정 메일 받기
+            <Button
+              disabled={resetSubmitting || resetCooldown > 0}
+              onClick={() => void handleResetPassword()}
+              variant="secondary"
+            >
+              {resetSubmitting
+                ? "전송 중..."
+                : resetCooldown > 0
+                  ? `${resetCooldown}초 후 다시 요청`
+                  : "재설정 메일 받기"}
             </Button>
           </ActionBox>
           <ActionBox

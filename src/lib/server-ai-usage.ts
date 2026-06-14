@@ -4,6 +4,7 @@ export type AiRequestFeature =
   | "compare-companies"
   | "draft-email"
   | "gen-prep-questions"
+  | "prep-answer-coach"
   | "parse-job"
   | "research-company"
   | "summarize-company"

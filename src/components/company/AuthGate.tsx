@@ -29,6 +29,7 @@ export function AuthGate() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [resetCooldown, setResetCooldown] = useState(0);
 
   const [recoveringCode] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -47,6 +48,14 @@ export function AuthGate() {
     confirmUrl.searchParams.set("code", code);
     window.location.replace(confirmUrl.toString());
   }, [recoveringCode]);
+
+  useEffect(() => {
+    if (resetCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResetCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resetCooldown]);
 
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
@@ -139,6 +148,7 @@ export function AuthGate() {
 
   async function handleResetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (resetCooldown > 0) return;
     if (!supabase) {
       setError("Supabase 환경변수가 설정되지 않았습니다.");
       return;
@@ -163,6 +173,7 @@ export function AuthGate() {
       );
       return;
     }
+    setResetCooldown(60);
     setMessage("비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해주세요.");
   }
 
@@ -254,7 +265,7 @@ export function AuthGate() {
             </div>
           ) : null}
 
-          <Button className="w-full" disabled={loading} type="submit">
+          <Button className="w-full" disabled={loading || (isReset && resetCooldown > 0)} type="submit">
             {isReset ? <Mail className="h-4 w-4" /> : isSignup ? <UserPlus className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
             {loading
               ? isReset
@@ -262,6 +273,8 @@ export function AuthGate() {
                 : isSignup
                   ? "가입 중..."
                   : "로그인 중..."
+              : isReset && resetCooldown > 0
+                ? `${resetCooldown}초 후 다시 요청`
               : isReset
                 ? "비밀번호 재설정 메일 받기"
                 : isSignup

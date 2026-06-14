@@ -1781,6 +1781,14 @@ const PREP_CATEGORY_OPTIONS: PrepCategory[] = [
   "situational",
 ];
 
+interface PrepAnswerReview {
+  score: number;
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  rewrite: string;
+}
+
 function PrepQuestionSection({
   company,
   encKey,
@@ -1894,6 +1902,48 @@ function PrepQuestionSection({
     });
   }
 
+  async function getAccessToken() {
+    const supabase = getSupabaseClient();
+    return supabase
+      ? (await supabase.auth.getSession()).data.session?.access_token
+      : undefined;
+  }
+
+  async function requestPrepCoach(
+    item: PrepQuestion,
+    mode: "draft" | "review",
+    answer = "",
+  ): Promise<{ draft?: string; review?: PrepAnswerReview }> {
+    const accessToken = await getAccessToken();
+    const res = await fetch("/api/prep-answer-coach", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        mode,
+        companyName: company.name,
+        industry: company.industry,
+        productDescription: company.productDescription,
+        candidateReason: company.candidateReason,
+        question: item.question,
+        answer,
+        category: item.category,
+        greenFlags: company.signals.greenFlags.map((s) => s.label),
+        redFlags: company.signals.redFlags.map((s) => s.label),
+        userRole: settings?.userRole,
+      }),
+    });
+    const data = (await res.json()) as
+      | { ok: true; draft?: string; review?: PrepAnswerReview }
+      | { error: { code?: string; message: string } };
+    if (!("ok" in data) || !data.ok) {
+      throw new Error(getApiErrorMessage(res, data, "AI 답변 코칭에 실패했습니다."));
+    }
+    return data;
+  }
+
   const grouped = PREP_CATEGORY_OPTIONS.map((cat) => ({
     cat,
     items: (company.prepQuestions ?? []).filter((q) => q.category === cat),
@@ -1974,8 +2024,16 @@ function PrepQuestionSection({
                   isOpen={activeId === item.id}
                   item={item}
                   key={item.id}
-                  onAnswerChange={(text) => void patchAnswer(item.id, text)}
+                  onAnswerChange={(text) => patchAnswer(item.id, text)}
+                  onGenerateDraft={async () => {
+                    const data = await requestPrepCoach(item, "draft");
+                    return data.draft ?? "";
+                  }}
                   onRemove={() => setPendingDeleteQuestion(item.id)}
+                  onReviewAnswer={async (answer) => {
+                    const data = await requestPrepCoach(item, "review", answer);
+                    return data.review;
+                  }}
                   onToggle={() =>
                     setActiveId(activeId === item.id ? null : item.id)
                   }
@@ -2006,15 +2064,22 @@ function PrepQuestionCard({
   onToggle,
   onRemove,
   onAnswerChange,
+  onGenerateDraft,
+  onReviewAnswer,
 }: {
   item: PrepQuestion;
   encKey: CryptoKey | null;
   isOpen: boolean;
   onToggle: () => void;
   onRemove: () => void;
-  onAnswerChange: (text: string) => void;
+  onAnswerChange: (text: string) => Promise<void>;
+  onGenerateDraft: () => Promise<string>;
+  onReviewAnswer: (answer: string) => Promise<PrepAnswerReview | undefined>;
 }) {
   const [decrypted, setDecrypted] = useState("");
+  const [coachLoading, setCoachLoading] = useState<"draft" | "review" | null>(null);
+  const [coachError, setCoachError] = useState("");
+  const [review, setReview] = useState<PrepAnswerReview | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -2029,6 +2094,46 @@ function PrepQuestionCard({
       canceled = true;
     };
   }, [isOpen, encKey, item.answer]);
+
+  async function generateDraft() {
+    setCoachLoading("draft");
+    setCoachError("");
+    setReview(null);
+    try {
+      const draft = await onGenerateDraft();
+      if (!draft.trim()) {
+        setCoachError("AI 답변 초안을 만들지 못했습니다.");
+        return;
+      }
+      setDecrypted(draft);
+      await onAnswerChange(draft);
+    } catch (error) {
+      setCoachError(error instanceof Error ? error.message : "AI 답변 초안 생성에 실패했습니다.");
+    } finally {
+      setCoachLoading(null);
+    }
+  }
+
+  async function reviewAnswer() {
+    if (decrypted.trim().length < 20) {
+      setCoachError("평가하려면 답변을 20자 이상 입력해주세요.");
+      return;
+    }
+    setCoachLoading("review");
+    setCoachError("");
+    try {
+      const nextReview = await onReviewAnswer(decrypted);
+      if (!nextReview) {
+        setCoachError("AI 평가 결과를 받지 못했습니다.");
+        return;
+      }
+      setReview(nextReview);
+    } catch (error) {
+      setCoachError(error instanceof Error ? error.message : "AI 답변 평가에 실패했습니다.");
+    } finally {
+      setCoachLoading(null);
+    }
+  }
 
   return (
     <div className="rounded-md border border-slate-200">
@@ -2050,17 +2155,69 @@ function PrepQuestionCard({
         </button>
       </div>
       {isOpen ? (
-        <div className="border-t border-slate-100 p-3">
+        <div className="space-y-3 border-t border-slate-100 p-3">
           <Textarea
             aria-label="답변"
             onChange={(e) => {
               setDecrypted(e.target.value);
-              onAnswerChange(e.target.value);
+              void onAnswerChange(e.target.value);
             }}
             placeholder="답변 준비 (STAR 형식 권장: Situation / Task / Action / Result)"
             rows={5}
             value={decrypted}
           />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={coachLoading !== null}
+              onClick={() => void generateDraft()}
+              size="sm"
+              variant="secondary"
+            >
+              {coachLoading === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {coachLoading === "draft" ? "초안 생성 중..." : "AI 답변 초안"}
+            </Button>
+            <Button
+              disabled={coachLoading !== null || decrypted.trim().length < 20}
+              onClick={() => void reviewAnswer()}
+              size="sm"
+              variant="secondary"
+            >
+              {coachLoading === "review" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="h-3.5 w-3.5" />}
+              {coachLoading === "review" ? "평가 중..." : "내 답변 평가"}
+            </Button>
+          </div>
+          {coachError ? <p className="text-xs text-red-600">{coachError}</p> : null}
+          {review ? (
+            <div className="space-y-2 rounded-md border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-950">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">AI 평가</span>
+                <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  {review.score}점
+                </span>
+              </div>
+              <p className="leading-6">{review.summary}</p>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-700">좋은 점</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5">
+                    {review.strengths.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-amber-700">보완할 점</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-xs leading-5">
+                    {review.improvements.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              </div>
+              {review.rewrite ? (
+                <div className="rounded bg-white/80 p-2 text-xs leading-5 text-slate-700">
+                  <p className="mb-1 font-semibold text-slate-800">개선 예시</p>
+                  {review.rewrite}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
