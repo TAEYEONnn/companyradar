@@ -224,12 +224,8 @@ export function CompanyTrackerApp() {
       if (isRemoteSyncEnabled() && userId) {
         const remote = await pullRemoteCompanies(userId);
         if (remote === null) {
-          const fallbackCompanies = normalizeSamplesForRole(
-            loadedCompanies.length > 0 ? loadedCompanies : [],
-            preferredRole,
-          );
-          setCompanies(fallbackCompanies);
-          setSelectedId(fallbackCompanies[0]?.id ?? "");
+          setCompanies(loadedCompanies);
+          setSelectedId(loadedCompanies[0]?.id ?? "");
           setRemotePushEnabled(false);
           setStorageWriteEnabled(true);
           setIsReady(true);
@@ -259,10 +255,7 @@ export function CompanyTrackerApp() {
       }
 
       if (remoteCompanies.length > 0) {
-        const merged = normalizeSamplesForRole(
-          mergeByUpdatedAt(loadedCompanies, remoteCompanies),
-          preferredRole,
-        );
+        const merged = mergeByUpdatedAt(loadedCompanies, remoteCompanies);
         const localHasUserCompanies = hasUserCompanies(loadedCompanies);
         const remoteHasUserCompanies = hasUserCompanies(remoteCompanies);
         const mergedDiffersFromRemote =
@@ -286,14 +279,13 @@ export function CompanyTrackerApp() {
       }
 
       if (hasUserCompanies(loadedCompanies)) {
-        const normalizedCompanies = normalizeSamplesForRole(loadedCompanies, preferredRole);
-        setCompanies(normalizedCompanies);
-        setSelectedId(normalizedCompanies[0]?.id ?? "");
+        setCompanies(loadedCompanies);
+        setSelectedId(loadedCompanies[0]?.id ?? "");
         setRemotePushEnabled(true);
         setStorageWriteEnabled(true);
         setIsReady(true);
         if (isRemoteSyncEnabled() && userId) {
-          void pushRemoteCompanies(normalizedCompanies, userId);
+          void pushRemoteCompanies(loadedCompanies, userId);
         }
         return;
       }
@@ -636,7 +628,7 @@ export function CompanyTrackerApp() {
     const previousRole = settings.userRole;
     setSettings(nextSettings);
     if (nextSettings.userRole && nextSettings.userRole !== previousRole) {
-      setCompanies((current) => normalizeSamplesForRole(current, nextSettings.userRole));
+      setCompanies((current) => current.filter((c) => !c.isSampleData));
     }
   }
 
@@ -651,7 +643,7 @@ export function CompanyTrackerApp() {
     if (isRemoteSyncEnabled() && userId) {
       void pushRemoteCompanies(remaining, userId);
     }
-    showToast("샘플 데이터를 삭제했습니다.");
+    showToast("예시 데이터를 삭제했습니다.");
   }
 
   function addSampleCompanies() {
@@ -1136,6 +1128,7 @@ export function CompanyTrackerApp() {
                   <StartGuide
                     aiCredit={aiCredit}
                     onAddCompany={startCreate}
+                    onAddSamples={addSampleCompanies}
                     onOpenInbox={() => setViewMode("inbox")}
                   />
                 ) : (
@@ -1353,7 +1346,7 @@ export function CompanyTrackerApp() {
                 }
               }
             } else {
-              setCompanies((current) => normalizeSamplesForRole(current, role));
+              // ai / manual mode — no auto-seeding
             }
             setShowOnboarding(false);
             if (startMode === "ai") setViewMode("inbox");
@@ -1368,10 +1361,12 @@ export function CompanyTrackerApp() {
 function StartGuide({
   aiCredit,
   onAddCompany,
+  onAddSamples,
   onOpenInbox,
 }: {
   aiCredit: { freeUsesRemaining: number; unlimited: boolean } | null;
   onAddCompany: () => void;
+  onAddSamples: () => void;
   onOpenInbox: () => void;
 }) {
   const remaining = aiCredit?.unlimited ? null : (aiCredit?.freeUsesRemaining ?? null);
@@ -1413,6 +1408,13 @@ function StartGuide({
           + 직접 추가하기
         </button>
       </div>
+      <button
+        className="mt-3 text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+        onClick={onAddSamples}
+        type="button"
+      >
+        예시 데이터로 둘러보기
+      </button>
       <h3 className="mt-6 text-xs font-semibold uppercase tracking-widest text-slate-400">핵심 흐름</h3>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {steps.map((step, i) => (
