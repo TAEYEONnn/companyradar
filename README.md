@@ -4,7 +4,7 @@
 
 ## 주요 기능
 
-- Magic Link 기반 로그인
+- 이메일/비밀번호 기반 회원가입 및 로그인
 - 로그인 사용자별 회사 목록, 설정, 후보 Inbox 저장
 - 회사 등록/수정, 상태/우선순위/마감일 관리
 - 회사핏 점수, 리스크, 좋은 점 / 걱정되는 점 / 더 확인할 점 기록
@@ -14,6 +14,9 @@
 
 ## 이번 빌드 변경사항
 
+- **기본 인증 이메일/비밀번호 전환**: Magic Link 기본 UI와 `signInWithOtp` 호출 제거. 로그인, 회원가입, 비밀번호 재설정 요청을 AuthGate에서 직접 처리.
+- **회원가입 UX 추가**: 이메일, 비밀번호, 비밀번호 확인 입력과 8자 이상/일치 검증 추가. Confirm Email이 꺼져 있으면 즉시 앱 진입, 켜져 있으면 확인 메일 안내.
+- **비밀번호 재설정 recovery 연결**: 재설정 메일은 `/auth/callback?type=recovery`로 돌아오고, code 교환 후 `/auth/reset-password`에서 새 비밀번호를 설정하도록 변경.
 - **로그인 화면 OG 카피 정렬**: 공유 미리보기 문구와 로그인 첫 화면 카피를 "지원할 회사를 기준 있게 정리" 흐름으로 통일. 신규 사용자가 `회사 추가 → 점수 확인 → 면접 준비`를 바로 이해하도록 3단계 미니 흐름 추가.
 - **첫 방문 온보딩 3단계 축약**: 직군 선택 모달 상단에 `회사 추가 → 점수 확인 → 면접 준비` 진행 흐름을 추가하고, 직군 설명을 짧게 줄여 첫 설정 부담 완화.
 - **매직링크 rate limit UX 개선**: 성공한 매직링크 요청만 60초 재발송 차단으로 기록. Supabase가 `email rate limit exceeded`를 반환하면 Site URL/Redirect URL 문제가 아니라 Auth 이메일/OTP 발송 한도임을 안내.
@@ -108,7 +111,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 # 테스트 도구를 노출할 개발 호스트/오리진(선택)
 NEXT_PUBLIC_DEV_TOOL_ORIGINS=
 
-# Magic Link redirect URL 명시적 지정 (로컬 개발 또는 커스텀 도메인용, 선택)
+# 비밀번호 재설정 redirect URL 및 OG canonical URL 명시적 지정 (선택)
 # 예: http://localhost:3000 (미설정 시 window.location.origin 자동 사용)
 NEXT_PUBLIC_SITE_URL=
 
@@ -120,16 +123,27 @@ NEXT_PUBLIC_SUPPORT_EMAIL=
 
 ## Supabase 설정
 
-### Magic Link Redirect URL 설정
+### 이메일/비밀번호 Auth 설정
+
+Supabase 대시보드 → Authentication → Providers → **Email**에서 아래를 확인합니다.
+
+```txt
+Email provider enabled: true
+Email + Password signups enabled: true
+```
+
+MVP 내부 테스트 단계에서는 이메일 발송 제한을 피하려면 Confirm Email을 끄고 시작할 수 있습니다. 공개 운영 전에는 자체 도메인과 Custom SMTP를 붙인 뒤 Confirm Email을 다시 켜는 것을 권장합니다.
+
+### Password Recovery Redirect URL 설정
 
 Supabase 대시보드 → Authentication → URL Configuration → **Redirect URLs**에 아래 URL을 추가합니다.
 
 ```
-http://localhost:3000/**
-https://your-production-domain/**
+http://localhost:3000/auth/callback
+https://your-production-domain/auth/callback
 ```
 
-로컬 개발 시 `NEXT_PUBLIC_SITE_URL=http://localhost:3000`을 `.env.local`에 추가합니다. Supabase의 **Site URL**은 로컬 테스트 중이면 `http://localhost:3000`이어도 정상입니다. 배포 도메인에서 Magic Link를 보낼 때는 Site URL을 실제 프로덕션 도메인으로 바꾸고, Redirect URLs에 `https://your-production-domain/**` 또는 `https://your-production-domain/auth/callback`을 추가합니다.
+로컬 개발 시 `NEXT_PUBLIC_SITE_URL=http://localhost:3000`을 `.env.local`에 추가합니다. Supabase의 **Site URL**은 로컬 테스트 중이면 `http://localhost:3000`이어도 정상입니다. 배포 도메인에서 비밀번호 재설정 메일을 보낼 때는 Site URL을 실제 프로덕션 도메인으로 바꾸고, Redirect URLs에 `https://your-production-domain/auth/callback`을 추가합니다.
 
 `email rate limit exceeded`는 URL 설정 오류가 아니라 Supabase Auth 이메일/OTP 발송 한도입니다. Supabase Dashboard → Authentication → **Rate Limits**에서 OTP/email sent 한도를 확인합니다. Supabase 기본 이메일 발송자는 제한이 낮을 수 있으므로, 프로덕션에서는 Authentication → **SMTP Settings**에서 Custom SMTP를 연결하는 것을 권장합니다.
 

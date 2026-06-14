@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 
-// Supabase PKCE magic link callback handler.
-// Supabase redirects here after the user clicks the magic link:
-//   https://yourapp.com/auth/callback?code=xxxx
-// We forward to /auth/confirm which exchanges the code client-side,
-// then redirects to / — this avoids the detectSessionInUrl double-exchange
-// loop that caused infinite reloading in production.
+// Supabase PKCE callback handler for email confirmation and password recovery.
+// We exchange the code client-side in /auth/confirm because the browser client
+// owns the persisted session.
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const type = searchParams.get("type");
 
   if (code) {
     const confirmUrl = new URL("/auth/confirm", origin);
     confirmUrl.searchParams.set("code", code);
+    if (type === "recovery") {
+      confirmUrl.searchParams.set("next", "/auth/reset-password");
+    }
     return NextResponse.redirect(confirmUrl.toString());
   }
 

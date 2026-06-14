@@ -6,12 +6,18 @@ import { getSupabaseClient } from "@/lib/supabase-client";
 
 const AUTH_CONFIRM_TIMEOUT_MS = 10000;
 
+function getSafeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 function ConfirmInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const code = searchParams.get("code");
+    const nextPath = getSafeNextPath(searchParams.get("next"));
     if (!code) {
       router.replace("/auth/error");
       return;
@@ -49,15 +55,15 @@ function ConfirmInner() {
           console.error("[auth/confirm] exchangeCodeForSession error:", result.error);
           const { data } = await client.auth.getSession();
           if (!active) return;
-          router.replace(data.session ? "/" : "/auth/error");
+          router.replace(data.session ? nextPath : "/auth/error");
         } else {
-          router.replace("/");
+          router.replace(nextPath);
         }
       } catch (error) {
         console.error("[auth/confirm] unexpected confirmation error:", error);
         const { data } = await client.auth.getSession();
         if (!active) return;
-        router.replace(data.session ? "/" : "/auth/error");
+        router.replace(data.session ? nextPath : "/auth/error");
       }
     }
 
