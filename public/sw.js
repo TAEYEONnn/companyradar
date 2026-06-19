@@ -1,5 +1,5 @@
-const CACHE_NAME = "career-tracker-v1";
-const STATIC_ASSETS = ["/", "/icon.svg"];
+const CACHE_NAME = "company-radar-v2";
+const STATIC_ASSETS = ["/", "/tracker", "/icon.svg"];
 
 // Install: pre-cache shell
 self.addEventListener("install", (event) => {

@@ -10,8 +10,9 @@ const siteUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
 
-const title = "CompanyRadar";
-const description = "지원할 회사를 정리하고, 회사핏 점수와 면접 준비를 한 곳에서 관리하세요.";
+const title = "CompanyRadar | 공고 핏 분석";
+const description =
+  "채용공고와 내 경력을 근거로 비교해 지원 여부를 빠르게 결정합니다.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "CompanyRadar - 나만의 회사 지원 플랫폼",
+        alt: "CompanyRadar - 공고 핏 분석",
       },
     ],
   },

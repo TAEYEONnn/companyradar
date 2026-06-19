@@ -4,10 +4,10 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "CompanyRadar",
     short_name: "CompanyRadar",
-    description: "좋은 회사 후보를 평가하고 추적하는 개인용 웹앱",
+    description: "채용공고와 내 경력을 근거로 비교하는 공고 핏 분석기",
     start_url: "/",
     display: "standalone",
-    background_color: "#f8fafc",
+    background_color: "#f5f3ee",
     theme_color: "#0f172a",
     orientation: "portrait-primary",
     icons: [

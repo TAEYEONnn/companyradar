@@ -313,7 +313,7 @@ export function CompanyTrackerApp() {
         // 탈퇴 요청 상태는 보조 표시이므로 실패해도 앱 사용을 막지 않습니다.
       }
     });
-  }, [session?.access_token, userId]);
+  }, [effectiveUserId, session?.access_token]);
 
   // 저장: localStorage 즉시 + Supabase 디바운스 push
   useEffect(() => {
@@ -330,7 +330,7 @@ export function CompanyTrackerApp() {
   }, [settings, isReady, userId, effectiveUserId]);
 
   useEffect(() => {
-    if (!userId) { setAiCredit(null); return; }
+    if (!userId) return;
     void fetchAiCredit();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
