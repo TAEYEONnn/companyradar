@@ -7,6 +7,10 @@ import {
   type ModelFitAnalysis,
 } from "@/lib/fit-api";
 import { reserveFitQuota, type QuotaReason } from "@/lib/fit-quota";
+import {
+  fetchPublicText,
+  PublicFetchError,
+} from "@/lib/safe-public-fetch";
 
 export const runtime = "nodejs";
 
@@ -45,13 +49,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const clientId =
-    request.headers.get("x-companyradar-client")?.slice(0, 100) || "anonymous";
-  const quota = await reserveFitQuota(request, clientId);
-  if (!quota.allowed) {
-    return quotaError(quota.reason);
-  }
-
   const jobTextResult = await resolveJobText(input);
   if (!jobTextResult.ok) {
     return apiError(
@@ -59,6 +56,13 @@ export async function POST(request: Request) {
       jobTextResult.errorCode,
       jobTextResult.message,
     );
+  }
+
+  const clientId =
+    request.headers.get("x-companyradar-client")?.slice(0, 100) || "anonymous";
+  const quota = await reserveFitQuota(request, clientId);
+  if (!quota.allowed) {
+    return quotaError(quota.reason);
   }
 
   try {
@@ -122,7 +126,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      result: normalizeFitAnalysis(modelAnalysis),
+      result: normalizeFitAnalysis(modelAnalysis, {
+        baseProfile: input.candidateProfile,
+        jobText: jobTextResult.text,
+        candidateText: input.candidateProfile
+          ? JSON.stringify(input.candidateProfile)
+          : input.resumeText,
+      }),
     });
   } catch {
     return apiError(
@@ -194,120 +204,29 @@ async function resolveJobText(
 > {
   if (input.jobText) return { ok: true, text: input.jobText };
 
-  const blocked = validatePublicUrl(input.jobUrl);
-  if (blocked) return blocked;
-
   try {
-    const response = await fetch(input.jobUrl, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "User-Agent":
-          "Mozilla/5.0 (compatible; CompanyRadarBot/1.0; job fit analysis)",
-      },
-      signal: AbortSignal.timeout(10_000),
+    const text = await fetchPublicText(input.jobUrl, {
+      maxBytes: MAX_HTML_BYTES,
+      maxChars: MAX_PAGE_CHARS,
+      timeoutMs: 10_000,
+      maxRedirects: 3,
     });
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: 422,
-        errorCode: "fetch_failed",
-        message:
-          "공고 페이지를 불러오지 못했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-      };
-    }
-    const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_HTML_BYTES) {
-      return {
-        ok: false,
-        status: 422,
-        errorCode: "fetch_failed",
-        message: "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요.",
-      };
-    }
-    const html = (await response.text()).slice(0, MAX_HTML_BYTES);
-    const text = stripHtml(html).slice(0, MAX_PAGE_CHARS);
-    if (text.length < 100) {
-      return {
-        ok: false,
-        status: 422,
-        errorCode: "fetch_failed",
-        message:
-          "공고 내용을 충분히 읽지 못했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-      };
-    }
     return { ok: true, text };
-  } catch {
+  } catch (error) {
+    const publicError =
+      error instanceof PublicFetchError
+        ? error
+        : new PublicFetchError(
+            "fetch_failed",
+            "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
+          );
     return {
       ok: false,
-      status: 422,
-      errorCode: "fetch_failed",
-      message:
-        "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
+      status: publicError.code === "fetch_failed" ? 422 : 400,
+      errorCode: publicError.code,
+      message: publicError.message,
     };
   }
-}
-
-function validatePublicUrl(
-  rawUrl: string,
-):
-  | {
-      ok: false;
-      status: number;
-      errorCode: "url_invalid" | "url_blocked";
-      message: string;
-    }
-  | null {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return {
-      ok: false,
-      status: 400,
-      errorCode: "url_invalid",
-      message: "유효한 http(s) 공고 URL을 입력해주세요.",
-    };
-  }
-  if (!["http:", "https:"].includes(url.protocol)) {
-    return {
-      ok: false,
-      status: 400,
-      errorCode: "url_invalid",
-      message: "http(s) 공고 URL만 사용할 수 있습니다.",
-    };
-  }
-  const hostname = url.hostname.toLowerCase();
-  const blocked =
-    hostname === "localhost" ||
-    hostname === "::1" ||
-    hostname === "[::1]" ||
-    /^127\./.test(hostname) ||
-    /^10\./.test(hostname) ||
-    /^192\.168\./.test(hostname) ||
-    /^169\.254\./.test(hostname) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
-  if (blocked) {
-    return {
-      ok: false,
-      status: 400,
-      errorCode: "url_blocked",
-      message: "내부 네트워크 주소는 사용할 수 없습니다.",
-    };
-  }
-  return null;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function quotaError(reason: QuotaReason | null) {

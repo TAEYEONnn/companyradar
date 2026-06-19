@@ -79,6 +79,65 @@ describe("normalizeFitAnalysis", () => {
     expect(result.companyName).toBe("");
     expect(result.roleTitle).toBe("");
   });
+
+  it("handles malformed requirement containers without throwing", () => {
+    const result = normalizeFitAnalysis({
+      requirements: { unexpected: true } as never,
+    });
+
+    expect(result.requirements).toEqual([]);
+    expect(result.recommendation).toBe("verify");
+  });
+
+  it("preserves an existing profile instead of replacing it with incomplete model output", () => {
+    const existingProfile = {
+      targetRole: "Frontend Developer",
+      yearsExperience: 5,
+      skills: ["React", "TypeScript"],
+      domains: ["B2B SaaS"],
+      achievements: ["전환율 개선"],
+      updatedAt: "2026-06-18T00:00:00.000Z",
+    };
+    const result = normalizeFitAnalysis(
+      {
+        candidateProfile: {
+          targetRole: "",
+          skills: [],
+          domains: [],
+          achievements: [],
+        },
+        requirements: [],
+      },
+      { baseProfile: existingProfile },
+    );
+
+    expect(result.candidateProfile).toMatchObject(existingProfile);
+  });
+
+  it("downgrades a claimed match when its evidence is absent from the submitted text", () => {
+    const result = normalizeFitAnalysis(
+      {
+        requirements: [
+          {
+            text: "React 경험",
+            importance: "required",
+            match: "matched",
+            confidence: 3,
+            jobEvidence: "React 경험",
+            profileEvidence: "존재하지 않는 경력",
+          },
+        ],
+      },
+      {
+        jobText: "필수요건 React 경험",
+        candidateText: "TypeScript 제품 개발 경험",
+      },
+    );
+
+    expect(result.requirements[0].match).toBe("uncertain");
+    expect(result.requirements[0].profileEvidence).toBe("");
+    expect(result.recommendation).toBe("verify");
+  });
 });
 
 describe("getOpenAIErrorMessage", () => {

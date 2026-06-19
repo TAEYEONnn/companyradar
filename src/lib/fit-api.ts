@@ -37,6 +37,12 @@ export interface ModelFitAnalysis {
   requirements?: ModelRequirement[];
 }
 
+interface FitAnalysisContext {
+  baseProfile?: CandidateProfile | null;
+  jobText?: string;
+  candidateText?: string;
+}
+
 export function getOpenAIErrorMessage(status: number): string {
   if (status === 401) {
     return "OpenAI API 키가 없거나 유효하지 않습니다.";
@@ -81,31 +87,42 @@ export function parseAnalyzeFitInput(value: unknown): AnalyzeFitInput {
   };
 }
 
-export function normalizeFitAnalysis(model: ModelFitAnalysis): FitAnalysis {
-  const requirements = (model.requirements ?? [])
-    .slice(0, 20)
-    .map(normalizeRequirement)
+export function normalizeFitAnalysis(
+  model: ModelFitAnalysis,
+  context: FitAnalysisContext = {},
+): FitAnalysis {
+  const modelRequirements = Array.isArray(model.requirements)
+    ? model.requirements.filter(isRecord)
+    : [];
+  const requirements = modelRequirements
+    .slice(0, 12)
+    .map((requirement, index) =>
+      normalizeRequirement(requirement, index, context),
+    )
     .filter((requirement): requirement is FitRequirement =>
       Boolean(requirement.text),
     );
   const fit = calculateFitResult(requirements);
   const now = new Date().toISOString();
   const profile = model.candidateProfile ?? {};
+  const baseProfile = context.baseProfile;
 
   return {
     analysisId: crypto.randomUUID(),
-    candidateProfile: {
-      targetRole: asString(profile.targetRole),
-      yearsExperience:
-        typeof profile.yearsExperience === "number" &&
-        Number.isFinite(profile.yearsExperience)
-          ? Math.max(0, profile.yearsExperience)
-          : null,
-      skills: stringArray(profile.skills),
-      domains: stringArray(profile.domains),
-      achievements: stringArray(profile.achievements),
-      updatedAt: now,
-    },
+    candidateProfile: baseProfile
+      ? { ...baseProfile }
+      : {
+          targetRole: asString(profile.targetRole),
+          yearsExperience:
+            typeof profile.yearsExperience === "number" &&
+            Number.isFinite(profile.yearsExperience)
+              ? Math.max(0, profile.yearsExperience)
+              : null,
+          skills: stringArray(profile.skills),
+          domains: stringArray(profile.domains),
+          achievements: stringArray(profile.achievements),
+          updatedAt: now,
+        },
     roleTitle: cleanSchemaPlaceholder(model.roleTitle, [
       "공고 직무명",
       "직무명",
@@ -126,6 +143,7 @@ export function normalizeFitAnalysis(model: ModelFitAnalysis): FitAnalysis {
 function normalizeRequirement(
   requirement: ModelRequirement,
   index: number,
+  context: FitAnalysisContext,
 ): FitRequirement {
   const importance: RequirementImportance =
     requirement.importance === "preferred" ? "preferred" : "required";
@@ -144,14 +162,26 @@ function normalizeRequirement(
     Math.max(1, Number.isFinite(rawConfidence) ? Math.round(rawConfidence) : 1),
   ) as 1 | 2 | 3;
 
+  const jobEvidence = evidenceFromSource(
+    requirement.jobEvidence,
+    context.jobText,
+  );
+  const profileEvidence = evidenceFromSource(
+    requirement.profileEvidence,
+    context.candidateText,
+  );
+  const evidenceSupportsMatch =
+    Boolean(jobEvidence) &&
+    (match === "missing" || Boolean(profileEvidence));
+
   return {
     id: `requirement-${index + 1}`,
     text: asString(requirement.text),
     importance,
-    match,
+    match: evidenceSupportsMatch ? match : "uncertain",
     confidence,
-    jobEvidence: asString(requirement.jobEvidence),
-    profileEvidence: asString(requirement.profileEvidence),
+    jobEvidence,
+    profileEvidence,
   };
 }
 
@@ -195,4 +225,14 @@ function cleanSchemaPlaceholder(
 ): string {
   const text = asString(value);
   return placeholders.includes(text) ? "" : text;
+}
+
+function evidenceFromSource(evidence: unknown, source?: string): string {
+  const text = asString(evidence);
+  if (!source) return text;
+  return normalizeEvidence(source).includes(normalizeEvidence(text)) ? text : "";
+}
+
+function normalizeEvidence(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }

@@ -45,4 +45,34 @@ describe("POST /api/analyze-fit", () => {
     });
     expect(JSON.stringify(body)).not.toContain("이력서 내용");
   });
+
+  it("blocks private-network job URLs before making an AI request", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    const response = await POST(
+      new Request("http://localhost/api/analyze-fit", {
+        method: "POST",
+        body: JSON.stringify({
+          jobUrl: "http://127.0.0.1:3000/private",
+          candidateProfile: {
+            targetRole: "Frontend Developer",
+            yearsExperience: 3,
+            skills: ["React"],
+            domains: [],
+            achievements: [],
+            updatedAt: "2026-06-19T00:00:00.000Z",
+          },
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-companyradar-client": "test-client",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "url_blocked",
+    });
+  });
 });

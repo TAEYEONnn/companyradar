@@ -23,6 +23,25 @@ export interface QuotaResult {
   reason: QuotaReason | null;
 }
 
+const RESERVE_QUOTA_LUA = `
+local client = tonumber(redis.call("GET", KEYS[1]) or "0")
+local global = tonumber(redis.call("GET", KEYS[2]) or "0")
+local ip = tonumber(redis.call("GET", KEYS[3]) or "0")
+local client_limit = tonumber(ARGV[1])
+local global_limit = tonumber(ARGV[2])
+local ip_limit = tonumber(ARGV[3])
+if client >= client_limit then return {0, client, global, ip, 1} end
+if global >= global_limit then return {0, client, global, ip, 2} end
+if ip >= ip_limit then return {0, client, global, ip, 3} end
+client = redis.call("INCR", KEYS[1])
+global = redis.call("INCR", KEYS[2])
+ip = redis.call("INCR", KEYS[3])
+if client == 1 then redis.call("EXPIRE", KEYS[1], 90000) end
+if global == 1 then redis.call("EXPIRE", KEYS[2], 90000) end
+if ip == 1 then redis.call("EXPIRE", KEYS[3], 120) end
+return {1, client, global, ip, 0}
+`;
+
 export function evaluateQuotaCounts(
   counts: QuotaCounts,
   limits: QuotaLimits,
@@ -66,43 +85,59 @@ export async function reserveFitQuota(
     global: `fit:global:${day}`,
     ip: `fit:ip:${minute}:${ipHash}`,
   };
+  const limits = {
+    clientDaily: envLimit("FIT_DAILY_CLIENT_LIMIT", 10),
+    globalDaily: envLimit("FIT_DAILY_GLOBAL_LIMIT", 200),
+    ipMinute: envLimit("FIT_IP_MINUTE_LIMIT", 20),
+  };
 
   try {
-    const response = await fetch(`${redisUrl.replace(/\/$/, "")}/pipeline`, {
+    const response = await fetch(`${redisUrl.replace(/\/$/, "")}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${redisToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
-        ["INCR", keys.client],
-        ["EXPIRE", keys.client, 90_000, "NX"],
-        ["INCR", keys.global],
-        ["EXPIRE", keys.global, 90_000, "NX"],
-        ["INCR", keys.ip],
-        ["EXPIRE", keys.ip, 120, "NX"],
+        "EVAL",
+        RESERVE_QUOTA_LUA,
+        3,
+        keys.client,
+        keys.global,
+        keys.ip,
+        limits.clientDaily,
+        limits.globalDaily,
+        limits.ipMinute,
       ]),
       signal: AbortSignal.timeout(3_000),
     });
     if (!response.ok) {
       return { allowed: false, reason: "quota_unavailable" };
     }
-    const results = (await response.json()) as Array<{ result?: number }>;
-    return evaluateQuotaCounts(
-      {
-        clientDaily: Number(results[0]?.result ?? 0),
-        globalDaily: Number(results[2]?.result ?? 0),
-        ipMinute: Number(results[4]?.result ?? 0),
-      },
-      {
-        clientDaily: envLimit("FIT_DAILY_CLIENT_LIMIT", 10),
-        globalDaily: envLimit("FIT_DAILY_GLOBAL_LIMIT", 200),
-        ipMinute: envLimit("FIT_IP_MINUTE_LIMIT", 20),
-      },
-    );
+    const result = (await response.json()) as { result?: unknown };
+    return parseQuotaReservation(result.result);
   } catch {
     return { allowed: false, reason: "quota_unavailable" };
   }
+}
+
+export function parseQuotaReservation(value: unknown): QuotaResult {
+  if (!Array.isArray(value) || value.length < 5) {
+    return { allowed: false, reason: "quota_unavailable" };
+  }
+  if (Number(value[0]) === 1) {
+    return { allowed: true, reason: null };
+  }
+  const reasonCode = Number(value[4]);
+  const reason =
+    reasonCode === 1
+      ? "client_daily"
+      : reasonCode === 2
+        ? "global_daily"
+        : reasonCode === 3
+          ? "ip_minute"
+          : "quota_unavailable";
+  return { allowed: false, reason };
 }
 
 function hashIdentifier(value: string): string {
