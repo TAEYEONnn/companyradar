@@ -37,6 +37,16 @@ export interface ModelFitAnalysis {
   requirements?: ModelRequirement[];
 }
 
+export function getOpenAIErrorMessage(status: number): string {
+  if (status === 401) {
+    return "OpenAI API 키가 없거나 유효하지 않습니다.";
+  }
+  if (status === 429) {
+    return "OpenAI 사용량 또는 요청 제한에 걸렸습니다.";
+  }
+  return `AI 제공자가 요청을 거절했습니다 (HTTP ${status}).`;
+}
+
 export function parseAnalyzeFitInput(value: unknown): AnalyzeFitInput {
   const body = isRecord(value) ? value : {};
   const jobUrl = asString(body.jobUrl);
@@ -96,8 +106,14 @@ export function normalizeFitAnalysis(model: ModelFitAnalysis): FitAnalysis {
       achievements: stringArray(profile.achievements),
       updatedAt: now,
     },
-    roleTitle: asString(model.roleTitle),
-    companyName: asString(model.companyName),
+    roleTitle: cleanSchemaPlaceholder(model.roleTitle, [
+      "공고 직무명",
+      "직무명",
+    ]),
+    companyName: cleanSchemaPlaceholder(model.companyName, [
+      "회사명",
+      "회사 미확인",
+    ]),
     summary: asString(model.summary),
     nextAction:
       asString(model.nextAction) ||
@@ -171,4 +187,12 @@ function stringArray(value: unknown): string[] {
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 30);
+}
+
+function cleanSchemaPlaceholder(
+  value: unknown,
+  placeholders: string[],
+): string {
+  const text = asString(value);
+  return placeholders.includes(text) ? "" : text;
 }

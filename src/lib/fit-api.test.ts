@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getOpenAIErrorMessage,
   normalizeFitAnalysis,
   parseAnalyzeFitInput,
 } from "./fit-api";
@@ -66,5 +67,24 @@ describe("normalizeFitAnalysis", () => {
     expect(result.recommendation).toBe("pass");
     expect(result.candidateProfile.updatedAt).toMatch(/T/);
     expect(result.requirements[0].id).toBe("requirement-1");
+  });
+
+  it("removes schema placeholder labels when the source does not identify a company", () => {
+    const result = normalizeFitAnalysis({
+      companyName: "회사명",
+      roleTitle: "공고 직무명",
+      requirements: [],
+    });
+
+    expect(result.companyName).toBe("");
+    expect(result.roleTitle).toBe("");
+  });
+});
+
+describe("getOpenAIErrorMessage", () => {
+  it("keeps authentication, quota, and generic provider failures distinct", () => {
+    expect(getOpenAIErrorMessage(401)).toContain("API 키");
+    expect(getOpenAIErrorMessage(429)).toContain("사용량");
+    expect(getOpenAIErrorMessage(400)).toContain("HTTP 400");
   });
 });

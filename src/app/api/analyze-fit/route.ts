@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getOpenAIErrorMessage,
   normalizeFitAnalysis,
   parseAnalyzeFitInput,
   type AnalyzeFitInput,
@@ -87,12 +88,18 @@ export async function POST(request: Request) {
     });
 
     if (!aiResponse.ok) {
+      const providerBody = (await aiResponse.json().catch(() => null)) as {
+        error?: { code?: string; type?: string };
+      } | null;
+      console.error("analyze-fit OpenAI error", {
+        status: aiResponse.status,
+        code: providerBody?.error?.code,
+        type: providerBody?.error?.type,
+      });
       return apiError(
         502,
         "ai_failed",
-        aiResponse.status === 429
-          ? "AI 요청이 많습니다. 잠시 후 다시 시도해주세요."
-          : "AI 분석 요청에 실패했습니다.",
+        getOpenAIErrorMessage(aiResponse.status),
       );
     }
 
@@ -151,8 +158,8 @@ function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
     "domains": ["도메인"],
     "achievements": ["성과"]
   },
-  "roleTitle": "공고 직무명",
-  "companyName": "회사명",
+  "roleTitle": "공고 직무명 (알 수 없으면 빈 문자열)",
+  "companyName": "회사명 (알 수 없으면 빈 문자열)",
   "summary": "근거 중심 요약",
   "nextAction": "다음 행동",
   "requirements": [
