@@ -81,14 +81,18 @@ async function extractPdfText(data: Uint8Array): Promise<string> {
   const pages: string[] = [];
   try {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      const page = await document.getPage(pageNumber);
-      const content = await page.getTextContent();
-      pages.push(
-        content.items
-          .map((item) => ("str" in item ? item.str : ""))
-          .filter(Boolean)
-          .join(" "),
-      );
+      try {
+        const page = await document.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(
+          content.items
+            .map((item) => ("str" in item ? item.str : ""))
+            .filter(Boolean)
+            .join(" "),
+        );
+      } catch {
+        // Skip pages that fail (font encoding issues, etc.) and continue
+      }
     }
   } finally {
     await task.destroy();

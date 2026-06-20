@@ -2,6 +2,8 @@ import { lookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
+import type { Readable } from "node:stream";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
 export type PublicFetchErrorCode =
   | "url_invalid"
@@ -48,8 +50,10 @@ async function fetchPublicTextHop(
       {
         headers: {
           Accept: "text/html,application/xhtml+xml,text/plain",
+          "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+          "Accept-Encoding": "gzip, deflate, br",
           "User-Agent":
-            "Mozilla/5.0 (compatible; CompanyRadarBot/1.0; job fit analysis)",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
         },
         lookup: safeLookup,
       },
@@ -117,12 +121,25 @@ async function fetchPublicTextHop(
           return;
         }
 
+        const encoding = (response.headers["content-encoding"] ?? "").toLowerCase();
+        let dataStream: Readable;
+        if (encoding === "gzip" || encoding === "x-gzip") {
+          dataStream = response.pipe(createGunzip());
+        } else if (encoding === "deflate") {
+          dataStream = response.pipe(createInflate());
+        } else if (encoding === "br") {
+          dataStream = response.pipe(createBrotliDecompress());
+        } else {
+          dataStream = response;
+        }
+
         const chunks: Buffer[] = [];
         let totalBytes = 0;
-        response.on("data", (chunk: Buffer) => {
+        dataStream.on("data", (chunk: Buffer) => {
           totalBytes += chunk.length;
           if (totalBytes > options.maxBytes) {
-            response.destroy(
+            response.destroy();
+            reject(
               new PublicFetchError(
                 "fetch_failed",
                 "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요.",
@@ -132,7 +149,7 @@ async function fetchPublicTextHop(
           }
           chunks.push(chunk);
         });
-        response.on("end", () => {
+        dataStream.on("end", () => {
           const rawHtml = Buffer.concat(chunks).toString("utf8");
           const text = extractJobText(rawHtml).slice(0, options.maxChars);
           if (text.length < 100) {
@@ -146,7 +163,8 @@ async function fetchPublicTextHop(
           }
           resolve(text);
         });
-        response.on("error", (error) => {
+        dataStream.on("error", (error) => {
+          response.destroy();
           reject(
             error instanceof PublicFetchError
               ? error
@@ -194,7 +212,7 @@ const safeLookup: LookupFunction = (hostname, _options, callback) => {
         callback(new Error("blocked private address"), "", 4);
         return;
       }
-      const selected = addresses[0];
+      const selected = addresses.find((a) => a.family === 4) ?? addresses[0];
       callback(null, selected.address, selected.family);
     })
     .catch((error: Error) => callback(error, "", 4));
@@ -380,25 +398,41 @@ function flattenTextValues(value: unknown, depth: number): string {
 }
 
 function extractMainContent(html: string): string {
-  // Remove script/style
   const cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "");
 
-  // Try common job content selectors
-  const selectors = [
-    /<article[^>]*>([\s\S]*?)<\/article>/gi,
-    /<main[^>]*>([\s\S]*?)<\/main>/gi,
-    /<section[^>]*class=["'][^"']*job[^"']*["'][^>]*>([\s\S]*?)<\/section>/gi,
-    /<div[^>]*class=["'][^"']*(?:job-description|posting-content|jd-content|recruit)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+  // Attribute-level patterns for Korean and international job sites.
+  // We find the attribute, walk back to the opening tag, then take up to
+  // 30000 chars so nested </div> boundaries don't truncate the content.
+  const attrPatterns = [
+    /class=["'][^"']*\bjd[-_]cont\b[^"']*["']/i,      // Saramin
+    /class=["'][^"']*\bjob[-_]cont\b[^"']*["']/i,      // Incruit, others
+    /class=["'][^"']*\bjd[-_]content\b[^"']*["']/i,
+    /id=["']jd[-_]?content["']/i,
+    /class=["'][^"']*\bjob-view\b[^"']*["']/i,         // JobKorea
+    /class=["'][^"']*\bjob-description\b[^"']*["']/i,  // LinkedIn, Greenhouse
+    /class=["'][^"']*\bposting-content\b[^"']*["']/i,
+    /class=["'][^"']*\bdescription[-_]text\b[^"']*["']/i,
+    /class=["'][^"']*\brecruit[-_]?content\b[^"']*["']/i,
+    /class=["'][^"']*\bjob[-_]detail\b[^"']*["']/i,
   ];
 
-  for (const pattern of selectors) {
-    const match = cleaned.match(pattern);
-    if (match) {
-      const text = stripHtml(match[0]);
-      if (text.length >= 200) return text;
-    }
+  for (const pattern of attrPatterns) {
+    const match = pattern.exec(cleaned);
+    if (!match) continue;
+    const tagStart = cleaned.lastIndexOf("<", match.index);
+    if (tagStart === -1) continue;
+    const text = stripHtml(cleaned.slice(tagStart, tagStart + 30000)).slice(0, 8000);
+    if (text.length >= 200) return text;
+  }
+
+  // Fallback: semantic container tags
+  for (const pattern of [/<article[^>]*>/i, /<main[^>]*>/i]) {
+    const match = pattern.exec(cleaned);
+    if (!match) continue;
+    const text = stripHtml(cleaned.slice(match.index, match.index + 30000)).slice(0, 8000);
+    if (text.length >= 200) return text;
   }
 
   return "";

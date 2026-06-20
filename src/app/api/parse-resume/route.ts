@@ -192,9 +192,18 @@ function stringArray(value: unknown): string[] {
 
 function evidenceArray(value: unknown, source: string): string[] {
   const normalizedSource = normalizeEvidence(source);
-  return stringArray(value).filter((item) =>
-    normalizedSource.includes(normalizeEvidence(item)),
-  );
+  return stringArray(value).filter((item) => {
+    const normalized = normalizeEvidence(item);
+    if (normalizedSource.includes(normalized)) return true;
+    // Word-level fallback: split item on whitespace and require every significant
+    // word to appear in the source. This handles Korean josa/particle variations
+    // where the AI's phrasing differs slightly from the resume text.
+    const words = item
+      .split(/\s+/)
+      .map((w) => normalizeEvidence(w))
+      .filter((w) => w.length >= 2);
+    return words.length >= 2 && words.every((w) => normalizedSource.includes(w));
+  });
 }
 
 function normalizeEvidence(value: string): string {
