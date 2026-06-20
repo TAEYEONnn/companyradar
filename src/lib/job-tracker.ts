@@ -33,6 +33,7 @@ export interface SaveFitResultInput {
 
 export interface SaveFitResultResponse {
   jobPostingId: string;
+  companyId: string | null;
   duplicate: boolean;
   decision: JobDecision;
   applicationStatus: JobApplicationStatus | null;

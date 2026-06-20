@@ -6,6 +6,15 @@ export type RequirementMatch =
   | "uncertain";
 export type FitRecommendation = "apply" | "verify" | "pass";
 
+export interface CompanyOverview {
+  industry: string;
+  productSummary: string;
+  appealPoints: string[];
+  greenSignals: string[];
+  cautionSignals: string[];
+  unknownSignals: string[];
+}
+
 export interface CandidateProfile {
   targetRole: string;
   yearsExperience: number | null;
@@ -40,6 +49,7 @@ export interface FitAnalysis extends FitResult {
   summary: string;
   nextAction: string;
   requirements: FitRequirement[];
+  companyOverview: CompanyOverview | null;
   jobPosting: {
     title: string;
     companyName: string;

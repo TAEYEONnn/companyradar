@@ -7,7 +7,6 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
-  Inbox,
   Pencil,
   Settings2,
   ShieldCheck,
@@ -96,7 +95,6 @@ function MonthlyGoalWidget({ appliedCount }: { appliedCount: number }) {
 }
 
 export interface SidebarBadges {
-  inbox: number;
   deadline: number;
 }
 
@@ -108,13 +106,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "jobs", icon: BriefcaseBusiness, label: "공고·지원" },
-  { id: "dashboard", icon: Building2, label: "회사 평가" },
-  { id: "inbox", icon: Inbox, label: "공고 정리", badgeKey: "inbox" },
+  { id: "jobs", icon: BriefcaseBusiness, label: "지원 현황" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
-  { id: "timeline", icon: CalendarDays, label: "타임라인" },
-  { id: "coach", icon: BrainCircuit, label: "AI 코치" },
-  { id: "stats", icon: BarChart3, label: "통계" },
+  { id: "dashboard", icon: Building2, label: "회사 정보" },
+  { id: "timeline", icon: CalendarDays, label: "지원 일정" },
+  { id: "coach", icon: BrainCircuit, label: "지원 전략" },
+  { id: "stats", icon: BarChart3, label: "활동 리포트" },
 ];
 
 interface AppSidebarProps {

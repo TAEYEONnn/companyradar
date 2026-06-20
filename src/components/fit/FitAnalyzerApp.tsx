@@ -3,8 +3,9 @@
 import {
   ArrowRight,
   Bookmark,
+  Building2,
   CalendarPlus,
-  FileText,
+  ChevronRight,
   Loader2,
   LogIn,
   Pencil,
@@ -33,6 +34,7 @@ import {
 import type { PendingFitSave } from "@/lib/fit-client";
 import type {
   CandidateProfile,
+  CompanyOverview,
   FitAnalysis,
   FitRecommendation,
   FitRequirement,
@@ -276,7 +278,12 @@ export function FitAnalyzerApp() {
       });
       const data = (await response.json()) as AnalyzeResponse;
       if (!data.ok || !data.result) {
-        if (data.errorCode === "fetch_failed") setJobMode("text");
+        const urlFetchFailed =
+          data.errorCode === "fetch_failed" ||
+          data.errorCode === "url_timeout" ||
+          data.errorCode === "url_access_denied" ||
+          data.errorCode === "url_content_not_found";
+        if (urlFetchFailed) setJobMode("text");
         setAnalysisErrorCode(data.errorCode ?? "unknown");
         throw new Error(data.error || "분석 요청에 실패했습니다.");
       }
@@ -392,6 +399,14 @@ export function FitAnalyzerApp() {
     const fileType = resumeFileType(file.name);
     trackFitEvent("resume_upload_started", { file_type: fileType });
     try {
+      // Browser-side validation before upload
+      if (fileType === "unsupported") {
+        throw new ResumeUploadError(USER_COPY.resume.unsupported, "unsupported_file");
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        throw new ResumeUploadError(USER_COPY.resume.tooLarge, "file_too_large");
+      }
+
       const form = new FormData();
       form.set("file", file);
       const response = await fetch("/api/parse-resume", {
@@ -404,7 +419,24 @@ export function FitAnalyzerApp() {
         },
         body: form,
       });
-      const data = (await response.json()) as ParseResumeResponse;
+
+      // Handle non-JSON responses by status code
+      if (response.status === 413) {
+        throw new ResumeUploadError(USER_COPY.resume.payloadTooLarge, "payload_too_large");
+      }
+
+      let data: ParseResumeResponse;
+      try {
+        data = (await response.json()) as ParseResumeResponse;
+      } catch {
+        const code = response.status >= 500 ? "ai_failed" : "invalid_response";
+        const message =
+          response.status >= 500
+            ? USER_COPY.ai.unavailable
+            : USER_COPY.resume.parseFailed;
+        throw new ResumeUploadError(message, code);
+      }
+
       if (!response.ok || !data.ok || !data.profile) {
         throw new ResumeUploadError(
           data.error || USER_COPY.resume.parseFailed,
@@ -740,7 +772,7 @@ export function FitAnalyzerApp() {
                               또는 눌러서 파일 선택
                             </p>
                             <p className="mt-4 text-xs text-slate-400">
-                              PDF, DOCX, TXT · 최대 5MB
+                              PDF, DOCX, TXT · 최대 4MB
                             </p>
                           </>
                         )}
@@ -762,12 +794,36 @@ export function FitAnalyzerApp() {
                       </div>
                     )}
                     {resumeError ? (
-                      <p
+                      <div
                         aria-live="polite"
                         className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"
                       >
-                        {resumeError}
-                      </p>
+                        <p>{resumeError}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
+                            onClick={() => {
+                              setResumeError("");
+                              setResumeMode("file");
+                              const input = document.getElementById("resume-file") as HTMLInputElement | null;
+                              input?.click();
+                            }}
+                            type="button"
+                          >
+                            다시 올리기
+                          </button>
+                          <button
+                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
+                            onClick={() => {
+                              setResumeError("");
+                              setResumeMode("text");
+                            }}
+                            type="button"
+                          >
+                            내용 직접 붙여넣기
+                          </button>
+                        </div>
+                      </div>
                     ) : null}
                     <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500">
                       <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -813,7 +869,13 @@ export function FitAnalyzerApp() {
                   ) : (
                     <>
                       <Label htmlFor="job-text">공고 원문</Label>
+                      {jobUrl && (
+                        <p className="mt-1 truncate text-xs text-slate-400">
+                          URL: {jobUrl}
+                        </p>
+                      )}
                       <Textarea
+                        autoFocus
                         className="mt-2 min-h-40"
                         id="job-text"
                         onChange={(event) => setJobText(event.target.value)}
@@ -841,17 +903,27 @@ export function FitAnalyzerApp() {
                     className="mt-4 rounded-lg bg-rose-50 px-3 py-3 text-sm text-rose-700"
                   >
                     <p>{error}</p>
-                    {analysisErrorCode === "quota_unavailable" ? (
-                      <Button
-                        className="mt-2"
-                        onClick={() => void analyze()}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        다시 시도
-                      </Button>
-                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {analysisErrorCode === "quota_unavailable" ? (
+                        <Button
+                          onClick={() => void analyze()}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          다시 시도
+                        </Button>
+                      ) : null}
+                      {(analysisErrorCode === "fetch_failed" ||
+                        analysisErrorCode === "url_timeout" ||
+                        analysisErrorCode === "url_access_denied" ||
+                        analysisErrorCode === "url_content_not_found") &&
+                      jobMode === "text" ? (
+                        <p className="text-xs text-rose-600">
+                          공고 내용을 아래 입력창에 붙여넣어 주세요.
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
                 <Button
@@ -872,9 +944,6 @@ export function FitAnalyzerApp() {
                     </>
                   )}
                 </Button>
-                <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-                  입력 내용은 분석할 때만 AI 제공자에게 전송돼요.
-                </p>
               </article>
             </section>
           ) : (
@@ -1009,6 +1078,9 @@ function FitResultView({
             items={groups.uncertain}
             title="지원 전에 확인할 것"
           />
+          {analysis.companyOverview ? (
+            <CompanyOverviewCard overview={analysis.companyOverview} />
+          ) : null}
         </div>
 
         <aside className="h-fit space-y-5 lg:sticky lg:top-5">
@@ -1102,6 +1174,95 @@ function FitResultView({
             다른 공고도 확인하기
           </Button>
         </aside>
+      </div>
+    </section>
+  );
+}
+
+function CompanyOverviewCard({ overview }: { overview: CompanyOverview }) {
+  const hasContent =
+    overview.industry ||
+    overview.productSummary ||
+    overview.appealPoints.length > 0 ||
+    overview.greenSignals.length > 0 ||
+    overview.cautionSignals.length > 0 ||
+    overview.unknownSignals.length > 0;
+
+  if (!hasContent) return null;
+
+  return (
+    <section className="rounded-2xl border border-slate-900/10 bg-white p-5 sm:p-6">
+      <div className="flex items-center gap-2">
+        <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
+        <h3 className="text-lg font-semibold">회사 정보도 함께 정리했어요</h3>
+      </div>
+      <p className="mt-1 text-xs text-slate-400">공고에서 확인된 내용만 담았어요.</p>
+      <div className="mt-4 space-y-4">
+        {(overview.industry || overview.productSummary) ? (
+          <div>
+            {overview.industry ? (
+              <p className="text-sm">
+                <span className="font-medium text-slate-600">업종</span>{" "}
+                <span className="text-slate-800">{overview.industry}</span>
+              </p>
+            ) : null}
+            {overview.productSummary ? (
+              <p className="mt-1 text-sm leading-6 text-slate-700">{overview.productSummary}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {overview.appealPoints.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">지원 매력 포인트</p>
+            <ul className="mt-2 space-y-1">
+              {overview.appealPoints.map((point, i) => (
+                <li className="flex items-start gap-1.5 text-sm text-slate-700" key={i}>
+                  <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  {point}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {overview.greenSignals.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">긍정 신호</p>
+            <ul className="mt-2 space-y-1">
+              {overview.greenSignals.map((signal, i) => (
+                <li className="flex items-start gap-1.5 text-sm text-emerald-800" key={i}>
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                  {signal}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {overview.cautionSignals.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">주의 신호</p>
+            <ul className="mt-2 space-y-1">
+              {overview.cautionSignals.map((signal, i) => (
+                <li className="flex items-start gap-1.5 text-sm text-amber-800" key={i}>
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  {signal}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {overview.unknownSignals.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">확인이 필요해요</p>
+            <ul className="mt-2 space-y-1">
+              {overview.unknownSignals.map((signal, i) => (
+                <li className="flex items-start gap-1.5 text-sm text-slate-600" key={i}>
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                  {signal}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </section>
   );

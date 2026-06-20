@@ -58,6 +58,7 @@ describe("fit save recovery", () => {
       recommendation: "apply" as const,
       evidenceCoverage: 70,
       missingCriticalCount: 0,
+      companyOverview: null,
     },
     decision: "planned" as const,
     sourceUrl: "https://example.com/job",

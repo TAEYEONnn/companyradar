@@ -32,6 +32,9 @@ type ErrorCode =
   | "forbidden"
   | "url_invalid"
   | "url_blocked"
+  | "url_timeout"
+  | "url_access_denied"
+  | "url_content_not_found"
   | "fetch_failed"
   | "ai_failed"
   | "ai_parse_failed";
@@ -213,6 +216,8 @@ function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
 - nextAction은 가장 중요한 확인 또는 지원 행동 한 문장입니다.
 - summary와 nextAction은 짧고 자연스러운 한국어 존댓말로 씁니다.
 - "대체로 연결됩니다", "검토가 필요합니다" 같은 보고서 말투와 과한 AI식 표현을 피합니다.
+- companyOverview는 외부 정보를 사용하지 않고 공고 내용에서만 확인되는 내용만 작성합니다.
+- companyOverview의 빈 항목은 빈 배열 또는 빈 문자열로 남깁니다.
 
 형식:
 {
@@ -227,6 +232,14 @@ function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
   "companyName": "회사명 (알 수 없으면 빈 문자열)",
   "summary": "근거 중심 요약",
   "nextAction": "다음 행동",
+  "companyOverview": {
+    "industry": "공고에서 확인되는 업종 (예: 핀테크, B2B SaaS, 커머스)",
+    "productSummary": "공고에서 확인되는 제품·서비스 요약 1-2문장",
+    "appealPoints": ["공고에서 확인되는 지원 매력 포인트"],
+    "greenSignals": ["공고에서 확인되는 긍정 신호"],
+    "cautionSignals": ["공고에서 확인되는 주의 신호"],
+    "unknownSignals": ["공고에서 확인이 필요한 항목"]
+  },
   "jobPosting": {
     "title": "공고 제목 또는 직무명",
     "companyName": "회사명",
@@ -262,7 +275,7 @@ async function resolveJobText(
   | {
       ok: false;
       status: number;
-      errorCode: "url_invalid" | "url_blocked" | "fetch_failed";
+      errorCode: ErrorCode;
       message: string;
     }
 > {
@@ -284,9 +297,13 @@ async function resolveJobText(
             "fetch_failed",
             "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
           );
+    const status =
+      publicError.code === "url_invalid" || publicError.code === "url_blocked"
+        ? 400
+        : 422;
     return {
       ok: false,
-      status: publicError.code === "fetch_failed" ? 422 : 400,
+      status,
       errorCode: publicError.code,
       message: publicError.message,
     };

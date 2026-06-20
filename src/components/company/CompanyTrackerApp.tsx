@@ -483,10 +483,9 @@ export function CompanyTrackerApp() {
 
   const sidebarBadges = useMemo<SidebarBadges>(
     () => ({
-      inbox: candidates.filter((c) => c.needsReview).length,
       deadline: companies.filter(isDeadlineSoon).length,
     }),
-    [companies, candidates],
+    [companies],
   );
 
   function openCompanyDrawer(id: string, focusTarget: DrawerFocusTarget = { tab: "summary" }) {
@@ -1033,10 +1032,13 @@ export function CompanyTrackerApp() {
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">회사명만 저장하기</span>
               </Button>
-              <Button onClick={() => setViewMode("inbox")}>
+              <Link
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700"
+                href="/"
+              >
                 <Sparkles className="h-4 w-4" />
-                <span className="hidden sm:inline">AI로 공고 정리하기</span>
-              </Button>
+                <span className="hidden sm:inline">새 공고 분석</span>
+              </Link>
             </>
           )}
         </header>
@@ -1079,22 +1081,6 @@ export function CompanyTrackerApp() {
                 onToast={showToast}
                 settings={settings}
                 userEmail={userEmail}
-              />
-            ) : viewMode === "inbox" ? (
-              <CandidateInboxPanel
-                aiCredit={aiCredit}
-                candidates={candidates}
-                companies={companies}
-                onBack={() => setViewMode("dashboard")}
-                onCreate={createCandidate}
-                onDelete={removeCandidate}
-                onPatch={patchCandidate}
-                onParseSuccess={() => void fetchAiCredit()}
-                onPromote={promoteCandidate}
-                onSelectCompany={(id) => {
-                  setViewMode("dashboard");
-                  openCompanyDrawer(id);
-                }}
               />
             ) : viewMode === "stats" ? (
               <StatsPanel
@@ -1168,7 +1154,7 @@ export function CompanyTrackerApp() {
                     aiCredit={aiCredit}
                     onAddCompany={startCreate}
                     onAddSamples={addSampleCompanies}
-                    onOpenInbox={() => setViewMode("inbox")}
+                    onOpenInbox={() => { window.location.href = "/"; }}
                   />
                 ) : (
                   <>
@@ -1244,7 +1230,7 @@ export function CompanyTrackerApp() {
                 ) : (
                   <CompanyTable
                     companies={filteredCompanies}
-                    onAddCompany={() => setViewMode("inbox")}
+                    onAddCompany={() => { window.location.href = "/"; }}
                     onEdit={startEdit}
                     onResetFilter={
                       query || statusFilter !== "all" || advancedFilter !== EMPTY_ADVANCED_FILTER
@@ -1388,7 +1374,7 @@ export function CompanyTrackerApp() {
               // ai / manual mode — no auto-seeding
             }
             setShowOnboarding(false);
-            if (startMode === "ai") setViewMode("inbox");
+            if (startMode === "ai") { window.location.href = "/"; }
             else if (startMode === "manual") setViewMode("quick-add");
           }}
         />

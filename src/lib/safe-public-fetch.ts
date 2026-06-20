@@ -6,6 +6,9 @@ import { isIP, type LookupFunction } from "node:net";
 export type PublicFetchErrorCode =
   | "url_invalid"
   | "url_blocked"
+  | "url_timeout"
+  | "url_access_denied"
+  | "url_content_not_found"
   | "fetch_failed";
 
 export class PublicFetchError extends Error {
@@ -71,6 +74,26 @@ async function fetchPublicTextHop(
           );
           return;
         }
+        if (status === 401 || status === 403) {
+          response.resume();
+          reject(
+            new PublicFetchError(
+              "url_access_denied",
+              "이 페이지는 로그인이 필요하거나 접근이 제한돼 있어요. 공고 내용을 붙여넣어 주세요.",
+            ),
+          );
+          return;
+        }
+        if (status === 429) {
+          response.resume();
+          reject(
+            new PublicFetchError(
+              "url_access_denied",
+              "요청이 잠깐 차단됐어요. 공고 내용을 붙여넣어 주세요.",
+            ),
+          );
+          return;
+        }
         if (status < 200 || status >= 300) {
           response.resume();
           reject(
@@ -110,14 +133,12 @@ async function fetchPublicTextHop(
           chunks.push(chunk);
         });
         response.on("end", () => {
-          const text = stripHtml(Buffer.concat(chunks).toString("utf8")).slice(
-            0,
-            options.maxChars,
-          );
+          const rawHtml = Buffer.concat(chunks).toString("utf8");
+          const text = extractJobText(rawHtml).slice(0, options.maxChars);
           if (text.length < 100) {
             reject(
               new PublicFetchError(
-                "fetch_failed",
+                "url_content_not_found",
                 "공고 내용을 충분히 읽지 못했습니다. 공고 원문을 직접 붙여넣어 주세요.",
               ),
             );
@@ -140,7 +161,7 @@ async function fetchPublicTextHop(
     req.setTimeout(options.timeoutMs, () => {
       req.destroy(
         new PublicFetchError(
-          "fetch_failed",
+          "url_timeout",
           "공고 페이지 요청 시간이 초과됐습니다. 공고 원문을 직접 붙여넣어 주세요.",
         ),
       );
@@ -244,6 +265,143 @@ export function isPrivateAddress(rawAddress: string): boolean {
     );
   }
   return true;
+}
+
+function extractJobText(html: string): string {
+  // 1. Try JobPosting JSON-LD
+  const jsonLdText = extractJsonLdJobPosting(html);
+  if (jsonLdText && jsonLdText.length >= 200) return jsonLdText;
+
+  // 2. Try page metadata + Next.js __NEXT_DATA__
+  const metaText = extractMetaAndNextData(html);
+
+  // 3. Try main content areas
+  const mainText = extractMainContent(html);
+
+  // 4. Fall back to general text strip
+  const generalText = stripHtml(html);
+
+  // Combine non-empty sources
+  const combined = [jsonLdText, metaText, mainText]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  return combined.length >= 100 ? combined : generalText;
+}
+
+function extractJsonLdJobPosting(html: string): string {
+  const scriptMatches = html.matchAll(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  );
+  for (const match of scriptMatches) {
+    try {
+      const data = JSON.parse(match[1]) as unknown;
+      const posting = findJobPosting(data);
+      if (posting) return jobPostingToText(posting);
+    } catch {
+      // ignore malformed JSON-LD
+    }
+  }
+  return "";
+}
+
+function findJobPosting(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findJobPosting(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj["@type"] === "JobPosting") return obj;
+  if (typeof obj["@graph"] !== "undefined") return findJobPosting(obj["@graph"]);
+  return null;
+}
+
+function jobPostingToText(posting: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  if (str(posting.title)) parts.push(`직무: ${str(posting.title)}`);
+  if (str(posting.hiringOrganization)) {
+    const org = posting.hiringOrganization as Record<string, unknown>;
+    const name = typeof org === "object" ? str(org.name) : str(posting.hiringOrganization);
+    if (name) parts.push(`회사: ${name}`);
+  }
+  if (str(posting.description)) parts.push(stripHtml(str(posting.description)));
+  if (str(posting.responsibilities)) parts.push(stripHtml(str(posting.responsibilities)));
+  if (str(posting.qualifications)) parts.push(stripHtml(str(posting.qualifications)));
+  return parts.join("\n\n");
+}
+
+function extractMetaAndNextData(html: string): string {
+  const parts: string[] = [];
+
+  // og:title, og:description
+  const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1];
+  const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1];
+  if (ogTitle) parts.push(ogTitle);
+  if (ogDesc) parts.push(ogDesc);
+
+  // Next.js __NEXT_DATA__
+  const nextDataMatch = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (nextDataMatch) {
+    try {
+      const data = JSON.parse(nextDataMatch[1]) as unknown;
+      const text = flattenTextValues(data, 0);
+      if (text) parts.push(text);
+    } catch {
+      // ignore
+    }
+  }
+
+  return parts.join("\n\n");
+}
+
+function flattenTextValues(value: unknown, depth: number): string {
+  if (depth > 5) return "";
+  if (typeof value === "string" && value.length > 20) return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => flattenTextValues(item, depth + 1))
+      .filter(Boolean)
+      .slice(0, 20)
+      .join("\n");
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map((v) => flattenTextValues(v, depth + 1))
+      .filter(Boolean)
+      .slice(0, 20)
+      .join("\n");
+  }
+  return "";
+}
+
+function extractMainContent(html: string): string {
+  // Remove script/style
+  const cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "");
+
+  // Try common job content selectors
+  const selectors = [
+    /<article[^>]*>([\s\S]*?)<\/article>/gi,
+    /<main[^>]*>([\s\S]*?)<\/main>/gi,
+    /<section[^>]*class=["'][^"']*job[^"']*["'][^>]*>([\s\S]*?)<\/section>/gi,
+    /<div[^>]*class=["'][^"']*(?:job-description|posting-content|jd-content|recruit)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+
+  for (const pattern of selectors) {
+    const match = cleaned.match(pattern);
+    if (match) {
+      const text = stripHtml(match[0]);
+      if (text.length >= 200) return text;
+    }
+  }
+
+  return "";
 }
 
 function stripHtml(html: string): string {

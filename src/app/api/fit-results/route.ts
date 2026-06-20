@@ -55,6 +55,7 @@ export async function POST(request: Request) {
       score: body.analysis.score,
       evidenceCoverage: body.analysis.evidenceCoverage,
       nextAction: body.analysis.nextAction,
+      companyOverview: body.analysis.companyOverview ?? null,
     },
     p_requirements: body.analysis.requirements,
     p_decision: body.decision,
@@ -69,11 +70,9 @@ export async function POST(request: Request) {
 }
 
 function isSaveResponse(value: unknown): value is SaveFitResultResponse {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      typeof (value as SaveFitResultResponse).jobPostingId === "string",
-  );
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.jobPostingId === "string";
 }
 
 function apiError(status: number, code: string, message: string) {

@@ -1,6 +1,7 @@
 import {
   calculateFitResult,
   type CandidateProfile,
+  type CompanyOverview,
   type FitAnalysis,
   type FitRequirement,
   type RequirementImportance,
@@ -27,12 +28,22 @@ interface ModelRequirement {
   profileEvidence?: unknown;
 }
 
+interface ModelCompanyOverview {
+  industry?: unknown;
+  productSummary?: unknown;
+  appealPoints?: unknown;
+  greenSignals?: unknown;
+  cautionSignals?: unknown;
+  unknownSignals?: unknown;
+}
+
 export interface ModelFitAnalysis {
   candidateProfile?: Partial<CandidateProfile>;
   roleTitle?: unknown;
   companyName?: unknown;
   summary?: unknown;
   nextAction?: unknown;
+  companyOverview?: ModelCompanyOverview;
   jobPosting?: {
     title?: unknown;
     companyName?: unknown;
@@ -126,6 +137,18 @@ export function normalizeFitAnalysis(
     ["공고 직무명", "직무명"],
   );
 
+  const rawOverview = isRecord(model.companyOverview) ? model.companyOverview : null;
+  const companyOverview: CompanyOverview | null = rawOverview
+    ? {
+        industry: asString(rawOverview.industry),
+        productSummary: asString(rawOverview.productSummary),
+        appealPoints: stringArray(rawOverview.appealPoints).slice(0, 5),
+        greenSignals: stringArray(rawOverview.greenSignals).slice(0, 5),
+        cautionSignals: stringArray(rawOverview.cautionSignals).slice(0, 5),
+        unknownSignals: stringArray(rawOverview.unknownSignals).slice(0, 5),
+      }
+    : null;
+
   return {
     analysisId: crypto.randomUUID(),
     candidateProfile: baseProfile
@@ -149,6 +172,7 @@ export function normalizeFitAnalysis(
       asString(model.nextAction) ||
       "확실하지 않은 필수 조건부터 확인해보세요.",
     requirements,
+    companyOverview,
     jobPosting: {
       title: roleTitle,
       companyName,
