@@ -238,7 +238,7 @@ export function CriteriaSettingsPanel({
       setDeleteInput("");
       setDeleteReason("");
       setShowDeleteConfirm(false);
-      onToast("탈퇴 요청이 접수되었습니다. 운영자가 확인 후 이메일로 안내드립니다.");
+      onToast("탈퇴 요청이 접수되었습니다. 확인 후 이메일로 안내드립니다.");
     } else {
       onToast("탈퇴 요청을 보내지 못했어요. 잠시 후 다시 해주세요.");
     }
@@ -486,7 +486,7 @@ export function CriteriaSettingsPanel({
       </SettingsCard>
 
       <SettingsCard
-        description="로그인 계정 기준으로 Supabase에 자동 저장됩니다. JSON은 보조 백업입니다."
+        description="로그인 계정에 자동 저장돼요. JSON 파일로 따로 백업도 할 수 있어요."
         icon={<Download className="h-4 w-4" />}
         title="데이터"
       >
@@ -630,7 +630,7 @@ export function CriteriaSettingsPanel({
               <Textarea
                 aria-label="환불 요청 사유"
                 onChange={(event) => setRefundReason(event.target.value)}
-                placeholder="환불 요청 사유를 적어주세요. 가능하면 결제일, 결제 수단, Toss 영수증 정보를 함께 적어주세요."
+                placeholder="환불 요청 사유를 적어주세요. 가능하면 결제일, 결제 수단, 결제 영수증 정보를 함께 적어주세요."
                 rows={3}
                 value={refundReason}
               />

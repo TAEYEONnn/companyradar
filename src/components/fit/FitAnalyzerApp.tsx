@@ -133,6 +133,7 @@ export function FitAnalyzerApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [analysisErrorCode, setAnalysisErrorCode] = useState("");
+  const [urlHint, setUrlHint] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -248,6 +249,7 @@ export function FitAnalyzerApp() {
     setLoading(true);
     setError("");
     setAnalysisErrorCode("");
+    setUrlHint("");
     setAnalysis(null);
     setDecision("");
     const startedAt = performance.now();
@@ -283,7 +285,12 @@ export function FitAnalyzerApp() {
           data.errorCode === "url_timeout" ||
           data.errorCode === "url_access_denied" ||
           data.errorCode === "url_content_not_found";
-        if (urlFetchFailed) setJobMode("text");
+        if (urlFetchFailed) {
+          setJobMode("text");
+          setAnalysisErrorCode(data.errorCode ?? "unknown");
+          setUrlHint("URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.");
+          return;
+        }
         setAnalysisErrorCode(data.errorCode ?? "unknown");
         throw new Error(data.error || "분석 요청에 실패했습니다.");
       }
@@ -330,6 +337,7 @@ export function FitAnalyzerApp() {
     setConfidenceAfter(3);
     setError("");
     setAnalysisErrorCode("");
+    setUrlHint("");
     trackFitEvent("second_job_analysis_started");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -718,7 +726,33 @@ export function FitAnalyzerApp() {
                         }}
                       />
                     </div>
-                    {resumeMode === "file" ? (
+                    {resumeError ? (
+                      <div
+                        aria-live="polite"
+                        className="mt-4 rounded-lg bg-rose-50 px-3 py-4 text-sm text-rose-700"
+                      >
+                        <p>{resumeError}</p>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          <button
+                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
+                            onClick={() => setResumeError("")}
+                            type="button"
+                          >
+                            다시 올리기
+                          </button>
+                          <button
+                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
+                            onClick={() => {
+                              setResumeError("");
+                              setResumeMode("text");
+                            }}
+                            type="button"
+                          >
+                            내용 직접 붙여넣기
+                          </button>
+                        </div>
+                      </div>
+                    ) : resumeMode === "file" ? (
                       <label
                         className={cn(
                           "mt-4 flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition",
@@ -793,38 +827,6 @@ export function FitAnalyzerApp() {
                         />
                       </div>
                     )}
-                    {resumeError ? (
-                      <div
-                        aria-live="polite"
-                        className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"
-                      >
-                        <p>{resumeError}</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
-                            onClick={() => {
-                              setResumeError("");
-                              setResumeMode("file");
-                              const input = document.getElementById("resume-file") as HTMLInputElement | null;
-                              input?.click();
-                            }}
-                            type="button"
-                          >
-                            다시 올리기
-                          </button>
-                          <button
-                            className="text-xs font-medium text-rose-800 underline underline-offset-2"
-                            onClick={() => {
-                              setResumeError("");
-                              setResumeMode("text");
-                            }}
-                            type="button"
-                          >
-                            내용 직접 붙여넣기
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
                     <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500">
                       <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       파일과 원문은 저장하지 않아요. 확인한 커리어 정보만
@@ -844,7 +846,7 @@ export function FitAnalyzerApp() {
                   <ModeButton
                     active={jobMode === "url"}
                     label="공고 URL"
-                    onClick={() => setJobMode("url")}
+                    onClick={() => { setJobMode("url"); setUrlHint(""); }}
                   />
                   <ModeButton
                     active={jobMode === "text"}
@@ -897,14 +899,21 @@ export function FitAnalyzerApp() {
                   />
                 </fieldset>
 
-                {error ? (
+                {urlHint ? (
+                  <div
+                    aria-live="polite"
+                    className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700"
+                  >
+                    {urlHint}
+                  </div>
+                ) : error ? (
                   <div
                     aria-live="polite"
                     className="mt-4 rounded-lg bg-rose-50 px-3 py-3 text-sm text-rose-700"
                   >
                     <p>{error}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {analysisErrorCode === "quota_unavailable" ? (
+                    {analysisErrorCode === "quota_unavailable" ? (
+                      <div className="mt-2">
                         <Button
                           onClick={() => void analyze()}
                           size="sm"
@@ -913,17 +922,8 @@ export function FitAnalyzerApp() {
                           <RefreshCw className="h-3.5 w-3.5" />
                           다시 시도
                         </Button>
-                      ) : null}
-                      {(analysisErrorCode === "fetch_failed" ||
-                        analysisErrorCode === "url_timeout" ||
-                        analysisErrorCode === "url_access_denied" ||
-                        analysisErrorCode === "url_content_not_found") &&
-                      jobMode === "text" ? (
-                        <p className="text-xs text-rose-600">
-                          공고 내용을 아래 입력창에 붙여넣어 주세요.
-                        </p>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 <Button
