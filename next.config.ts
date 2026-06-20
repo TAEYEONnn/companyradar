@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
   //   default workerSrc "./pdf.worker.mjs" resolves to the wrong chunks directory
   //   instead of node_modules/pdfjs-dist/legacy/build/
   serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
+
+  // Vercel's file-system tracer only follows import() calls. pdf.worker.mjs is
+  // referenced as a string path in GlobalWorkerOptions.workerSrc, so the tracer
+  // doesn't know to include it. List it explicitly so it ships with the function.
+  outputFileTracingIncludes: {
+    "/api/parse-resume": [
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    ],
+  },
 };
 
 export default nextConfig;
