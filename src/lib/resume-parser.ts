@@ -155,15 +155,21 @@ export async function loadPdfJs(): Promise<typeof PdfJsModule> {
       console.log("[parse-resume]", { stage: "pdfjs-import-started" });
       const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-      // Default workerSrc is "./pdf.worker.mjs" (relative path).
-      // In Vercel serverless CWD != pdfjs-dist directory → worker not found.
-      // Resolve to absolute file:// URL.
+      // Default workerSrc is "./pdf.worker.mjs" (relative path). When pdfjs-dist
+      // is listed in serverExternalPackages it is NOT webpack-bundled, so pdfjs
+      // runs from its real node_modules path and import.meta.url inside pdfjs
+      // resolves "./pdf.worker.mjs" to the correct sibling file automatically.
+      //
+      // If for some reason the path is still relative AND import.meta.url in
+      // this (bundled) module is a real string URL, try to resolve it explicitly.
       const current = mod.GlobalWorkerOptions.workerSrc ?? "";
-      if (!current || current.startsWith(".")) {
+      const metaUrl = import.meta.url;
+      if ((!current || current.startsWith(".")) && typeof metaUrl === "string") {
         try {
-          const req = createRequire(import.meta.url);
+          const req = createRequire(metaUrl);
           const workerPath = req.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
           mod.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+          console.log("[parse-resume]", { stage: "worker-src-resolved" });
         } catch (e) {
           console.warn("[parse-resume]", {
             stage: "worker-src-resolve-failed",
@@ -172,6 +178,8 @@ export async function loadPdfJs(): Promise<typeof PdfJsModule> {
           });
         }
       }
+      // else: pdfjs is external — its own import.meta.url resolves the relative
+      // workerSrc correctly without help from this bundled module.
 
       console.log("[parse-resume]", { stage: "pdfjs-import-completed" });
       return mod;
