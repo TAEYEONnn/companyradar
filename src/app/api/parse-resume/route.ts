@@ -12,7 +12,11 @@ import { USER_COPY } from "@/lib/user-copy";
 
 export const runtime = "nodejs";
 
+// file_missing / file_empty are distinct client errors (not covered by ResumeParseErrorCode).
+// pdf_parse_failed / pdf_text_empty are 422 aliases for parse_failed / text_not_found.
 type ErrorCode =
+  | "file_missing"
+  | "file_empty"
   | ResumeParseErrorCode
   | "quota_exceeded"
   | "quota_unavailable"
@@ -27,42 +31,95 @@ interface ModelProfile {
 }
 
 export async function POST(request: Request) {
+  // ── 1. Parse multipart body ──────────────────────────────────────────────
   let form: FormData;
   try {
     form = await request.formData();
-  } catch {
+  } catch (err) {
+    console.error("[parse-resume]", {
+      stage: "form-parse-failed",
+      reason: err instanceof Error ? err.message : String(err),
+    });
     return apiError(400, "unsupported_file", USER_COPY.resume.unsupported);
   }
 
+  // ── 2. Extract file field ────────────────────────────────────────────────
   const file = form.get("file");
+  console.log("[parse-resume]", {
+    stage: "file-received",
+    formKeys: [...form.keys()],
+    isFile: file instanceof File,
+    name: file instanceof File ? file.name : null,
+    type: file instanceof File ? file.type : null,
+    size: file instanceof File ? file.size : null,
+  });
+
   if (!(file instanceof File)) {
-    return apiError(400, "unsupported_file", USER_COPY.resume.unsupported);
+    return apiError(400, "file_missing", USER_COPY.resume.unsupported);
+  }
+  if (file.size === 0) {
+    return apiError(400, "file_empty", USER_COPY.resume.unsupported);
   }
 
+  // ── 3. Validate extension + size ────────────────────────────────────────
   try {
     validateResumeFile(file);
   } catch (error) {
     return resumeError(error);
   }
 
+  // ── 4. PDF magic-bytes check ─────────────────────────────────────────────
+  // Accept even when MIME is application/octet-stream if extension + bytes say PDF.
+  if (file.name.toLowerCase().endsWith(".pdf")) {
+    const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    const isPdf =
+      header[0] === 0x25 && // %
+      header[1] === 0x50 && // P
+      header[2] === 0x44 && // D
+      header[3] === 0x46 && // F
+      header[4] === 0x2d;   // -
+    if (!isPdf) {
+      console.warn("[parse-resume]", {
+        stage: "magic-bytes-fail",
+        name: file.name,
+        size: file.size,
+      });
+      return apiError(400, "unsupported_file", USER_COPY.resume.unsupported);
+    }
+  }
+
+  // ── 5. Quota ─────────────────────────────────────────────────────────────
   const clientId = await resolveQuotaClientId(request);
   const quota = await reserveResumeQuota(request, clientId);
   logQuota("parse-resume", quota.backend ?? "unknown", quota.reason);
   if (!quota.allowed) return quotaError(quota.reason);
 
+  // ── 6. Text extraction ───────────────────────────────────────────────────
   let resumeText: string;
   try {
     resumeText = await extractResumeText(file);
+    console.log("[parse-resume]", {
+      stage: "text-extracted",
+      textLength: resumeText.length,
+    });
   } catch (error) {
+    const code =
+      error instanceof ResumeParseError ? error.code : "parse_failed";
+    console.error("[parse-resume]", {
+      stage: "text-extraction-failed",
+      errorCode: code,
+    });
     return resumeError(error);
   }
 
+  // ── 7. AI extraction ─────────────────────────────────────────────────────
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return apiError(503, "ai_failed", USER_COPY.ai.unavailable);
   }
 
   try {
+    console.log("[parse-resume]", { stage: "ai-call-start" });
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -107,9 +164,9 @@ ${resumeText}`,
     });
 
     if (!response.ok) {
-      console.error("[parse-resume] provider failed", {
+      console.error("[parse-resume]", {
+        stage: "ai-call-failed",
         status: response.status,
-        errorCode: "ai_failed",
       });
       return apiError(502, "ai_failed", USER_COPY.ai.failed);
     }
@@ -122,8 +179,11 @@ ${resumeText}`,
     try {
       parsed = JSON.parse(content.replace(/```json|```/g, "").trim()) as ModelProfile;
     } catch {
+      console.error("[parse-resume]", { stage: "ai-json-parse-failed" });
       return apiError(502, "ai_failed", USER_COPY.ai.failed);
     }
+
+    console.log("[parse-resume]", { stage: "ai-call-success" });
     const profile = normalizeProfile(parsed, resumeText);
     return NextResponse.json({
       ok: true,
@@ -211,7 +271,7 @@ function normalizeEvidence(value: string): string {
 }
 
 function resumeError(error: unknown) {
-  const code =
+  const code: ResumeParseErrorCode =
     error instanceof ResumeParseError ? error.code : "parse_failed";
   const messages: Record<ResumeParseErrorCode, string> = {
     unsupported_file: USER_COPY.resume.unsupported,
@@ -220,7 +280,11 @@ function resumeError(error: unknown) {
     text_not_found: USER_COPY.resume.textNotFound,
     parse_failed: USER_COPY.resume.parseFailed,
   };
-  return apiError(400, code, messages[code]);
+  // 400 = bad user input (wrong type, too large)
+  // 422 = valid file the server cannot process (scanned PDF, corrupt, encrypted)
+  const status =
+    code === "unsupported_file" || code === "file_too_large" ? 400 : 422;
+  return apiError(status, code, messages[code]);
 }
 
 function quotaError(reason: QuotaReason | null) {
