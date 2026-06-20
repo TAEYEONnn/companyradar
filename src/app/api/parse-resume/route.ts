@@ -297,6 +297,7 @@ function resumeError(error: unknown) {
     parse_failed: USER_COPY.resume.parseFailed,
     pdf_invalid: USER_COPY.resume.pdfInvalid,
     pdf_worker_failed: USER_COPY.resume.pdfWorkerFailed,
+    pdf_runtime_unsupported: USER_COPY.resume.pdfRuntimeUnsupported,
   };
   // 400 = bad user input (wrong type, too large)
   // 422 = valid file the server cannot process (scanned PDF, corrupt, encrypted)

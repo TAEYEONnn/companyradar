@@ -16,6 +16,7 @@ export const USER_COPY = {
     parseFailed: "이력서를 읽지 못했어요. 다른 파일로 다시 시도해주세요.",
     pdfInvalid: "PDF 파일의 구조를 읽지 못했어요. 파일을 다시 저장한 뒤 업로드해 주세요.",
     pdfWorkerFailed: "PDF 처리 중 내부 오류가 발생했어요. 잠시 후 다시 시도해주세요.",
+    pdfRuntimeUnsupported: "PDF 처리 환경을 초기화하지 못했어요. 잠시 후 다시 시도해 주세요.",
     quotaExceeded: "오늘 이력서 정리 3회를 모두 사용했어요.",
   },
   job: {

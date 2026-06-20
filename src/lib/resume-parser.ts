@@ -1,6 +1,9 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
+// Type-only: zero runtime cost, used to type the module singleton below
+import type * as PdfJsModule from "pdfjs-dist/legacy/build/pdf.mjs";
+
 const MAX_RESUME_FILE_BYTES = 4 * 1024 * 1024;
 const MIN_RESUME_TEXT_CHARS = 20;
 const MAX_RESUME_TEXT_CHARS = 20_000;
@@ -12,8 +15,9 @@ export type ResumeParseErrorCode =
   | "encrypted_file"
   | "text_not_found"
   | "parse_failed"
-  | "pdf_invalid"       // InvalidPDFException / MissingPDFException / FormatError
-  | "pdf_worker_failed"; // Worker initialisation failure in serverless
+  | "pdf_invalid"              // InvalidPDFException / MissingPDFException / FormatError
+  | "pdf_worker_failed"        // Worker initialisation failure
+  | "pdf_runtime_unsupported"; // DOMMatrix / canvas globals missing in serverless
 
 export class ResumeParseError extends Error {
   constructor(
@@ -82,33 +86,122 @@ export async function extractResumeText(file: File): Promise<string> {
   return normalized;
 }
 
-async function resolveWorkerSrc(): Promise<string> {
-  // Default workerSrc is "./pdf.worker.mjs" (relative).
-  // In Vercel Node.js serverless CWD != pdfjs-dist directory, so the relative
-  // path fails and causes "Setting up fake worker failed". Resolve to file://.
+// ── Node.js global polyfill ───────────────────────────────────────────────────
+// pdfjs-dist 6.x requires DOMMatrix (and optionally ImageData / Path2D) as
+// browser globals. They don't exist in Node.js/Vercel serverless. @napi-rs/canvas
+// ships native Node.js implementations of all three.
+// We use `key in globalThis` instead of `typeof globalThis.X` to avoid TypeScript
+// lib.dom.d.ts telling us the globals always exist.
+
+async function ensurePdfJsNodeGlobals(): Promise<void> {
+  console.log("[parse-resume]", {
+    stage: "pdf-globals-check",
+    hasDOMMatrix: "DOMMatrix" in globalThis,
+    hasImageData: "ImageData" in globalThis,
+    hasPath2D: "Path2D" in globalThis,
+  });
+
+  if (
+    "DOMMatrix" in globalThis &&
+    "ImageData" in globalThis &&
+    "Path2D" in globalThis
+  ) {
+    return;
+  }
+
+  const canvas = await import("@napi-rs/canvas");
+
+  if (!("DOMMatrix" in globalThis)) {
+    Object.defineProperty(globalThis, "DOMMatrix", {
+      value: canvas.DOMMatrix,
+      configurable: true,
+      writable: true,
+    });
+  }
+  if (!("ImageData" in globalThis)) {
+    Object.defineProperty(globalThis, "ImageData", {
+      value: canvas.ImageData,
+      configurable: true,
+      writable: true,
+    });
+  }
+  if (!("Path2D" in globalThis) && canvas.Path2D) {
+    Object.defineProperty(globalThis, "Path2D", {
+      value: canvas.Path2D,
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  console.log("[parse-resume]", {
+    stage: "pdf-globals-polyfilled",
+    hasDOMMatrix: "DOMMatrix" in globalThis,
+    hasImageData: "ImageData" in globalThis,
+    hasPath2D: "Path2D" in globalThis,
+  });
+}
+
+// ── pdfjs-dist singleton ──────────────────────────────────────────────────────
+// Module-level cache so polyfill + dynamic import runs once per cold start.
+// On load failure the cache is cleared so the next request retries.
+
+let pdfJsLoadPromise: Promise<typeof PdfJsModule> | null = null;
+
+export async function loadPdfJs(): Promise<typeof PdfJsModule> {
+  if (!pdfJsLoadPromise) {
+    const p = (async (): Promise<typeof PdfJsModule> => {
+      await ensurePdfJsNodeGlobals();
+
+      console.log("[parse-resume]", { stage: "pdfjs-import-started" });
+      const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+      // Default workerSrc is "./pdf.worker.mjs" (relative path).
+      // In Vercel serverless CWD != pdfjs-dist directory → worker not found.
+      // Resolve to absolute file:// URL.
+      const current = mod.GlobalWorkerOptions.workerSrc ?? "";
+      if (!current || current.startsWith(".")) {
+        try {
+          const req = createRequire(import.meta.url);
+          const workerPath = req.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+          mod.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+        } catch (e) {
+          console.warn("[parse-resume]", {
+            stage: "worker-src-resolve-failed",
+            errorName: e instanceof Error ? e.name : "UnknownError",
+            errorMessage: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+
+      console.log("[parse-resume]", { stage: "pdfjs-import-completed" });
+      return mod;
+    })();
+
+    pdfJsLoadPromise = p;
+    // Clear on failure so next request retries instead of getting a stale rejection
+    p.catch(() => {
+      pdfJsLoadPromise = null;
+    });
+  }
+  return pdfJsLoadPromise;
+}
+
+// ── PDF text extraction ───────────────────────────────────────────────────────
+
+async function extractPdfText(data: Uint8Array): Promise<string> {
+  let pdfjs: typeof PdfJsModule;
   try {
-    const req = createRequire(import.meta.url);
-    const workerPath = req.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
-    return pathToFileURL(workerPath).href;
+    pdfjs = await loadPdfJs();
   } catch (e) {
-    console.warn("[parse-resume]", {
-      stage: "worker-src-resolve-failed",
+    console.error("[parse-resume]", {
+      stage: "pdfjs-init-failed",
       errorName: e instanceof Error ? e.name : "UnknownError",
       errorMessage: e instanceof Error ? e.message : String(e),
     });
-    return "";
-  }
-}
-
-async function extractPdfText(data: Uint8Array): Promise<string> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-
-  // Resolve absolute worker path once; skip if already set to a non-relative URL.
-  const current = pdfjs.GlobalWorkerOptions.workerSrc ?? "";
-  if (!current || current.startsWith(".")) {
-    const resolved = await resolveWorkerSrc();
-    pdfjs.GlobalWorkerOptions.workerSrc = resolved;
-    console.log("[parse-resume]", { stage: "worker-src-set", workerSrc: resolved || "(empty)" });
+    throw new ResumeParseError(
+      "pdf_runtime_unsupported",
+      e instanceof Error ? e.message : "pdf_runtime_unsupported",
+    );
   }
 
   console.log("[parse-resume]", {
@@ -182,6 +275,8 @@ async function extractPdfText(data: Uint8Array): Promise<string> {
   return fullText;
 }
 
+// ── Text normalisation ────────────────────────────────────────────────────────
+
 function normalizeResumeText(value: string): string {
   return value
     .replace(/\r\n?/g, "\n")
@@ -190,6 +285,8 @@ function normalizeResumeText(value: string): string {
     .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
+
+// ── pdfjs error classifiers ───────────────────────────────────────────────────
 
 function isEncryptedPdfError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;

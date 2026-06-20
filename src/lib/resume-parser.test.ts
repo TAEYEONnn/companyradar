@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
 import {
   extractResumeText,
+  loadPdfJs,
   ResumeParseError,
   validateResumeFile,
 } from "./resume-parser";
@@ -104,6 +105,39 @@ describe("resume text extraction", () => {
     },
     15_000,
   );
+});
+
+describe("loadPdfJs – singleton and polyfill", () => {
+  it("returns the same module instance on concurrent calls", async () => {
+    const [a, b, c] = await Promise.all([loadPdfJs(), loadPdfJs(), loadPdfJs()]);
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+
+  it("resolves workerSrc to a non-relative path", async () => {
+    const pdfjs = await loadPdfJs();
+    // Default is "./pdf.worker.mjs" – after loadPdfJs it should be an absolute URL
+    expect(pdfjs.GlobalWorkerOptions.workerSrc).not.toMatch(/^\.\//);
+  });
+
+  it("does not overwrite DOMMatrix if it already exists", async () => {
+    const key = "DOMMatrix";
+    const current = (globalThis as Record<string, unknown>)[key];
+    await loadPdfJs();
+    // The global must still be the same reference (not replaced by the polyfill)
+    expect((globalThis as Record<string, unknown>)[key]).toBe(current);
+  });
+
+  it("is safe to call multiple times sequentially", async () => {
+    for (let i = 0; i < 3; i++) {
+      await expect(loadPdfJs()).resolves.toBeTruthy();
+    }
+  });
+
+  it("pdfjs module has getDocument function", async () => {
+    const pdfjs = await loadPdfJs();
+    expect(typeof pdfjs.getDocument).toBe("function");
+  });
 });
 
 function createSimplePdf(text: string): Uint8Array {

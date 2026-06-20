@@ -262,6 +262,23 @@ describe("POST /api/parse-resume", () => {
     });
   });
 
+  it("returns 422 pdf_runtime_unsupported when DOMMatrix global is unavailable", async () => {
+    mocks.extractResumeText.mockRejectedValue(new ResumeParseError("pdf_runtime_unsupported"));
+    const form = new FormData();
+    form.set("file", makePdfFile());
+    const response = await POST(
+      new Request("http://localhost/api/parse-resume", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "pdf_runtime_unsupported",
+    });
+  });
+
   // ── Quota ─────────────────────────────────────────────────────────────────
 
   it("returns 503 quota_unavailable when both quota stores fail", async () => {
