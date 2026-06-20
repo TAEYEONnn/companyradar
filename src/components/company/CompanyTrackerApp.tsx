@@ -2,6 +2,7 @@
 
 import { AlertCircle, CheckCircle2, CloudOff, Loader2, Menu, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -64,6 +65,7 @@ import { QuickAddPanel } from "./QuickAddPanel";
 import { CriteriaSettingsPanel } from "./CriteriaSettingsPanel";
 import { CoachPanel } from "./CoachPanel";
 import { KanbanBoard } from "./KanbanBoard";
+import { JobPostingsPanel } from "./JobPostingsPanel";
 import { MigrationDialog } from "./MigrationDialog";
 import {
   getDeadlineRank,
@@ -99,7 +101,11 @@ export function CompanyTrackerApp() {
   );
   const [sortMode, setSortMode] = useState<SortMode>("score_desc");
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
+  const [viewMode, setViewMode] = useState<ViewMode>("jobs");
+  const [selectedTrackedJobId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("job") ?? "";
+  });
   const [listMode, setListMode] = useState<ListMode>("table");
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
@@ -182,7 +188,7 @@ export function CompanyTrackerApp() {
         setCandidates([]);
         setSelectedId("");
         setEditingCompany(null);
-        setViewMode("dashboard");
+        setViewMode("jobs");
         setIsReady(false);
         setDeletionRequested(false);
       }
@@ -208,9 +214,6 @@ export function CompanyTrackerApp() {
       const preferredRole = loadedSettings.userRole ?? loadUserRole(effectiveUserId) ?? "designer";
       const migrationCompletedAt = getMigrationCompletedAt(effectiveUserId);
       setSettings(loadedSettings);
-      if (shouldShowOnboarding(loadedSettings)) {
-        setShowOnboarding(true);
-      }
 
       const remoteCandidates = userId ? await pullCandidateInboxItems(userId) : [];
       if (remoteCandidates === null) {
@@ -292,9 +295,6 @@ export function CompanyTrackerApp() {
       setSelectedId("");
       setStorageWriteEnabled(true);
       setIsReady(true);
-      if (shouldShowOnboarding(loadedSettings)) {
-        setShowOnboarding(true);
-      }
     });
   }, [devToolsEnabled, userEmail, userId, effectiveUserId]);
 
@@ -338,6 +338,14 @@ export function CompanyTrackerApp() {
   function showToast(message: string) {
     setToast(message);
     setTimeout(() => setToast(""), 3000);
+  }
+
+  function navigateTo(mode: ViewMode) {
+    if (mode === "dashboard" && shouldShowOnboarding(settings)) {
+      setShowOnboarding(true);
+    }
+    setViewMode(mode);
+    setEditingCompany(null);
   }
 
   async function fetchAiCredit() {
@@ -930,10 +938,7 @@ export function CompanyTrackerApp() {
         badges={sidebarBadges}
         className="hidden md:flex"
         devToolsEnabled={devToolsEnabled}
-        onNavigate={(mode) => {
-          setViewMode(mode);
-          setEditingCompany(null);
-        }}
+        onNavigate={navigateTo}
         onSignOut={() => void signOut()}
         userEmail={userEmail}
         viewMode={viewMode}
@@ -973,8 +978,7 @@ export function CompanyTrackerApp() {
           className="h-full w-full border-r-0"
           devToolsEnabled={devToolsEnabled}
           onNavigate={(mode) => {
-            setViewMode(mode);
-            setEditingCompany(null);
+            navigateTo(mode);
             setMobileMenuOpen(false);
           }}
           onSignOut={() => {
@@ -1016,17 +1020,30 @@ export function CompanyTrackerApp() {
             />
           ) : null}
           <div className="flex-1" />
-          <Button onClick={() => setViewMode("quick-add")} variant="secondary">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">회사명만 저장하기</span>
-          </Button>
-          <Button onClick={() => setViewMode("inbox")}>
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">AI로 공고 정리하기</span>
-          </Button>
+          {viewMode === "jobs" ? (
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700"
+              href="/"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">새 공고 분석</span>
+            </Link>
+          ) : (
+            <>
+              <Button onClick={() => setViewMode("quick-add")} variant="secondary">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">회사명만 저장하기</span>
+              </Button>
+              <Button onClick={() => setViewMode("inbox")}>
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">AI로 공고 정리하기</span>
+              </Button>
+            </>
+          )}
         </header>
 
         {/* Summary bar */}
+        {viewMode !== "jobs" ? (
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 sm:px-5">
           <span className="font-medium text-slate-800">{companies.length}개 회사</span>
           <span>·</span>
@@ -1040,14 +1057,20 @@ export function CompanyTrackerApp() {
             리스크 {summary.highRisk}
           </span>
         </div>
+        ) : null}
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-auto">
           <div className="p-3 sm:p-4">
-            {viewMode === "settings" ? (
+            {viewMode === "jobs" ? (
+              <JobPostingsPanel
+                accessToken={session.access_token}
+                selectedJobId={selectedTrackedJobId}
+              />
+            ) : viewMode === "settings" ? (
               <CriteriaSettingsPanel
                 deletionRequested={deletionRequested}
-                onBack={() => setViewMode("dashboard")}
+                onBack={() => setViewMode("jobs")}
                 onChange={updateSettings}
                 onDeleteAccount={deleteAccount}
                 onExport={() => void exportBackup(companies, settings, effectiveUserId)}

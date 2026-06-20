@@ -4,10 +4,10 @@
 
 ## 핵심 흐름
 
-- `/`: 로그인 없이 이력서 텍스트와 공고 URL/원문을 분석
+- `/`: 로그인 없이 이력서 텍스트와 공고 URL/원문을 분석하고, 로그인 후 결과 저장
 - 판단 등급, 보조 점수, 매칭·부족·불확실 요구사항, 다음 행동 제공
-- 이력서 원문은 저장하지 않고 추출된 구조화 프로필만 브라우저에 저장
-- `/tracker`: 기존 Supabase 기반 회사 관리 기능
+- 이력서 원문은 저장하지 않고 추출된 구조화 프로필만 브라우저와 계정에 저장
+- `/tracker`: 저장한 공고·지원 목록을 기본으로 제공하고 기존 회사 평가는 보조 메뉴로 유지
 
 ## 주요 기능
 
@@ -17,9 +17,16 @@
 - 회사핏 점수, 리스크, 좋은 점 / 걱정되는 점 / 더 확인할 점 기록
 - 모바일 회사 카드 리스트와 상세 드로어
 - AI 공고 파싱, 회사 조사, 비교 분석, 주간 전략, 면접 질문, 메일 초안, 회사 요약
-- AI 유료 베타: 계정당 첫 성공 1회 무료, 이후 10회권 4,900원
+- 로그인 사용자의 모든 AI 기능은 하나의 계정 크레딧 정책을 사용
 
 ## 이번 빌드 변경사항
+
+- **공고 핏 분석과 지원 관리 통합**: 분석 결과에서 `관심 공고로 저장`, `지원 예정으로 저장`, `패스`를 선택하고 `/tracker` 공고·지원 목록으로 바로 연결. 비로그인 사용자는 현재 결과를 유지한 채 로그인/회원가입 후 자동 저장.
+- **공고 중심 DB 모델 추가**: `candidate_profiles`, `job_companies`, `job_postings`, `fit_analyses`, `fit_requirements`, `job_decisions`, `applications`와 원자적 저장 RPC 추가. 기존 JSON `companies` 테이블과 회사 평가 기능은 유지.
+- **트래커 기본 화면 변경**: `/tracker` 진입 시 공고·지원 목록을 먼저 표시. 패스 공고는 기본 목록에서 숨기고 전용 필터에서 확인. 데스크톱 표와 390px 모바일 카드 지원.
+- **AI 한도 통합**: 익명 분석은 기존 Redis 브라우저/IP 한도, 로그인 분석은 트래커와 동일한 AI 크레딧을 사용하며 성공한 AI 호출만 차감.
+- **구조화 프로필 계정 동기화**: 로그인 사용자는 DB 프로필과 브라우저 프로필 중 최신 값을 자동 선택하고 동기화. 이력서·공고 원문은 DB와 GA에 저장하지 않음.
+- **GA 저장 퍼널 추가**: 저장 클릭, 인증 필요, 저장 완료, 지원 시작 이벤트를 개인정보·회사명·URL·원문 없이 수집.
 
 - **온보딩 "직접 추가하기" → 간단 추가 화면**: 온보딩에서 "회사명만 먼저 저장하기"를 선택하면 구 전체 폼 대신 최소 입력만 받는 QuickAddPanel로 연결. 회사명·채용공고 URL·지원 상태만 입력 후 바로 저장 가능. "자세히 입력할래요" 링크로 전체 폼 접근 가능.
 
@@ -228,7 +235,14 @@ supabase/migrations/20260613_v035_ai_billing_credits.sql
 supabase/migrations/20260613_v036_support_account_requests.sql
 supabase/migrations/20260614_v038_profiles_trigger.sql
 supabase/migrations/20260614_v039_candidate_inbox_name_fields.sql
+supabase/migrations/20260614_v041_admin_archive_replies.sql
+supabase/migrations/20260614_v042_ai_free_used_emails.sql
+supabase/migrations/20260614_v043_request_fk_set_null.sql
+supabase/migrations/20260614_v044_ai_free_uses_5.sql
+supabase/migrations/20260620_v045_fit_tracker_integration.sql
 ```
+
+v045 rollback은 `supabase/rollback/20260620_v045_fit_tracker_integration.rollback.sql`에 있습니다.
 
 `v038` 적용 후 운영자 계정을 `owner`로 설정:
 

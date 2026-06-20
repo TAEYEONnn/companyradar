@@ -1,0 +1,327 @@
+-- v0.4.5 Fit analyzer and application tracker integration
+
+create table if not exists public.candidate_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  target_role text not null default '',
+  years_experience numeric,
+  skills jsonb not null default '[]'::jsonb,
+  domains jsonb not null default '[]'::jsonb,
+  achievements jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.job_companies (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists job_companies_user_name_idx
+  on public.job_companies (user_id, name);
+
+create table if not exists public.job_postings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  company_id uuid not null references public.job_companies(id) on delete cascade,
+  title text not null default '',
+  canonical_url text,
+  source text not null default 'manual',
+  structured_data jsonb not null default '{}'::jsonb,
+  deadline date,
+  last_checked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists job_postings_user_canonical_url_idx
+  on public.job_postings (user_id, canonical_url)
+  where canonical_url is not null and canonical_url <> '';
+
+create table if not exists public.fit_analyses (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  job_posting_id uuid not null references public.job_postings(id) on delete cascade,
+  analysis_id text not null,
+  summary text not null default '',
+  recommendation text not null,
+  score integer not null,
+  evidence_coverage integer not null default 0,
+  next_action text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint fit_analyses_recommendation_check check (
+    recommendation in ('apply', 'verify', 'pass')
+  ),
+  constraint fit_analyses_score_check check (score between 0 and 100),
+  constraint fit_analyses_coverage_check check (evidence_coverage between 0 and 100),
+  constraint fit_analyses_user_analysis_id_key unique (user_id, analysis_id)
+);
+
+create table if not exists public.fit_requirements (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  fit_analysis_id uuid not null references public.fit_analyses(id) on delete cascade,
+  requirement_key text not null,
+  text text not null,
+  importance text not null,
+  match text not null,
+  confidence integer not null,
+  job_evidence text not null default '',
+  profile_evidence text not null default '',
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  constraint fit_requirements_importance_check check (
+    importance in ('required', 'preferred')
+  ),
+  constraint fit_requirements_match_check check (
+    match in ('matched', 'partial', 'missing', 'uncertain')
+  ),
+  constraint fit_requirements_confidence_check check (confidence between 1 and 3)
+);
+
+create table if not exists public.job_decisions (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  job_posting_id uuid not null references public.job_postings(id) on delete cascade,
+  decision text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, job_posting_id),
+  constraint job_decisions_decision_check check (
+    decision in ('interested', 'planned', 'pass')
+  )
+);
+
+create table if not exists public.applications (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  job_posting_id uuid not null references public.job_postings(id) on delete cascade,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, job_posting_id),
+  constraint applications_status_check check (
+    status in ('interested', 'planned', 'applied', 'interviewing', 'rejected', 'offer', 'on_hold')
+  )
+);
+
+create index if not exists job_postings_user_updated_idx
+  on public.job_postings (user_id, updated_at desc);
+create index if not exists fit_analyses_job_created_idx
+  on public.fit_analyses (job_posting_id, created_at desc);
+create index if not exists fit_requirements_analysis_position_idx
+  on public.fit_requirements (fit_analysis_id, position);
+
+alter table public.candidate_profiles enable row level security;
+alter table public.job_companies enable row level security;
+alter table public.job_postings enable row level security;
+alter table public.fit_analyses enable row level security;
+alter table public.fit_requirements enable row level security;
+alter table public.job_decisions enable row level security;
+alter table public.applications enable row level security;
+
+do $$
+declare
+  table_name text;
+begin
+  foreach table_name in array array[
+    'candidate_profiles',
+    'job_companies',
+    'job_postings',
+    'fit_analyses',
+    'fit_requirements',
+    'job_decisions',
+    'applications'
+  ]
+  loop
+    execute format('drop policy if exists "Users manage own %s" on public.%I', table_name, table_name);
+    execute format(
+      'create policy "Users manage own %s" on public.%I for all to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id)',
+      table_name,
+      table_name
+    );
+  end loop;
+end
+$$;
+
+create or replace function public.save_fit_result(
+  p_job_posting jsonb,
+  p_analysis jsonb,
+  p_requirements jsonb,
+  p_decision text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  current_company_id uuid;
+  current_job_posting_id uuid;
+  current_fit_analysis_id uuid;
+  current_application_status text;
+  is_duplicate boolean := false;
+  canonical_url text := nullif(trim(p_job_posting->>'canonicalUrl'), '');
+  company_name text := coalesce(nullif(trim(p_job_posting->>'companyName'), ''), '회사명 확인 필요');
+  requirement jsonb;
+  requirement_position integer := 0;
+begin
+  if current_user_id is null then
+    raise exception 'authentication required';
+  end if;
+  if p_decision not in ('interested', 'planned', 'pass') then
+    raise exception 'invalid decision';
+  end if;
+
+  insert into public.job_companies (user_id, name)
+  values (current_user_id, company_name)
+  on conflict (user_id, name)
+  do update set updated_at = now()
+  returning id into current_company_id;
+
+  if canonical_url is not null then
+    select exists(
+      select 1
+      from public.job_postings
+      where user_id = current_user_id
+        and job_postings.canonical_url = canonical_url
+    ) into is_duplicate;
+
+    insert into public.job_postings (
+      user_id,
+      company_id,
+      title,
+      canonical_url,
+      source,
+      structured_data,
+      deadline,
+      last_checked_at
+    ) values (
+      current_user_id,
+      current_company_id,
+      coalesce(p_job_posting->>'title', ''),
+      canonical_url,
+      coalesce(nullif(p_job_posting->>'source', ''), 'manual'),
+      coalesce(p_job_posting->'structuredData', '{}'::jsonb),
+      nullif(p_job_posting->>'deadline', '')::date,
+      coalesce(nullif(p_job_posting->>'lastCheckedAt', '')::timestamptz, now())
+    )
+    on conflict (user_id, canonical_url)
+      where canonical_url is not null and canonical_url <> ''
+    do update set company_id = excluded.company_id,
+                  title = coalesce(nullif(excluded.title, ''), job_postings.title),
+                  source = coalesce(nullif(excluded.source, ''), job_postings.source),
+                  structured_data = excluded.structured_data,
+                  deadline = coalesce(excluded.deadline, job_postings.deadline),
+                  last_checked_at = excluded.last_checked_at,
+                  updated_at = now()
+    returning id into current_job_posting_id;
+  else
+    insert into public.job_postings (
+      user_id,
+      company_id,
+      title,
+      canonical_url,
+      source,
+      structured_data,
+      deadline,
+      last_checked_at
+    ) values (
+      current_user_id,
+      current_company_id,
+      coalesce(p_job_posting->>'title', ''),
+      null,
+      coalesce(nullif(p_job_posting->>'source', ''), 'manual'),
+      coalesce(p_job_posting->'structuredData', '{}'::jsonb),
+      nullif(p_job_posting->>'deadline', '')::date,
+      coalesce(nullif(p_job_posting->>'lastCheckedAt', '')::timestamptz, now())
+    )
+    returning id into current_job_posting_id;
+  end if;
+
+  insert into public.fit_analyses (
+    user_id,
+    job_posting_id,
+    analysis_id,
+    summary,
+    recommendation,
+    score,
+    evidence_coverage,
+    next_action
+  ) values (
+    current_user_id,
+    current_job_posting_id,
+    p_analysis->>'analysisId',
+    coalesce(p_analysis->>'summary', ''),
+    p_analysis->>'recommendation',
+    (p_analysis->>'score')::integer,
+    coalesce((p_analysis->>'evidenceCoverage')::integer, 0),
+    coalesce(p_analysis->>'nextAction', '')
+  )
+  on conflict (user_id, analysis_id)
+  do update set job_posting_id = excluded.job_posting_id,
+                summary = excluded.summary,
+                recommendation = excluded.recommendation,
+                score = excluded.score,
+                evidence_coverage = excluded.evidence_coverage,
+                next_action = excluded.next_action,
+                updated_at = now()
+  returning id into current_fit_analysis_id;
+
+  delete from public.fit_requirements
+  where user_id = current_user_id and fit_analysis_id = current_fit_analysis_id;
+
+  for requirement in select * from jsonb_array_elements(coalesce(p_requirements, '[]'::jsonb))
+  loop
+    insert into public.fit_requirements (
+      user_id,
+      fit_analysis_id,
+      requirement_key,
+      text,
+      importance,
+      match,
+      confidence,
+      job_evidence,
+      profile_evidence,
+      position
+    ) values (
+      current_user_id,
+      current_fit_analysis_id,
+      coalesce(requirement->>'id', requirement_position::text),
+      requirement->>'text',
+      requirement->>'importance',
+      requirement->>'match',
+      (requirement->>'confidence')::integer,
+      coalesce(requirement->>'jobEvidence', ''),
+      coalesce(requirement->>'profileEvidence', ''),
+      requirement_position
+    );
+    requirement_position := requirement_position + 1;
+  end loop;
+
+  insert into public.job_decisions (user_id, job_posting_id, decision)
+  values (current_user_id, current_job_posting_id, p_decision)
+  on conflict (user_id, job_posting_id)
+  do update set decision = excluded.decision, updated_at = now();
+
+  if p_decision = 'pass' then
+    delete from public.applications
+    where user_id = current_user_id and job_posting_id = current_job_posting_id;
+    current_application_status := null;
+  else
+    current_application_status := p_decision;
+    insert into public.applications (user_id, job_posting_id, status)
+    values (current_user_id, current_job_posting_id, current_application_status)
+    on conflict (user_id, job_posting_id)
+    do update set status = excluded.status, updated_at = now();
+  end if;
+
+  return jsonb_build_object(
+    'jobPostingId', current_job_posting_id,
+    'duplicate', is_duplicate,
+    'decision', p_decision,
+    'applicationStatus', current_application_status
+  );
+end;
+$$;

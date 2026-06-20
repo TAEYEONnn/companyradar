@@ -3,6 +3,7 @@
 import {
   BarChart3,
   BrainCircuit,
+  BriefcaseBusiness,
   Building2,
   CalendarCheck,
   CalendarDays,
@@ -107,7 +108,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", icon: Building2, label: "회사 목록" },
+  { id: "jobs", icon: BriefcaseBusiness, label: "공고·지원" },
+  { id: "dashboard", icon: Building2, label: "회사 평가" },
   { id: "inbox", icon: Inbox, label: "공고 정리", badgeKey: "inbox" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
   { id: "timeline", icon: CalendarDays, label: "타임라인" },
@@ -146,7 +148,7 @@ export function AppSidebar({
       {/* Logo */}
       <button
         className="flex h-14 items-center gap-2 border-b border-slate-100 px-4 text-left transition-colors hover:bg-slate-50"
-        onClick={() => onNavigate("dashboard")}
+        onClick={() => onNavigate("jobs")}
         type="button"
       >
         <Building2 className="h-4 w-4 text-slate-500" />

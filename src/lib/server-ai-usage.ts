@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 export type AiRequestFeature =
+  | "analyze-fit"
   | "compare-companies"
   | "draft-email"
   | "gen-prep-questions"

@@ -120,6 +120,18 @@ export function authError(status: number, code: AuthErrorCode, message: string) 
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
+export function createSupabaseUserClient(user: AuthenticatedUser) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase configuration is missing.");
+  }
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${user.accessToken}` } },
+  });
+}
+
 function getBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const [scheme, token] = authHeader.split(/\s+/, 2);

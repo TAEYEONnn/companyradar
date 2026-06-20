@@ -8,6 +8,10 @@ import {
 } from "@/lib/fit-api";
 import { reserveFitQuota, type QuotaReason } from "@/lib/fit-quota";
 import {
+  authorizeAiRequest,
+  consumeAiCredit,
+} from "@/lib/server-ai-entitlements";
+import {
   fetchPublicText,
   PublicFetchError,
 } from "@/lib/safe-public-fetch";
@@ -22,6 +26,9 @@ type ErrorCode =
   | "config_missing"
   | "quota_exceeded"
   | "quota_unavailable"
+  | "auth_required"
+  | "payment_required"
+  | "forbidden"
   | "url_invalid"
   | "url_blocked"
   | "fetch_failed"
@@ -58,11 +65,31 @@ export async function POST(request: Request) {
     );
   }
 
-  const clientId =
-    request.headers.get("x-companyradar-client")?.slice(0, 100) || "anonymous";
-  const quota = await reserveFitQuota(request, clientId);
-  if (!quota.allowed) {
-    return quotaError(quota.reason);
+  const hasBearer = /^Bearer\s+\S+/i.test(
+    request.headers.get("authorization") ?? "",
+  );
+  const authorized = hasBearer
+    ? await authorizeAiRequest(request, "analyze-fit")
+    : null;
+  if (authorized?.response) {
+    const payload = (await authorized.response.clone().json()) as {
+      error?: { code?: string; message?: string };
+    };
+    return apiError(
+      authorized.response.status,
+      normalizeAuthErrorCode(payload.error?.code),
+      payload.error?.message ?? "AI 분석 권한을 확인하지 못했습니다.",
+    );
+  }
+
+  if (!authorized?.user) {
+    const clientId =
+      request.headers.get("x-companyradar-client")?.slice(0, 100) ||
+      "anonymous";
+    const quota = await reserveFitQuota(request, clientId);
+    if (!quota.allowed) {
+      return quotaError(quota.reason);
+    }
   }
 
   try {
@@ -124,15 +151,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const result = normalizeFitAnalysis(modelAnalysis, {
+      baseProfile: input.candidateProfile,
+      jobText: jobTextResult.text,
+      jobUrl: input.jobUrl,
+      candidateText: input.candidateProfile
+        ? JSON.stringify(input.candidateProfile)
+        : input.resumeText,
+    });
+
+    if (authorized?.user) {
+      try {
+        await consumeAiCredit(
+          authorized.user,
+          "analyze-fit",
+          authorized.entitlement,
+        );
+      } catch {
+        return apiError(
+          503,
+          "quota_unavailable",
+          "AI 사용량 처리에 실패했습니다. 다시 시도해주세요.",
+        );
+      }
+    }
+
     return NextResponse.json({
       ok: true,
-      result: normalizeFitAnalysis(modelAnalysis, {
-        baseProfile: input.candidateProfile,
-        jobText: jobTextResult.text,
-        candidateText: input.candidateProfile
-          ? JSON.stringify(input.candidateProfile)
-          : input.resumeText,
-      }),
+      result,
     });
   } catch {
     return apiError(
@@ -172,6 +218,15 @@ function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
   "companyName": "회사명 (알 수 없으면 빈 문자열)",
   "summary": "근거 중심 요약",
   "nextAction": "다음 행동",
+  "jobPosting": {
+    "title": "공고 제목 또는 직무명",
+    "companyName": "회사명",
+    "source": "채용 페이지 출처",
+    "deadline": "YYYY-MM-DD 또는 빈 문자열",
+    "responsibilities": ["주요 업무"],
+    "requiredQualifications": ["필수 요건"],
+    "preferredQualifications": ["우대 요건"]
+  },
   "requirements": [
     {
       "text": "요구사항",
@@ -250,4 +305,13 @@ function quotaError(reason: QuotaReason | null) {
 
 function apiError(status: number, errorCode: ErrorCode, error: string) {
   return NextResponse.json({ ok: false, errorCode, error }, { status });
+}
+
+function normalizeAuthErrorCode(
+  value?: string,
+): "auth_required" | "payment_required" | "forbidden" | "quota_unavailable" {
+  if (value === "auth_required") return "auth_required";
+  if (value === "payment_required") return "payment_required";
+  if (value === "forbidden") return "forbidden";
+  return "quota_unavailable";
 }

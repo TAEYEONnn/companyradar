@@ -40,6 +40,15 @@ export interface FitAnalysis extends FitResult {
   summary: string;
   nextAction: string;
   requirements: FitRequirement[];
+  jobPosting: {
+    title: string;
+    companyName: string;
+    source: string;
+    deadline: string;
+    responsibilities: string[];
+    requiredQualifications: string[];
+    preferredQualifications: string[];
+  };
 }
 
 const MATCH_VALUE: Record<RequirementMatch, number> = {

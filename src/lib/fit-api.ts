@@ -33,6 +33,15 @@ export interface ModelFitAnalysis {
   companyName?: unknown;
   summary?: unknown;
   nextAction?: unknown;
+  jobPosting?: {
+    title?: unknown;
+    companyName?: unknown;
+    source?: unknown;
+    deadline?: unknown;
+    responsibilities?: unknown;
+    requiredQualifications?: unknown;
+    preferredQualifications?: unknown;
+  };
   score?: unknown;
   requirements?: ModelRequirement[];
 }
@@ -40,6 +49,7 @@ export interface ModelFitAnalysis {
 interface FitAnalysisContext {
   baseProfile?: CandidateProfile | null;
   jobText?: string;
+  jobUrl?: string;
   candidateText?: string;
 }
 
@@ -106,6 +116,15 @@ export function normalizeFitAnalysis(
   const now = new Date().toISOString();
   const profile = model.candidateProfile ?? {};
   const baseProfile = context.baseProfile;
+  const posting = isRecord(model.jobPosting) ? model.jobPosting : {};
+  const companyName = cleanSchemaPlaceholder(
+    posting.companyName ?? model.companyName,
+    ["회사명", "회사 미확인"],
+  );
+  const roleTitle = cleanSchemaPlaceholder(
+    posting.title ?? model.roleTitle,
+    ["공고 직무명", "직무명"],
+  );
 
   return {
     analysisId: crypto.randomUUID(),
@@ -123,19 +142,28 @@ export function normalizeFitAnalysis(
           achievements: stringArray(profile.achievements),
           updatedAt: now,
         },
-    roleTitle: cleanSchemaPlaceholder(model.roleTitle, [
-      "공고 직무명",
-      "직무명",
-    ]),
-    companyName: cleanSchemaPlaceholder(model.companyName, [
-      "회사명",
-      "회사 미확인",
-    ]),
+    roleTitle,
+    companyName,
     summary: asString(model.summary),
     nextAction:
       asString(model.nextAction) ||
       "불확실한 필수요건을 확인한 뒤 지원 여부를 결정하세요.",
     requirements,
+    jobPosting: {
+      title: roleTitle,
+      companyName,
+      source:
+        cleanSchemaPlaceholder(posting.source, ["출처"]) ||
+        sourceFromUrl(context.jobUrl),
+      deadline: normalizeDate(posting.deadline),
+      responsibilities: stringArray(posting.responsibilities).slice(0, 12),
+      requiredQualifications: stringArray(
+        posting.requiredQualifications,
+      ).slice(0, 12),
+      preferredQualifications: stringArray(
+        posting.preferredQualifications,
+      ).slice(0, 12),
+    },
     ...fit,
   };
 }
@@ -235,4 +263,19 @@ function evidenceFromSource(evidence: unknown, source?: string): string {
 
 function normalizeEvidence(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function sourceFromUrl(value?: string): string {
+  if (!value) return "manual";
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return "manual";
+  }
+}
+
+function normalizeDate(value: unknown): string {
+  const text = asString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  return Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ? "" : text;
 }

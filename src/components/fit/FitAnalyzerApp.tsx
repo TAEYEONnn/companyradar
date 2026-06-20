@@ -1,25 +1,31 @@
 "use client";
 
 import {
-  AlertTriangle,
   ArrowRight,
-  CheckCircle2,
+  Bookmark,
+  CalendarPlus,
   Loader2,
+  LogIn,
   Radar,
   RotateCcw,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 import Script from "next/script";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import {
+  chooseNewestCandidateProfile,
+  parsePendingFitSave,
   parseStoredCandidateProfile,
+  serializePendingFitSave,
   serializeCandidateProfile,
   trackFitEvent,
 } from "@/lib/fit-client";
+import type { PendingFitSave } from "@/lib/fit-client";
 import type {
   CandidateProfile,
   FitAnalysis,
@@ -28,10 +34,17 @@ import type {
   RequirementMatch,
 } from "@/lib/fit-analysis";
 import { cn } from "@/lib/utils";
+import type {
+  JobDecision,
+  SaveFitResultResponse,
+} from "@/lib/job-tracker";
+import { scoreBand } from "@/lib/job-tracker";
+import { getSupabaseClient } from "@/lib/supabase-client";
 
 const PROFILE_KEY = "companyradar:candidate-profile:v1";
 const CLIENT_KEY = "companyradar:client-id";
 const CONSENT_KEY = "companyradar:analytics-consent";
+const PENDING_SAVE_KEY = "companyradar:pending-fit-save:v1";
 
 type JobInputMode = "url" | "text";
 type Decision = "apply" | "verify" | "pass";
@@ -87,6 +100,8 @@ const MATCH_COPY: Record<
 };
 
 export function FitAnalyzerApp() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [jobMode, setJobMode] = useState<JobInputMode>("url");
@@ -98,6 +113,10 @@ export function FitAnalyzerApp() {
   const [analysis, setAnalysis] = useState<FitAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [authOpen, setAuthOpen] = useState(false);
+  const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
+  const [saveError, setSaveError] = useState("");
+  const [savedJobId, setSavedJobId] = useState("");
   const [analyticsConsent, setAnalyticsConsent] = useState<
     "accepted" | "declined" | null
   >(null);
@@ -118,6 +137,73 @@ export function FitAnalyzerApp() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      queueMicrotask(() => setAuthReady(true));
+      return;
+    }
+    let mounted = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+      if (nextSession) setAuthOpen(false);
+    });
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+    const token = accessToken;
+    let active = true;
+    async function syncProfile() {
+      try {
+        const response = await fetch("/api/candidate-profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = (await response.json()) as {
+          profile?: CandidateProfile | null;
+        };
+        const localProfile = parseStoredCandidateProfile(
+          localStorage.getItem(PROFILE_KEY),
+        );
+        const selected = chooseNewestCandidateProfile(
+          localProfile,
+          response.ok ? (data.profile ?? null) : null,
+        );
+        if (!active || !selected) return;
+        setProfile(selected);
+        localStorage.setItem(
+          PROFILE_KEY,
+          serializeCandidateProfile(selected),
+        );
+        if (
+          !data.profile ||
+          Date.parse(selected.updatedAt) > Date.parse(data.profile.updatedAt)
+        ) {
+          await saveCandidateProfile(selected, token);
+        }
+      } catch {
+        // Local structured profile remains available when remote sync fails.
+      }
+    }
+    void syncProfile();
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
 
   const canSubmit =
     Boolean(profile || resumeText.trim().length >= 50) &&
@@ -146,6 +232,9 @@ export function FitAnalyzerApp() {
         headers: {
           "Content-Type": "application/json",
           "x-companyradar-client": getClientId(),
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
         },
         body: JSON.stringify({
           jobUrl: jobMode === "url" ? jobUrl.trim() : "",
@@ -168,9 +257,15 @@ export function FitAnalyzerApp() {
         serializeCandidateProfile(data.result.candidateProfile),
       );
       setResumeText("");
+      if (session?.access_token) {
+        void saveCandidateProfile(
+          data.result.candidateProfile,
+          session.access_token,
+        );
+      }
       trackFitEvent("fit_analysis_completed", {
         recommendation: data.result.recommendation,
-        score: data.result.score,
+        score_band: scoreBand(data.result.score),
         duration_ms: Math.round(performance.now() - startedAt),
       });
     } catch (caught) {
@@ -179,21 +274,12 @@ export function FitAnalyzerApp() {
           ? caught.message
           : "분석 요청에 실패했습니다.";
       setError(message);
-      trackFitEvent("fit_analysis_failed", { message });
+      trackFitEvent("fit_analysis_failed", {
+        error_code: dataSafeErrorCode(message),
+      });
     } finally {
       setLoading(false);
     }
-  }
-
-  function recordDecision(nextDecision: Decision) {
-    setDecision(nextDecision);
-    trackFitEvent("fit_decision_recorded", {
-      decision: nextDecision,
-      confidence_before: confidenceBefore,
-      confidence_after: confidenceAfter,
-      confidence_change: confidenceAfter - confidenceBefore,
-      recommendation: analysis?.recommendation ?? "unknown",
-    });
   }
 
   function analyzeAnother() {
@@ -204,7 +290,7 @@ export function FitAnalyzerApp() {
     setConfidenceBefore(3);
     setConfidenceAfter(3);
     setError("");
-    trackFitEvent("fit_second_job_started");
+    trackFitEvent("second_job_analysis_started");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -218,6 +304,109 @@ export function FitAnalyzerApp() {
     localStorage.setItem(CONSENT_KEY, value);
     setAnalyticsConsent(value);
   }
+
+  async function saveDecision(nextDecision: JobDecision) {
+    if (!analysis || saveLoading) return;
+    setSaveError("");
+    setSavedJobId("");
+    setDecision(decisionToLegacy(nextDecision));
+    trackFitEvent("fit_save_clicked", { decision: nextDecision });
+
+    const pending: PendingFitSave = {
+      analysis,
+      decision: nextDecision,
+      sourceUrl: jobMode === "url" ? jobUrl.trim() : "",
+      createdAt: new Date().toISOString(),
+    };
+
+    if (!session?.access_token) {
+      localStorage.setItem(
+        PENDING_SAVE_KEY,
+        serializePendingFitSave(pending),
+      );
+      trackFitEvent("fit_auth_required", { decision: nextDecision });
+      setAuthOpen(true);
+      return;
+    }
+    await persistFitResult(pending, session.access_token);
+  }
+
+  async function persistFitResult(
+    pending: PendingFitSave,
+    accessToken: string,
+  ) {
+    setSaveLoading(pending.decision);
+    setSaveError("");
+    try {
+      const response = await fetch("/api/fit-results", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          analysis: pending.analysis,
+          jobPosting: pending.analysis.jobPosting,
+          sourceUrl: pending.sourceUrl,
+          decision: pending.decision,
+        }),
+      });
+      const data = (await response.json()) as
+        | ({ ok: true } & SaveFitResultResponse)
+        | { error?: { message?: string } };
+      if (!response.ok || !("ok" in data)) {
+        throw new Error(
+          "error" in data
+            ? data.error?.message
+            : "분석 결과를 저장하지 못했습니다.",
+        );
+      }
+      localStorage.removeItem(PENDING_SAVE_KEY);
+      setSavedJobId(data.jobPostingId);
+      setDecision(decisionToLegacy(data.decision));
+      trackFitEvent("fit_result_saved", {
+        decision: data.decision,
+        duplicate: data.duplicate,
+        recommendation: pending.analysis.recommendation,
+      });
+      trackFitEvent("fit_decision_recorded", {
+        decision: data.decision,
+        confidence_before: confidenceBefore,
+        confidence_after: confidenceAfter,
+        recommendation: pending.analysis.recommendation,
+      });
+      if (data.applicationStatus === "planned") {
+        trackFitEvent("application_started", { source: "fit_result" });
+      }
+    } catch (caught) {
+      setSaveError(
+        caught instanceof Error
+          ? caught.message
+          : "분석 결과를 저장하지 못했습니다.",
+      );
+    } finally {
+      setSaveLoading(null);
+    }
+  }
+
+  useEffect(() => {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+    const pending = parsePendingFitSave(
+      localStorage.getItem(PENDING_SAVE_KEY),
+    );
+    if (!pending) {
+      localStorage.removeItem(PENDING_SAVE_KEY);
+      return;
+    }
+    queueMicrotask(() => {
+      setAnalysis(pending.analysis);
+      setDecision(decisionToLegacy(pending.decision));
+      void persistFitResult(pending, accessToken);
+    });
+  // Pending save is intentionally consumed only when authentication changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.access_token]);
 
   return (
     <>
@@ -233,8 +422,24 @@ export function FitAnalyzerApp() {
               className="text-sm text-slate-500 underline-offset-4 hover:text-slate-900 hover:underline"
               href="/tracker"
             >
-              기존 회사 관리
+              지원 관리
             </Link>
+            {authReady ? (
+              session ? (
+                <span className="hidden max-w-48 truncate text-xs text-slate-500 sm:inline">
+                  {session.user.email}
+                </span>
+              ) : (
+                <button
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-950"
+                  onClick={() => setAuthOpen(true)}
+                  type="button"
+                >
+                  <LogIn className="h-4 w-4" />
+                  로그인
+                </button>
+              )
+            ) : null}
           </div>
         </header>
 
@@ -415,7 +620,10 @@ export function FitAnalyzerApp() {
               decision={decision}
               onAnalyzeAnother={analyzeAnother}
               onConfidenceAfterChange={setConfidenceAfter}
-              onDecision={recordDecision}
+              onSaveDecision={(value) => void saveDecision(value)}
+              saveError={saveError}
+              saveLoading={saveLoading}
+              savedJobId={savedJobId}
             />
           )}
         </div>
@@ -441,6 +649,12 @@ export function FitAnalyzerApp() {
             </div>
           </div>
         ) : null}
+        {authOpen ? (
+          <FitAuthModal
+            onClose={() => setAuthOpen(false)}
+            onSuccess={() => setAuthOpen(false)}
+          />
+        ) : null}
       </main>
     </>
   );
@@ -452,14 +666,20 @@ function FitResultView({
   decision,
   onAnalyzeAnother,
   onConfidenceAfterChange,
-  onDecision,
+  onSaveDecision,
+  saveError,
+  saveLoading,
+  savedJobId,
 }: {
   analysis: FitAnalysis;
   confidenceAfter: number;
   decision: Decision | "";
   onAnalyzeAnother: () => void;
   onConfidenceAfterChange: (value: number) => void;
-  onDecision: (decision: Decision) => void;
+  onSaveDecision: (decision: JobDecision) => void;
+  saveError: string;
+  saveLoading: JobDecision | null;
+  savedJobId: string;
 }) {
   const copy = RECOMMENDATION_COPY[analysis.recommendation];
   const groups = useMemo(
@@ -538,25 +758,49 @@ function FitResultView({
           </div>
 
           <div className="rounded-2xl border border-slate-900/10 bg-white p-5">
-            <p className="font-semibold">분석 후 실제 결정</p>
+            <p className="font-semibold">이 공고를 어떻게 관리할까요?</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              저장하면 지원 관리 목록에서 다음 행동을 이어갈 수 있습니다.
+            </p>
             <div className="mt-4 grid gap-2">
               <DecisionButton
                 active={decision === "apply"}
-                icon={<CheckCircle2 className="h-4 w-4" />}
-                label="지원한다"
-                onClick={() => onDecision("apply")}
+                disabled={saveLoading !== null}
+                icon={
+                  saveLoading === "interested" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Bookmark className="h-4 w-4" />
+                  )
+                }
+                label="관심 공고로 저장"
+                onClick={() => onSaveDecision("interested")}
               />
               <DecisionButton
                 active={decision === "verify"}
-                icon={<AlertTriangle className="h-4 w-4" />}
-                label="확인 후 결정한다"
-                onClick={() => onDecision("verify")}
+                disabled={saveLoading !== null}
+                icon={
+                  saveLoading === "planned" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CalendarPlus className="h-4 w-4" />
+                  )
+                }
+                label="지원 예정으로 저장"
+                onClick={() => onSaveDecision("planned")}
               />
               <DecisionButton
                 active={decision === "pass"}
-                icon={<XCircle className="h-4 w-4" />}
-                label="이번에는 패스한다"
-                onClick={() => onDecision("pass")}
+                disabled={saveLoading !== null}
+                icon={
+                  saveLoading === "pass" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )
+                }
+                label="패스"
+                onClick={() => onSaveDecision("pass")}
               />
             </div>
             <fieldset className="mt-5">
@@ -568,6 +812,25 @@ function FitResultView({
                 value={confidenceAfter}
               />
             </fieldset>
+            {saveError ? (
+              <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                {saveError}
+              </p>
+            ) : null}
+            {savedJobId ? (
+              <div className="mt-4 rounded-lg bg-emerald-50 p-3">
+                <p className="text-sm font-medium text-emerald-900">
+                  지원 관리에 저장했습니다.
+                </p>
+                <Link
+                  className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 underline underline-offset-4"
+                  href={`/tracker?job=${encodeURIComponent(savedJobId)}`}
+                >
+                  지원 관리에서 보기
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            ) : null}
           </div>
 
           <Button onClick={onAnalyzeAnother} variant="secondary" width="fill">
@@ -724,11 +987,13 @@ function ConfidencePicker({
 
 function DecisionButton({
   active,
+  disabled,
   icon,
   label,
   onClick,
 }: {
   active: boolean;
+  disabled?: boolean;
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
@@ -743,6 +1008,7 @@ function DecisionButton({
           : "border-slate-200 text-slate-700 hover:border-slate-400",
       )}
       onClick={onClick}
+      disabled={disabled}
       type="button"
     >
       {icon}
@@ -766,6 +1032,217 @@ function GoogleAnalytics() {
       </Script>
     </>
   );
+}
+
+function FitAuthModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError("로그인 설정이 완료되지 않았습니다.");
+      return;
+    }
+    const nextEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+      setError("올바른 이메일을 입력해주세요.");
+      return;
+    }
+    if (mode === "signup" && password.length < 8) {
+      setError("비밀번호는 8자 이상 입력해주세요.");
+      return;
+    }
+    if (mode === "signup" && password !== confirmPassword) {
+      setError("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+    if (mode === "login") {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: nextEmail,
+        password,
+      });
+      setLoading(false);
+      if (signInError) {
+        setError("이메일 또는 비밀번호를 확인해주세요.");
+        return;
+      }
+      onSuccess();
+      return;
+    }
+
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: nextEmail,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
+      },
+    });
+    setLoading(false);
+    if (signUpError) {
+      setError("회원가입에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    if (data.session) {
+      onSuccess();
+    } else {
+      setMessage(
+        "가입 확인 메일을 보냈습니다. 확인 후 돌아오면 현재 분석 결과가 자동 저장됩니다.",
+      );
+    }
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4"
+      role="dialog"
+    >
+      <section className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">
+              분석 결과 저장
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">
+              {mode === "login" ? "로그인해주세요" : "계정을 만들어주세요"}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              로그인하면 현재 결과를 잃지 않고 지원 관리에 저장합니다.
+            </p>
+          </div>
+          <button
+            aria-label="닫기"
+            className="text-slate-400 hover:text-slate-700"
+            onClick={onClose}
+            type="button"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form className="mt-5 space-y-3" onSubmit={submit}>
+          <div>
+            <Label htmlFor="fit-auth-email">이메일</Label>
+            <Input
+              autoComplete="email"
+              className="mt-1.5"
+              id="fit-auth-email"
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              value={email}
+            />
+          </div>
+          <div>
+            <Label htmlFor="fit-auth-password">비밀번호</Label>
+            <Input
+              autoComplete={
+                mode === "signup" ? "new-password" : "current-password"
+              }
+              className="mt-1.5"
+              id="fit-auth-password"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={mode === "signup" ? "8자 이상" : ""}
+              type="password"
+              value={password}
+            />
+          </div>
+          {mode === "signup" ? (
+            <div>
+              <Label htmlFor="fit-auth-confirm">비밀번호 확인</Label>
+              <Input
+                autoComplete="new-password"
+                className="mt-1.5"
+                id="fit-auth-confirm"
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                type="password"
+                value={confirmPassword}
+              />
+            </div>
+          ) : null}
+          {error ? (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {error}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-800">
+              {message}
+            </p>
+          ) : null}
+          <Button disabled={loading} width="fill">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {loading
+              ? "처리 중..."
+              : mode === "login"
+                ? "로그인하고 저장"
+                : "가입하고 저장"}
+          </Button>
+        </form>
+        <button
+          className="mt-4 text-sm text-slate-500 hover:text-slate-900"
+          onClick={() => {
+            setMode((value) => (value === "login" ? "signup" : "login"));
+            setError("");
+            setMessage("");
+          }}
+          type="button"
+        >
+          {mode === "login"
+            ? "계정이 없나요? 회원가입"
+            : "이미 계정이 있나요? 로그인"}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+async function saveCandidateProfile(
+  profile: CandidateProfile,
+  accessToken: string,
+) {
+  await fetch("/api/candidate-profile", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(profile),
+  });
+}
+
+function decisionToLegacy(decision: JobDecision): Decision {
+  if (decision === "interested") return "apply";
+  if (decision === "planned") return "verify";
+  return "pass";
+}
+
+function dataSafeErrorCode(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("사용량") || normalized.includes("분석 10회")) {
+    return "quota_exceeded";
+  }
+  if (normalized.includes("공고")) return "job_input";
+  if (normalized.includes("이력서") || normalized.includes("프로필")) {
+    return "profile_input";
+  }
+  return "analysis_failed";
 }
 
 function getClientId(): string {

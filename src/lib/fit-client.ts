@@ -1,6 +1,28 @@
-import type { CandidateProfile } from "./fit-analysis";
+import type { CandidateProfile, FitAnalysis } from "./fit-analysis";
+import type { JobDecision } from "./job-tracker";
 
 const STORAGE_VERSION = 1;
+const PENDING_SAVE_VERSION = 1;
+const PENDING_SAVE_TTL_MS = 24 * 60 * 60 * 1000;
+
+export type FitEventName =
+  | "fit_input_started"
+  | "fit_analysis_submitted"
+  | "fit_analysis_completed"
+  | "fit_save_clicked"
+  | "fit_auth_required"
+  | "fit_result_saved"
+  | "fit_decision_recorded"
+  | "application_started"
+  | "second_job_analysis_started"
+  | "fit_analysis_failed";
+
+export interface PendingFitSave {
+  analysis: FitAnalysis;
+  decision: JobDecision;
+  sourceUrl: string;
+  createdAt: string;
+}
 
 export function serializeCandidateProfile(profile: CandidateProfile): string {
   return JSON.stringify({
@@ -52,7 +74,7 @@ export function parseStoredCandidateProfile(
 }
 
 export function trackFitEvent(
-  eventName: string,
+  eventName: FitEventName,
   parameters: Record<string, string | number | boolean> = {},
 ) {
   if (typeof window === "undefined") return;
@@ -66,4 +88,55 @@ export function trackFitEvent(
     }
   ).gtag;
   gtag?.("event", eventName, parameters);
+}
+
+export function chooseNewestCandidateProfile(
+  localProfile: CandidateProfile | null,
+  remoteProfile: CandidateProfile | null,
+): CandidateProfile | null {
+  if (!localProfile) return remoteProfile;
+  if (!remoteProfile) return localProfile;
+  return Date.parse(remoteProfile.updatedAt) > Date.parse(localProfile.updatedAt)
+    ? remoteProfile
+    : localProfile;
+}
+
+export function serializePendingFitSave(value: PendingFitSave): string {
+  return JSON.stringify({ version: PENDING_SAVE_VERSION, value });
+}
+
+export function parsePendingFitSave(
+  serialized: string | null,
+  now = Date.now(),
+): PendingFitSave | null {
+  if (!serialized) return null;
+  try {
+    const parsed = JSON.parse(serialized) as {
+      version?: unknown;
+      value?: Partial<PendingFitSave>;
+    };
+    const value = parsed.value;
+    if (
+      parsed.version !== PENDING_SAVE_VERSION ||
+      !value?.analysis ||
+      typeof value.analysis.analysisId !== "string" ||
+      !isDecision(value.decision) ||
+      typeof value.createdAt !== "string" ||
+      now - Date.parse(value.createdAt) > PENDING_SAVE_TTL_MS
+    ) {
+      return null;
+    }
+    return {
+      analysis: value.analysis,
+      decision: value.decision,
+      sourceUrl: typeof value.sourceUrl === "string" ? value.sourceUrl : "",
+      createdAt: value.createdAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isDecision(value: unknown): value is JobDecision {
+  return value === "interested" || value === "planned" || value === "pass";
 }
