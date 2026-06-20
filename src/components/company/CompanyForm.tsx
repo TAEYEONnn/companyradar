@@ -126,7 +126,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
     const hasRaw = rawText.trim().length >= 50;
 
     if (!hasUrl && !hasRaw) {
-      setParseError(rawTextMode ? "공고 내용을 더 입력해주세요." : "채용공고 URL을 입력해주세요.");
+      setParseError(rawTextMode ? "공고 내용을 조금 더 붙여주세요." : "채용공고 URL을 넣어주세요.");
       return;
     }
 
@@ -301,7 +301,7 @@ export function CompanyForm({ company, settings, onCancel, onSubmit }: CompanyFo
         );
       }
     } catch {
-      setParseError("AI 분석 실패. 잠시 후 다시 시도해주세요.");
+      setParseError("공고를 정리하지 못했어요. 잠시 후 다시 해주세요.");
     } finally {
       setParsing(false);
     }

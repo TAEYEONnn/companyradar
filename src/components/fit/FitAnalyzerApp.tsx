@@ -4,19 +4,24 @@ import {
   ArrowRight,
   Bookmark,
   CalendarPlus,
+  FileText,
   Loader2,
   LogIn,
+  Pencil,
   Radar,
+  RefreshCw,
   RotateCcw,
   ShieldCheck,
+  UploadCloud,
   XCircle,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import Script from "next/script";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
+import { ResumeProfileEditor } from "@/components/fit/ResumeProfileEditor";
 import {
   chooseNewestCandidateProfile,
   parsePendingFitSave,
@@ -40,6 +45,7 @@ import type {
 } from "@/lib/job-tracker";
 import { scoreBand } from "@/lib/job-tracker";
 import { getSupabaseClient } from "@/lib/supabase-client";
+import { USER_COPY } from "@/lib/user-copy";
 
 const PROFILE_KEY = "companyradar:candidate-profile:v1";
 const CLIENT_KEY = "companyradar:client-id";
@@ -61,18 +67,18 @@ const RECOMMENDATION_COPY: Record<
   { label: string; description: string; tone: string }
 > = {
   apply: {
-    label: "지원 추천",
-    description: "핵심 필수요건과 경력 근거가 대체로 연결됩니다.",
+    label: "지원해볼 만해요",
+    description: "필수 조건과 지금까지의 경험이 꽤 잘 맞아요.",
     tone: "border-emerald-200 bg-emerald-50 text-emerald-900",
   },
   verify: {
-    label: "확인 후 결정",
-    description: "지원 전에 확인해야 할 필수요건이나 근거가 있습니다.",
+    label: "몇 가지만 더 확인해봐요",
+    description: "지원 전에 짚고 넘어갈 조건이 있어요.",
     tone: "border-amber-200 bg-amber-50 text-amber-950",
   },
   pass: {
-    label: "패스 고려",
-    description: "현재 경력과 핵심 필수요건 사이에 큰 간극이 있습니다.",
+    label: "지금은 우선순위가 낮아요",
+    description: "핵심 조건과 현재 경험 사이에 차이가 있어요.",
     tone: "border-rose-200 bg-rose-50 text-rose-950",
   },
 };
@@ -82,27 +88,38 @@ const MATCH_COPY: Record<
   { label: string; className: string }
 > = {
   matched: {
-    label: "매칭",
+    label: "잘 맞아요",
     className: "bg-emerald-100 text-emerald-800",
   },
   partial: {
-    label: "부분 매칭",
+    label: "어느 정도 맞아요",
     className: "bg-sky-100 text-sky-800",
   },
   missing: {
-    label: "부족",
+    label: "경험이 부족해요",
     className: "bg-rose-100 text-rose-800",
   },
   uncertain: {
-    label: "확인 필요",
+    label: "확인이 필요해요",
     className: "bg-amber-100 text-amber-900",
   },
 };
 
 export function FitAnalyzerApp() {
+  const resumeInteractionRef = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const [profileDraft, setProfileDraft] = useState<CandidateProfile | null>(
+    null,
+  );
+  const [profileWarnings, setProfileWarnings] = useState<string[]>([]);
+  const [showResumeInput, setShowResumeInput] = useState(true);
+  const [resumeMode, setResumeMode] = useState<"file" | "text">("file");
+  const [resumeParsing, setResumeParsing] = useState(false);
+  const [resumeError, setResumeError] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [editingExistingProfile, setEditingExistingProfile] = useState(false);
   const [resumeText, setResumeText] = useState("");
   const [jobMode, setJobMode] = useState<JobInputMode>("url");
   const [jobUrl, setJobUrl] = useState("");
@@ -113,6 +130,7 @@ export function FitAnalyzerApp() {
   const [analysis, setAnalysis] = useState<FitAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [analysisErrorCode, setAnalysisErrorCode] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -125,9 +143,11 @@ export function FitAnalyzerApp() {
     let mounted = true;
     queueMicrotask(() => {
       if (!mounted) return;
-      setProfile(
-        parseStoredCandidateProfile(localStorage.getItem(PROFILE_KEY)),
+      const storedProfile = parseStoredCandidateProfile(
+        localStorage.getItem(PROFILE_KEY),
       );
+      setProfile(storedProfile);
+      if (storedProfile) setShowResumeInput(false);
       const consent = localStorage.getItem(CONSENT_KEY);
       if (consent === "accepted" || consent === "declined") {
         setAnalyticsConsent(consent);
@@ -185,6 +205,7 @@ export function FitAnalyzerApp() {
         );
         if (!active || !selected) return;
         setProfile(selected);
+        if (!resumeInteractionRef.current) setShowResumeInput(false);
         localStorage.setItem(
           PROFILE_KEY,
           serializeCandidateProfile(selected),
@@ -206,7 +227,14 @@ export function FitAnalyzerApp() {
   }, [session?.access_token]);
 
   const canSubmit =
-    Boolean(profile || resumeText.trim().length >= 50) &&
+    Boolean(
+      (!showResumeInput && profile) ||
+        (showResumeInput &&
+          resumeMode === "text" &&
+          resumeText.trim().length >= 50),
+    ) &&
+    !profileDraft &&
+    !resumeParsing &&
     Boolean(
       jobMode === "url"
         ? jobUrl.trim().length > 0
@@ -217,12 +245,14 @@ export function FitAnalyzerApp() {
     if (!canSubmit || loading) return;
     setLoading(true);
     setError("");
+    setAnalysisErrorCode("");
     setAnalysis(null);
     setDecision("");
     const startedAt = performance.now();
+    const activeProfile = showResumeInput ? null : profile;
     trackFitEvent("fit_analysis_submitted", {
       job_input_mode: jobMode,
-      has_saved_profile: Boolean(profile),
+      has_saved_profile: Boolean(activeProfile),
       confidence_before: confidenceBefore,
     });
 
@@ -239,19 +269,21 @@ export function FitAnalyzerApp() {
         body: JSON.stringify({
           jobUrl: jobMode === "url" ? jobUrl.trim() : "",
           jobText: jobMode === "text" ? jobText.trim() : "",
-          resumeText: profile ? "" : resumeText.trim(),
-          candidateProfile: profile,
+          resumeText: activeProfile ? "" : resumeText.trim(),
+          candidateProfile: activeProfile,
           confidenceBefore,
         }),
       });
       const data = (await response.json()) as AnalyzeResponse;
       if (!data.ok || !data.result) {
         if (data.errorCode === "fetch_failed") setJobMode("text");
+        setAnalysisErrorCode(data.errorCode ?? "unknown");
         throw new Error(data.error || "분석 요청에 실패했습니다.");
       }
 
       setAnalysis(data.result);
       setProfile(data.result.candidateProfile);
+      setShowResumeInput(false);
       localStorage.setItem(
         PROFILE_KEY,
         serializeCandidateProfile(data.result.candidateProfile),
@@ -290,14 +322,116 @@ export function FitAnalyzerApp() {
     setConfidenceBefore(3);
     setConfidenceAfter(3);
     setError("");
+    setAnalysisErrorCode("");
     trackFitEvent("second_job_analysis_started");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function clearProfile() {
-    localStorage.removeItem(PROFILE_KEY);
-    setProfile(null);
+  function editProfile() {
+    if (!profile) return;
+    resumeInteractionRef.current = true;
+    setProfileDraft({ ...profile });
+    setProfileWarnings([]);
+    setEditingExistingProfile(true);
+    setShowResumeInput(true);
+    setResumeError("");
+  }
+
+  function replaceProfile() {
+    resumeInteractionRef.current = true;
+    setProfileDraft(null);
+    setProfileWarnings([]);
+    setEditingExistingProfile(false);
+    setShowResumeInput(true);
+    setResumeMode("file");
     setResumeText("");
+    setResumeError("");
+  }
+
+  function cancelProfileChange() {
+    resumeInteractionRef.current = false;
+    setProfileDraft(null);
+    setProfileWarnings([]);
+    setEditingExistingProfile(false);
+    setResumeError("");
+    if (profile) setShowResumeInput(false);
+  }
+
+  function confirmProfileDraft() {
+    if (!profileDraft) return;
+    const confirmed = {
+      ...profileDraft,
+      targetRole: profileDraft.targetRole.trim(),
+      skills: cleanProfileList(profileDraft.skills),
+      domains: cleanProfileList(profileDraft.domains),
+      achievements: cleanProfileList(profileDraft.achievements),
+      updatedAt: new Date().toISOString(),
+    };
+    setProfile(confirmed);
+    resumeInteractionRef.current = false;
+    setProfileDraft(null);
+    setProfileWarnings([]);
+    setShowResumeInput(false);
+    setResumeText("");
+    localStorage.setItem(PROFILE_KEY, serializeCandidateProfile(confirmed));
+    if (session?.access_token) {
+      void saveCandidateProfile(confirmed, session.access_token);
+    }
+    trackFitEvent(
+      editingExistingProfile ? "profile_edited" : "profile_confirmed",
+    );
+    setEditingExistingProfile(false);
+  }
+
+  async function parseResumeFile(file: File) {
+    if (resumeParsing) return;
+    resumeInteractionRef.current = true;
+    setResumeParsing(true);
+    setResumeError("");
+    setProfileDraft(null);
+    const fileType = resumeFileType(file.name);
+    trackFitEvent("resume_upload_started", { file_type: fileType });
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/parse-resume", {
+        method: "POST",
+        headers: {
+          "x-companyradar-client": getClientId(),
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body: form,
+      });
+      const data = (await response.json()) as ParseResumeResponse;
+      if (!response.ok || !data.ok || !data.profile) {
+        throw new ResumeUploadError(
+          data.error || USER_COPY.resume.parseFailed,
+          data.errorCode || "parse_failed",
+        );
+      }
+      setProfileDraft(data.profile);
+      setProfileWarnings(data.warnings ?? []);
+      setEditingExistingProfile(Boolean(profile));
+      trackFitEvent("resume_parse_completed", {
+        file_type: fileType,
+        warning_count: data.warnings?.length ?? 0,
+      });
+    } catch (caught) {
+      const uploadError =
+        caught instanceof ResumeUploadError
+          ? caught
+          : new ResumeUploadError(USER_COPY.resume.parseFailed, "parse_failed");
+      setResumeError(uploadError.message);
+      trackFitEvent("resume_parse_failed", {
+        file_type: fileType,
+        error_code: uploadError.code,
+      });
+    } finally {
+      setResumeParsing(false);
+      setDragActive(false);
+    }
   }
 
   function updateConsent(value: "accepted" | "declined") {
@@ -446,19 +580,19 @@ export function FitAnalyzerApp() {
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
           <section className="max-w-3xl">
             <p className="text-sm font-semibold text-emerald-700">
-              공고 핏 의사결정 도구
+              지원 전에 빠르게 체크
             </p>
             <h1
-              aria-label="이 공고, 지원할지 5분 안에 결정하세요"
+              aria-label="이 공고, 나랑 얼마나 맞을까?"
               className="mt-3 text-4xl font-semibold leading-tight tracking-[-0.035em] sm:text-6xl"
             >
-              이 공고, 지원할지
+              이 공고, 나랑
               <br />
-              5분 안에 결정하세요
+              얼마나 맞을까?
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-              공고와 내 경력을 근거 문장으로 비교해 지원 추천, 확인할 점,
-              다음 행동을 정리합니다. 점수만 보여주지 않습니다.
+              이력서와 채용공고를 맞춰보고, 잘 맞는 점과 확인할 점을
+              깔끔하게 정리해드려요.
             </p>
           </section>
 
@@ -466,16 +600,16 @@ export function FitAnalyzerApp() {
             <section className="mt-10 grid gap-5 lg:grid-cols-2">
               <article className="rounded-2xl border border-slate-900/10 bg-white p-5 shadow-sm sm:p-7">
                 <StepHeader
-                  description="처음 한 번만 입력하면 다음 공고부터 다시 사용할 수 있습니다."
+                  description="파일을 올리면 커리어 정보만 먼저 정리해드려요."
                   number="1"
-                  title="내 경력"
+                  title="내 이력서"
                 />
-                {profile ? (
+                {profile && !showResumeInput ? (
                   <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="font-semibold text-emerald-950">
-                          저장된 프로필 사용 중
+                          이 프로필로 분석할게요
                         </p>
                         <p className="mt-1 text-sm text-emerald-800">
                           {profile.targetRole || "목표 직무 미확인"}
@@ -484,13 +618,6 @@ export function FitAnalyzerApp() {
                             : ""}
                         </p>
                       </div>
-                      <button
-                        className="shrink-0 text-xs font-medium text-emerald-800 underline"
-                        onClick={clearProfile}
-                        type="button"
-                      >
-                        다시 입력
-                      </button>
                     </div>
                     {profile.skills.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -504,22 +631,148 @@ export function FitAnalyzerApp() {
                         ))}
                       </div>
                     ) : null}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button onClick={editProfile} size="sm" variant="secondary">
+                        <Pencil className="h-3.5 w-3.5" />
+                        수정
+                      </Button>
+                      <Button
+                        onClick={replaceProfile}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        새 이력서로 바꾸기
+                      </Button>
+                    </div>
                   </div>
+                ) : profileDraft ? (
+                  <ResumeProfileEditor
+                    onCancel={cancelProfileChange}
+                    onChange={setProfileDraft}
+                    onConfirm={confirmProfileDraft}
+                    profile={profileDraft}
+                    warnings={profileWarnings}
+                  />
                 ) : (
                   <div className="mt-6">
-                    <Label htmlFor="resume-text">이력서 텍스트</Label>
-                    <Textarea
-                      className="mt-2 min-h-56"
-                      id="resume-text"
-                      onChange={(event) => setResumeText(event.target.value)}
-                      onFocus={() => trackFitEvent("fit_input_started")}
-                      placeholder="이력서의 경력, 프로젝트, 역량 내용을 붙여넣으세요."
-                      value={resumeText}
-                    />
+                    {profile ? (
+                      <div className="mb-4 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        <span>새 내용을 확정하기 전까지 기존 프로필은 그대로 유지돼요.</span>
+                        <button
+                          className="shrink-0 font-medium text-slate-900"
+                          onClick={cancelProfileChange}
+                          type="button"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : null}
+                    <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1">
+                      <ModeButton
+                        active={resumeMode === "file"}
+                        label="파일 올리기"
+                        onClick={() => {
+                          resumeInteractionRef.current = true;
+                          setResumeMode("file");
+                        }}
+                      />
+                      <ModeButton
+                        active={resumeMode === "text"}
+                        label="텍스트로 직접 입력"
+                        onClick={() => {
+                          resumeInteractionRef.current = true;
+                          setResumeMode("text");
+                        }}
+                      />
+                    </div>
+                    {resumeMode === "file" ? (
+                      <label
+                        className={cn(
+                          "mt-4 flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition",
+                          dragActive
+                            ? "border-emerald-500 bg-emerald-50"
+                            : "border-slate-300 bg-slate-50 hover:border-slate-500 hover:bg-white",
+                          resumeParsing && "pointer-events-none opacity-70",
+                        )}
+                        htmlFor="resume-file"
+                        onDragEnter={(event) => {
+                          event.preventDefault();
+                          setDragActive(true);
+                        }}
+                        onDragLeave={(event) => {
+                          event.preventDefault();
+                          setDragActive(false);
+                        }}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const file = event.dataTransfer.files[0];
+                          if (file) void parseResumeFile(file);
+                        }}
+                      >
+                        <input
+                          accept=".pdf,.docx,.txt"
+                          className="sr-only"
+                          id="resume-file"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void parseResumeFile(file);
+                            event.target.value = "";
+                          }}
+                          type="file"
+                        />
+                        {resumeParsing ? (
+                          <>
+                            <Loader2 className="h-7 w-7 animate-spin text-emerald-700" />
+                            <p className="mt-3 font-semibold">커리어 정보를 정리하고 있어요</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              파일은 저장하지 않아요.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <UploadCloud className="h-8 w-8 text-slate-500" />
+                            <p className="mt-3 font-semibold">
+                              이력서 파일을 여기에 놓아주세요
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              또는 눌러서 파일 선택
+                            </p>
+                            <p className="mt-4 text-xs text-slate-400">
+                              PDF, DOCX, TXT · 최대 5MB
+                            </p>
+                          </>
+                        )}
+                      </label>
+                    ) : (
+                      <div className="mt-4">
+                        <Label htmlFor="resume-text">이력서 내용</Label>
+                        <Textarea
+                          className="mt-2 min-h-56"
+                          id="resume-text"
+                          onChange={(event) => {
+                            resumeInteractionRef.current = true;
+                            setResumeText(event.target.value);
+                          }}
+                          onFocus={() => trackFitEvent("fit_input_started")}
+                          placeholder="경력, 프로젝트, 역량 내용을 붙여넣어 주세요."
+                          value={resumeText}
+                        />
+                      </div>
+                    )}
+                    {resumeError ? (
+                      <p
+                        aria-live="polite"
+                        className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"
+                      >
+                        {resumeError}
+                      </p>
+                    ) : null}
                     <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-slate-500">
                       <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      이력서 원문은 저장하지 않습니다. 분석 후 직무·연차·역량만
-                      이 기기에 저장합니다.
+                      파일과 원문은 저장하지 않아요. 확인한 커리어 정보만
+                      저장합니다.
                     </p>
                   </div>
                 )}
@@ -527,7 +780,7 @@ export function FitAnalyzerApp() {
 
               <article className="rounded-2xl border border-slate-900/10 bg-white p-5 shadow-sm sm:p-7">
                 <StepHeader
-                  description="URL 수집이 막히면 공고 원문 입력으로 자동 전환합니다."
+                  description="URL이나 공고 내용을 넣어주세요."
                   number="2"
                   title="채용공고"
                 />
@@ -583,12 +836,23 @@ export function FitAnalyzerApp() {
                 </fieldset>
 
                 {error ? (
-                  <p
+                  <div
                     aria-live="polite"
-                    className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"
+                    className="mt-4 rounded-lg bg-rose-50 px-3 py-3 text-sm text-rose-700"
                   >
-                    {error}
-                  </p>
+                    <p>{error}</p>
+                    {analysisErrorCode === "quota_unavailable" ? (
+                      <Button
+                        className="mt-2"
+                        onClick={() => void analyze()}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        다시 시도
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null}
                 <Button
                   className="mt-6 h-12 text-base"
@@ -599,17 +863,17 @@ export function FitAnalyzerApp() {
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      근거를 비교하고 있습니다
+                      공고와 경력을 맞춰보고 있어요
                     </>
                   ) : (
                     <>
-                      핏 분석하기
+                      나와 맞는지 확인하기
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
                 </Button>
                 <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-                  입력 내용은 분석을 위해 AI 제공자에게 전송됩니다.
+                  입력 내용은 분석할 때만 AI 제공자에게 전송돼요.
                 </p>
               </article>
             </section>
@@ -629,11 +893,11 @@ export function FitAnalyzerApp() {
         </div>
 
         {analyticsConsent === null ? (
-          <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-            <p className="text-sm font-medium">사용성 개선 데이터 수집</p>
+          <div className="mx-3 mb-3 mt-8 max-w-xl rounded-xl border border-slate-200 bg-white p-4 shadow-xl sm:fixed sm:inset-x-3 sm:bottom-3 sm:z-50 sm:mx-auto sm:mt-0">
+            <p className="text-sm font-medium">더 나은 사용 경험을 위해</p>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              원문이나 개인 정보 없이 분석 완료·결정 기록 같은 행동 이벤트만
-              GA4로 수집합니다.
+              이력서나 개인정보는 빼고, 어떤 기능을 사용했는지만 익명으로
+              확인해요.
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <Button
@@ -641,10 +905,10 @@ export function FitAnalyzerApp() {
                 size="sm"
                 variant="ghost"
               >
-                거절
+                괜찮아요
               </Button>
               <Button onClick={() => updateConsent("accepted")} size="sm">
-                동의
+                동의할게요
               </Button>
             </div>
           </div>
@@ -731,26 +995,26 @@ function FitResultView({
       <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
           <RequirementGroup
-            emptyMessage="명확히 연결된 요구사항이 없습니다."
+            emptyMessage="바로 연결되는 경험은 아직 찾지 못했어요."
             items={groups.matched}
-            title="연결되는 경험"
+            title="잘 맞는 경험"
           />
           <RequirementGroup
-            emptyMessage="명확한 부족 요건이 없습니다."
+            emptyMessage="크게 부족한 조건은 없어요."
             items={groups.missing}
-            title="부족한 요건"
+            title="아쉬운 조건"
           />
           <RequirementGroup
-            emptyMessage="추가로 확인할 요건이 없습니다."
+            emptyMessage="따로 확인할 조건은 없어요."
             items={groups.uncertain}
-            title="확인 필요한 요건"
+            title="지원 전에 확인할 것"
           />
         </div>
 
         <aside className="h-fit space-y-5 lg:sticky lg:top-5">
           <div className="rounded-2xl border border-slate-900/10 bg-slate-950 p-5 text-white">
             <p className="text-xs font-semibold uppercase text-slate-400">
-              가장 중요한 다음 행동
+              지금 먼저 할 일
             </p>
             <p className="mt-3 text-lg font-medium leading-7">
               {analysis.nextAction}
@@ -758,9 +1022,9 @@ function FitResultView({
           </div>
 
           <div className="rounded-2xl border border-slate-900/10 bg-white p-5">
-            <p className="font-semibold">이 공고를 어떻게 관리할까요?</p>
+            <p className="font-semibold">이 공고, 어떻게 둘까요?</p>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              저장하면 지원 관리 목록에서 다음 행동을 이어갈 수 있습니다.
+              저장해두면 지원 관리에서 바로 이어갈 수 있어요.
             </p>
             <div className="mt-4 grid gap-2">
               <DecisionButton
@@ -773,7 +1037,7 @@ function FitResultView({
                     <Bookmark className="h-4 w-4" />
                   )
                 }
-                label="관심 공고로 저장"
+                label="관심 공고로 둘게요"
                 onClick={() => onSaveDecision("interested")}
               />
               <DecisionButton
@@ -786,7 +1050,7 @@ function FitResultView({
                     <CalendarPlus className="h-4 w-4" />
                   )
                 }
-                label="지원 예정으로 저장"
+                label="지원할 공고로 둘게요"
                 onClick={() => onSaveDecision("planned")}
               />
               <DecisionButton
@@ -805,7 +1069,7 @@ function FitResultView({
             </div>
             <fieldset className="mt-5">
               <legend className="text-sm font-semibold">
-                지금은 얼마나 확신하나요?
+                분석을 보고 나니 얼마나 확신이 드나요?
               </legend>
               <ConfidencePicker
                 onChange={onConfidenceAfterChange}
@@ -820,13 +1084,13 @@ function FitResultView({
             {savedJobId ? (
               <div className="mt-4 rounded-lg bg-emerald-50 p-3">
                 <p className="text-sm font-medium text-emerald-900">
-                  지원 관리에 저장했습니다.
+                  지원 관리에 저장했어요.
                 </p>
                 <Link
                   className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 underline underline-offset-4"
                   href={`/tracker?job=${encodeURIComponent(savedJobId)}`}
                 >
-                  지원 관리에서 보기
+                  저장한 공고 보기
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -835,7 +1099,7 @@ function FitResultView({
 
           <Button onClick={onAnalyzeAnother} variant="secondary" width="fill">
             <RotateCcw className="h-4 w-4" />
-            다른 공고 분석
+            다른 공고도 확인하기
           </Button>
         </aside>
       </div>
@@ -885,11 +1149,11 @@ function RequirementGroup({
                 <div className="mt-3 grid gap-2 text-xs leading-5 sm:grid-cols-2">
                   <Evidence
                     label="공고 근거"
-                    text={item.jobEvidence || "직접 근거 없음"}
+                    text={item.jobEvidence || "공고에서 근거를 찾지 못했어요."}
                   />
                   <Evidence
                     label="내 경력 근거"
-                    text={item.profileEvidence || "직접 근거 없음"}
+                    text={item.profileEvidence || "내 경력에서 근거를 찾지 못했어요."}
                   />
                 </div>
               </article>
@@ -1034,6 +1298,14 @@ function GoogleAnalytics() {
   );
 }
 
+interface ParseResumeResponse {
+  ok: boolean;
+  profile?: CandidateProfile;
+  warnings?: string[];
+  error?: string;
+  errorCode?: string;
+}
+
 function FitAuthModal({
   onClose,
   onSuccess,
@@ -1053,20 +1325,20 @@ function FitAuthModal({
     event.preventDefault();
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setError("로그인 설정이 완료되지 않았습니다.");
+      setError("로그인 연결이 아직 준비되지 않았어요.");
       return;
     }
     const nextEmail = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
-      setError("올바른 이메일을 입력해주세요.");
+      setError("이메일 주소를 다시 확인해주세요.");
       return;
     }
     if (mode === "signup" && password.length < 8) {
-      setError("비밀번호는 8자 이상 입력해주세요.");
+      setError("비밀번호는 8자 이상으로 만들어주세요.");
       return;
     }
     if (mode === "signup" && password !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError("비밀번호가 서로 달라요.");
       return;
     }
 
@@ -1080,7 +1352,7 @@ function FitAuthModal({
       });
       setLoading(false);
       if (signInError) {
-        setError("이메일 또는 비밀번호를 확인해주세요.");
+        setError(USER_COPY.auth.invalidCredentials);
         return;
       }
       onSuccess();
@@ -1096,14 +1368,14 @@ function FitAuthModal({
     });
     setLoading(false);
     if (signUpError) {
-      setError("회원가입에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setError("가입을 마치지 못했어요. 잠시 후 다시 해주세요.");
       return;
     }
     if (data.session) {
       onSuccess();
     } else {
       setMessage(
-        "가입 확인 메일을 보냈습니다. 확인 후 돌아오면 현재 분석 결과가 자동 저장됩니다.",
+        "확인 메일을 보냈어요. 인증하고 돌아오면 이 분석 결과를 바로 저장할게요.",
       );
     }
   }
@@ -1118,13 +1390,13 @@ function FitAuthModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-emerald-700">
-              분석 결과 저장
+              분석 결과 이어서 저장
             </p>
             <h2 className="mt-1 text-xl font-semibold">
-              {mode === "login" ? "로그인해주세요" : "계정을 만들어주세요"}
+              {mode === "login" ? "로그인하고 이어갈까요?" : "계정을 만들고 저장할까요?"}
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              로그인하면 현재 결과를 잃지 않고 지원 관리에 저장합니다.
+              지금 본 결과는 그대로 둘게요. 로그인만 하면 지원 관리에 저장돼요.
             </p>
           </div>
           <button
@@ -1189,10 +1461,10 @@ function FitAuthModal({
           <Button disabled={loading} width="fill">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {loading
-              ? "처리 중..."
+              ? "잠시만요..."
               : mode === "login"
-                ? "로그인하고 저장"
-                : "가입하고 저장"}
+                ? "로그인하고 이어가기"
+                : "가입하고 이어가기"}
           </Button>
         </form>
         <button
@@ -1211,6 +1483,30 @@ function FitAuthModal({
       </section>
     </div>
   );
+}
+
+class ResumeUploadError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = "ResumeUploadError";
+  }
+}
+
+function cleanProfileList(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function resumeFileType(name: string): string {
+  const extension = name.toLowerCase().split(".").pop();
+  return extension === "pdf" || extension === "docx" || extension === "txt"
+    ? extension
+    : "unsupported";
 }
 
 async function saveCandidateProfile(

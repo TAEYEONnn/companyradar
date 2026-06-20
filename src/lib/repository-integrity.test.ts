@@ -57,3 +57,31 @@ describe("fit tracker migration", () => {
     expect(rollback).toContain("drop table if exists public.candidate_profiles");
   });
 });
+
+describe("AI quota fallback migration", () => {
+  it("stores only hashed quota keys and provides a rollback", () => {
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20260620_v046_ai_quota_fallback.sql",
+      ),
+      "utf8",
+    );
+    const rollback = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/rollback/20260620_v046_ai_quota_fallback.rollback.sql",
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("reserve_ai_quota");
+    expect(migration).toContain("ai_quota_counters");
+    expect(migration).toContain("revoke all");
+    expect(migration).not.toContain("email");
+    expect(migration).not.toContain("raw_ip");
+    expect(migration).not.toContain("resume_text");
+    expect(rollback).toContain("drop function if exists public.reserve_ai_quota");
+    expect(rollback).toContain("drop table if exists public.ai_quota_counters");
+  });
+});

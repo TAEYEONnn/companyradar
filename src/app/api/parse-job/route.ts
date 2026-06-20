@@ -205,7 +205,7 @@ ${pageText}`,
       }
       if (aiResponse.status === 429) {
         return apiError(
-          "OpenAI API 사용량 또는 요청 제한에 걸렸습니다. 잠시 후 다시 시도하거나 수동 입력을 사용하세요.",
+          "공고를 정리하지 못했어요. 잠시 후 다시 해주세요.",
           "ai_failed",
         );
       }

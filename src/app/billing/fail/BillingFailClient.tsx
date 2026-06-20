@@ -7,7 +7,7 @@ export function BillingFailClient() {
   const searchParams = useSearchParams();
   const message =
     searchParams.get("message") ??
-    "결제가 완료되지 않았습니다. 다시 시도하거나 잠시 후 이용해주세요.";
+    "결제를 마치지 못했어요. 다시 시도해주세요.";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 text-slate-950">
@@ -15,7 +15,7 @@ export function BillingFailClient() {
         <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-sm font-bold text-red-600">
           !
         </div>
-        <h1 className="mt-4 text-lg font-semibold">결제가 취소되었습니다</h1>
+        <h1 className="mt-4 text-lg font-semibold">결제가 취소됐어요</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
         <Button className="mt-5" onClick={() => { window.location.href = "/"; }}>
           트래커로 돌아가기

@@ -55,12 +55,12 @@ interface FitAnalysisContext {
 
 export function getOpenAIErrorMessage(status: number): string {
   if (status === 401) {
-    return "OpenAI API 키가 없거나 유효하지 않습니다.";
+    return "분석 연결 설정을 확인해주세요.";
   }
   if (status === 429) {
-    return "OpenAI 사용량 또는 요청 제한에 걸렸습니다.";
+    return "분석 요청이 잠깐 몰렸어요. 잠시 후 다시 해주세요.";
   }
-  return `AI 제공자가 요청을 거절했습니다 (HTTP ${status}).`;
+  return `분석을 마치지 못했어요. 잠시 후 다시 해주세요. (${status})`;
 }
 
 export function parseAnalyzeFitInput(value: unknown): AnalyzeFitInput {
@@ -71,16 +71,16 @@ export function parseAnalyzeFitInput(value: unknown): AnalyzeFitInput {
   const candidateProfile = parseCandidateProfile(body.candidateProfile);
 
   if (!jobUrl && !jobText) {
-    throw new Error("공고 URL 또는 공고 원문을 입력해주세요.");
+    throw new Error("공고 URL이나 공고 내용을 넣어주세요.");
   }
   if (!resumeText && !candidateProfile) {
-    throw new Error("이력서 또는 저장된 프로필이 필요합니다.");
+    throw new Error("이력서를 올리거나 저장된 프로필을 선택해주세요.");
   }
   if (jobText && jobText.length < 50) {
-    throw new Error("공고 원문을 50자 이상 입력해주세요.");
+    throw new Error("공고 내용을 50자 이상 붙여주세요.");
   }
   if (resumeText && resumeText.length < 50) {
-    throw new Error("이력서 내용을 50자 이상 입력해주세요.");
+    throw new Error("이력서 내용을 50자 이상 붙여주세요.");
   }
 
   const rawConfidence = Number(body.confidenceBefore);
@@ -147,7 +147,7 @@ export function normalizeFitAnalysis(
     summary: asString(model.summary),
     nextAction:
       asString(model.nextAction) ||
-      "불확실한 필수요건을 확인한 뒤 지원 여부를 결정하세요.",
+      "확실하지 않은 필수 조건부터 확인해보세요.",
     requirements,
     jobPosting: {
       title: roleTitle,

@@ -65,8 +65,8 @@ export function BillingPrompt() {
       if (!orderResponse.ok || !("ok" in orderJson) || !orderJson.ok) {
         setError(
           "error" in orderJson
-            ? orderJson.error?.message ?? "주문 생성에 실패했습니다."
-            : "주문 생성에 실패했습니다.",
+            ? orderJson.error?.message ?? "결제를 시작하지 못했어요."
+            : "결제를 시작하지 못했어요.",
         );
         return;
       }

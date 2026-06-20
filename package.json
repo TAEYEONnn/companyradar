@@ -15,7 +15,9 @@
     "@tosspayments/tosspayments-sdk": "^2.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
+    "mammoth": "^1.12.0",
     "next": "16.2.7",
+    "pdfjs-dist": "^6.0.227",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^3.6.0"
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "jszip": "^3.10.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.9"

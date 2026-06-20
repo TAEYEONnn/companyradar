@@ -8,11 +8,11 @@ import {
 describe("parseAnalyzeFitInput", () => {
   it("requires a job source and candidate source", () => {
     expect(() => parseAnalyzeFitInput({})).toThrow(
-      "공고 URL 또는 공고 원문을 입력해주세요.",
+      "공고 URL이나 공고 내용을 넣어주세요.",
     );
     expect(() =>
       parseAnalyzeFitInput({ jobText: "a".repeat(100) }),
-    ).toThrow("이력서 또는 저장된 프로필이 필요합니다.");
+    ).toThrow("이력서를 올리거나 저장된 프로필을 선택해주세요.");
   });
 
   it("trims text and limits confidence to the supported range", () => {
@@ -142,8 +142,8 @@ describe("normalizeFitAnalysis", () => {
 
 describe("getOpenAIErrorMessage", () => {
   it("keeps authentication, quota, and generic provider failures distinct", () => {
-    expect(getOpenAIErrorMessage(401)).toContain("API 키");
-    expect(getOpenAIErrorMessage(429)).toContain("사용량");
-    expect(getOpenAIErrorMessage(400)).toContain("HTTP 400");
+    expect(getOpenAIErrorMessage(401)).toContain("설정");
+    expect(getOpenAIErrorMessage(429)).toContain("요청");
+    expect(getOpenAIErrorMessage(400)).toContain("400");
   });
 });

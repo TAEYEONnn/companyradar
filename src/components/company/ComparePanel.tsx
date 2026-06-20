@@ -67,12 +67,12 @@ export function ComparePanel({
         | { ok: true; comparison: string }
         | { error: { code?: string; message: string } };
       if (!("ok" in data) || !data.ok) {
-        setAiError(getApiErrorMessage(res, data, "AI 비교 생성에 실패했습니다."));
+        setAiError(getApiErrorMessage(res, data, "회사 비교를 만들지 못했어요."));
         return;
       }
       setAiComparison(data.comparison);
     } catch {
-      setAiError("AI 비교 요청에 실패했습니다.");
+      setAiError("회사 비교를 만들지 못했어요.");
     } finally {
       setAiLoading(false);
     }

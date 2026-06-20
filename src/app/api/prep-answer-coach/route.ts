@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return apiError(400, "invalid_request", "요청 본문을 파싱할 수 없습니다.");
+    return apiError(400, "invalid_request", "요청 내용을 확인하지 못했어요.");
   }
 
   const mode = body.mode;
@@ -46,13 +46,13 @@ export async function POST(request: Request) {
   const roleName = ROLE_NAMES[body.userRole ?? ""] ?? "프로덕트 디자이너";
 
   if (mode !== "draft" && mode !== "review") {
-    return apiError(400, "invalid_request", "mode는 draft 또는 review여야 합니다.");
+    return apiError(400, "invalid_request", "요청한 코칭 방식을 확인하지 못했어요.");
   }
   if (!companyName || !question) {
-    return apiError(400, "invalid_request", "회사명과 질문은 필수입니다.");
+    return apiError(400, "invalid_request", "회사명과 면접 질문을 입력해주세요.");
   }
   if (mode === "review" && answer.length < 20) {
-    return apiError(400, "invalid_request", "평가하려면 답변을 20자 이상 입력해주세요.");
+    return apiError(400, "invalid_request", "답변을 20자 이상 적어주세요.");
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
 
   const systemPrompt =
     mode === "draft"
-      ? `당신은 ${roleName} 면접 답변 코치입니다. 사용자가 그대로 복붙하기보다 자기 경험으로 다듬을 수 있는 현실적인 한국어 답변 초안을 작성하세요. STAR 구조를 자연스럽게 반영하되 제목 없이 2~3문단으로 답하세요. 과장된 성과나 없는 경험을 지어내지 말고, 사용자가 채워 넣을 수 있는 대괄호 힌트는 최대 2개만 사용하세요.`
-      : `당신은 ${roleName} 면접 답변 평가자입니다. 답변을 채용 담당자 관점에서 엄격하지만 실용적으로 평가하세요. JSON만 출력하고, 점수는 100점 만점 정수입니다.`;
+      ? `당신은 ${roleName} 면접 답변 코치입니다. 사용자가 자기 경험으로 다듬기 쉬운 현실적인 한국어 답변 초안을 작성하세요. STAR 구조는 자연스럽게 녹이고 제목 없이 2~3문단으로 답하세요. 과장하거나 없는 경험을 만들지 말고, 대괄호 힌트는 최대 2개만 사용하세요. 문장은 짧고 자연스러운 존댓말로 쓰며 보고서 말투와 AI식 상투어를 피하세요.`
+      : `당신은 ${roleName} 면접 답변 평가자입니다. 채용 담당자 관점에서 솔직하지만 부담스럽지 않게 평가하세요. summary, strengths, improvements는 짧고 자연스러운 한국어로 쓰고 바로 고칠 수 있는 행동을 제안하세요. JSON만 출력하고 점수는 100점 만점 정수입니다.`;
 
   const userContent = `
 mode: ${mode}
@@ -114,9 +114,9 @@ ${mode === "draft"
         return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
       }
       if (aiRes.status === 429) {
-        return apiError(502, "ai_failed", "OpenAI API 사용량 또는 요청 제한에 걸렸습니다. 잠시 후 다시 시도하세요.");
+        return apiError(502, "ai_failed", "답변 코칭을 마치지 못했어요. 잠시 후 다시 해주세요.");
       }
-      return apiError(502, "ai_failed", "AI 코칭 중 서버 오류가 발생했습니다.");
+      return apiError(502, "ai_failed", "답변 코칭을 마치지 못했어요.");
     }
 
     const json = (await aiRes.json()) as { choices?: { message?: { content?: string } }[] };
@@ -148,6 +148,6 @@ ${mode === "draft"
       },
     });
   } catch {
-    return apiError(502, "ai_failed", "AI 코칭 응답을 해석하지 못했습니다.");
+    return apiError(502, "ai_failed", "코칭 결과를 정리하지 못했어요. 다시 해주세요.");
   }
 }

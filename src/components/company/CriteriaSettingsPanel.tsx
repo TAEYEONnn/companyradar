@@ -179,7 +179,7 @@ export function CriteriaSettingsPanel({
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: { message?: string } };
-        throw new Error(data.error?.message ?? "문의 접수에 실패했습니다.");
+        throw new Error(data.error?.message ?? "문의를 보내지 못했어요.");
       }
       setSupportMessage("");
       onToast("문의가 접수되었습니다. 확인 후 이메일로 답변드릴게요.");
@@ -187,7 +187,7 @@ export function CriteriaSettingsPanel({
       onToast(
         error instanceof Error
           ? error.message
-          : "문의 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+          : "문의를 보내지 못했어요. 잠시 후 다시 해주세요.",
       );
     } finally {
       setSubmitting(null);
@@ -216,7 +216,7 @@ export function CriteriaSettingsPanel({
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: { message?: string } };
-        throw new Error(data.error?.message ?? "환불 요청 접수에 실패했습니다.");
+        throw new Error(data.error?.message ?? "환불 요청을 보내지 못했어요.");
       }
       setRefundReason("");
       onToast("환불 요청이 접수되었습니다. 결제/사용 이력을 확인해 이메일로 안내드릴게요.");
@@ -224,7 +224,7 @@ export function CriteriaSettingsPanel({
       onToast(
         error instanceof Error
           ? error.message
-          : "환불 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+          : "환불 요청을 보내지 못했어요. 잠시 후 다시 해주세요.",
       );
     } finally {
       setSubmitting(null);
@@ -240,7 +240,7 @@ export function CriteriaSettingsPanel({
       setShowDeleteConfirm(false);
       onToast("탈퇴 요청이 접수되었습니다. 운영자가 확인 후 이메일로 안내드립니다.");
     } else {
-      onToast("탈퇴 요청 접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      onToast("탈퇴 요청을 보내지 못했어요. 잠시 후 다시 해주세요.");
     }
     setSubmitting(null);
   }

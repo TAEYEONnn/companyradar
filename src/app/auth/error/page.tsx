@@ -8,18 +8,18 @@ export default function AuthErrorPage() {
           <span className="text-2xl">🔗</span>
         </div>
         <h1 className="text-lg font-semibold text-slate-900">
-          인증 링크가 만료됐어요
+          이 링크는 더 이상 사용할 수 없어요
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          링크가 만료됐거나 이미 사용된 링크입니다.
+          링크가 만료됐거나 이미 한 번 사용됐어요.
           <br />
-          다시 로그인하거나 비밀번호 재설정 메일을 새로 요청해 주세요.
+          로그인 화면에서 새 링크를 요청해주세요.
         </p>
         <Link
           className="mt-5 inline-flex h-9 items-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700"
           href="/"
         >
-          다시 로그인하기
+          로그인 화면으로 가기
         </Link>
       </section>
     </main>

@@ -220,7 +220,7 @@ export function CompanyDetailPanel({
         | { ok: true; result: { source: string; link: string; positiveSignals: string; negativeSignals: string; questions: string } }
         | { error: { code?: string; message: string } };
       if (!("ok" in data) || !data.ok) {
-      setAiResearchError(getApiErrorMessage(res, data, "AI 회사 조사에 실패했습니다."));
+      setAiResearchError(getApiErrorMessage(res, data, "회사 조사를 마치지 못했어요."));
         return;
       }
       onPatch(company.id, {
@@ -231,7 +231,7 @@ export function CompanyDetailPanel({
         lastResearchedAt: today(),
       });
     } catch {
-      setAiResearchError("AI 회사 조사 요청에 실패했습니다.");
+      setAiResearchError("회사 조사를 마치지 못했어요.");
     } finally {
       setAiResearchLoading(false);
     }
@@ -1859,7 +1859,7 @@ function PrepQuestionSection({
         | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        const msg = getApiErrorMessage(res, data, "AI 질문 생성에 실패했습니다.");
+        const msg = getApiErrorMessage(res, data, "예상 질문을 만들지 못했어요.");
         setGenError(msg);
         return;
       }
@@ -1881,7 +1881,7 @@ function PrepQuestionSection({
         prepQuestions: [...newQuestions, ...(company.prepQuestions ?? [])],
       });
     } catch {
-      setGenError("AI 질문 생성 요청에 실패했습니다.");
+      setGenError("예상 질문을 만들지 못했어요.");
     } finally {
       setGenLoading(false);
     }
@@ -1957,7 +1957,7 @@ function PrepQuestionSection({
       | { ok: true; draft?: string; review?: PrepAnswerReview }
       | { error: { code?: string; message: string } };
     if (!("ok" in data) || !data.ok) {
-      throw new Error(getApiErrorMessage(res, data, "AI 답변 코칭에 실패했습니다."));
+      throw new Error(getApiErrorMessage(res, data, "답변 코칭을 마치지 못했어요."));
     }
     return data;
   }
@@ -2126,7 +2126,7 @@ function PrepQuestionCard({
       setDecrypted(draft);
       await onAnswerChange(draft);
     } catch (error) {
-      setCoachError(error instanceof Error ? error.message : "AI 답변 초안 생성에 실패했습니다.");
+      setCoachError(error instanceof Error ? error.message : "답변 초안을 만들지 못했어요.");
     } finally {
       setCoachLoading(null);
     }
@@ -2134,7 +2134,7 @@ function PrepQuestionCard({
 
   async function reviewAnswer() {
     if (decrypted.trim().length < 20) {
-      setCoachError("평가하려면 답변을 20자 이상 입력해주세요.");
+      setCoachError("답변을 20자 이상 적어주세요.");
       return;
     }
     setCoachLoading("review");
@@ -2147,7 +2147,7 @@ function PrepQuestionCard({
       }
       setReview(nextReview);
     } catch (error) {
-      setCoachError(error instanceof Error ? error.message : "AI 답변 평가에 실패했습니다.");
+      setCoachError(error instanceof Error ? error.message : "답변 평가를 마치지 못했어요.");
     } finally {
       setCoachLoading(null);
     }
@@ -2440,14 +2440,14 @@ function CompanySummarySection({
         | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        const msg = getApiErrorMessage(res, data, "AI 요약 생성에 실패했습니다.");
+        const msg = getApiErrorMessage(res, data, "회사 요약을 만들지 못했어요.");
         setError(msg);
         return;
       }
 
       onSummaryChange(data.summary);
     } catch {
-      setError("AI 요약 생성 요청에 실패했습니다.");
+      setError("회사 요약을 만들지 못했어요.");
     } finally {
       setLoading(false);
     }

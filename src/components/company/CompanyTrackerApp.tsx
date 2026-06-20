@@ -218,7 +218,7 @@ export function CompanyTrackerApp() {
       const remoteCandidates = userId ? await pullCandidateInboxItems(userId) : [];
       if (remoteCandidates === null) {
         setCandidates([]);
-        showToast("Candidate Inbox 테이블을 불러오지 못했습니다. migration 적용을 확인하세요.");
+        showToast("공고 정리함을 불러오지 못했어요. 잠시 후 다시 해주세요.");
       } else {
         setCandidates(remoteCandidates);
       }
@@ -274,7 +274,7 @@ export function CompanyTrackerApp() {
         }
 
         if (hasUserCompanies(userRemoteCompanies)) {
-          showToast("저장한 공고가 동기화됐어요.");
+          showToast("저장한 공고를 최신 상태로 맞췄어요.");
         }
         return;
       }
@@ -546,7 +546,7 @@ export function CompanyTrackerApp() {
     }
     setSelectedCompanyIds([]);
     setSelectedDeleteOpen(false);
-    showToast(`${ids.size}개 회사를 삭제했습니다.`);
+    showToast(`${ids.size}개 회사를 삭제했어요.`);
   }
 
   function patchCompany(companyId: string, patch: Partial<Company>) {
@@ -617,7 +617,7 @@ export function CompanyTrackerApp() {
 
   function markCompanyVerified(companyId: string) {
     patchCompany(companyId, getValidationCompletePatch());
-    showToast("공고 확인일을 오늘로 기록했습니다.");
+    showToast("오늘 확인한 공고로 기록했어요.");
   }
 
   function startCreate() {
@@ -649,7 +649,7 @@ export function CompanyTrackerApp() {
     if (isRemoteSyncEnabled() && userId) {
       void pushRemoteCompanies(remaining, userId);
     }
-    showToast("예시 데이터를 삭제했습니다.");
+    showToast("예시 데이터를 지웠어요.");
   }
 
   function addSampleCompanies() {
@@ -660,7 +660,7 @@ export function CompanyTrackerApp() {
     if (isRemoteSyncEnabled() && userId) {
       void pushRemoteCompanies(updated, userId);
     }
-    showToast("예시 데이터를 추가했습니다.");
+    showToast("예시 데이터를 추가했어요.");
   }
 
   function createCandidate(draft: {
@@ -691,7 +691,7 @@ export function CompanyTrackerApp() {
     setCandidates((current) => [candidate, ...current]);
     if (userId) {
       void upsertCandidateInboxItem(candidate, userId).then((saved) => {
-        if (!saved) showToast("후보 저장에 실패했습니다.");
+        if (!saved) showToast("후보를 저장하지 못했어요.");
       });
     }
     return candidate;
@@ -717,7 +717,7 @@ export function CompanyTrackerApp() {
     );
     if (userId) {
       void deleteCandidateInboxItem(candidateId, userId).then((deleted) => {
-        if (!deleted) showToast("후보 삭제에 실패했습니다.");
+        if (!deleted) showToast("후보를 삭제하지 못했어요.");
       });
     }
   }
@@ -739,7 +739,7 @@ export function CompanyTrackerApp() {
     );
     if (userId) {
       void upsertCandidateInboxItem(updatedCandidate, userId).then((saved) => {
-        if (!saved) showToast("추가 상태 저장에 실패했습니다.");
+        if (!saved) showToast("추가 상태를 저장하지 못했어요.");
       });
     }
     showToast("회사 목록에 추가했어요.");
@@ -771,20 +771,19 @@ export function CompanyTrackerApp() {
 
   async function resetPassword() {
     if (!userEmail) {
-      showToast("로그인 이메일을 확인할 수 없습니다.");
+      showToast("로그인 정보를 확인하지 못했어요.");
       return false;
     }
     const supabase = getSupabaseClient();
     const redirectTo = getPasswordResetRedirectUrl();
-    console.log("[RESET_REQUEST_EMAIL]", userEmail, redirectTo);
     const { error } = await supabase?.auth.resetPasswordForEmail(userEmail, {
       redirectTo,
     }) ?? { error: null };
     if (error) {
-      showToast("메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showToast("메일을 보내지 못했어요. 잠시 후 다시 해주세요.");
       return false;
     } else {
-      showToast(`${userEmail}로 비밀번호 재설정 메일을 보냈습니다.`);
+      showToast("비밀번호 재설정 메일을 보냈어요.");
       return true;
     }
   }
@@ -805,7 +804,7 @@ export function CompanyTrackerApp() {
       showToast(`${incoming.length}개 회사를 가져왔습니다.${keyMsg}`);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "가져오기에 실패했습니다.",
+        error instanceof Error ? error.message : "데이터를 가져오지 못했어요.",
       );
     }
   }
@@ -860,7 +859,7 @@ export function CompanyTrackerApp() {
       ? await pushRemoteCompanies(nextCompanies, userId)
       : false;
     if (!pushed) {
-      showToast("Supabase 업로드에 실패했습니다. 로컬 데이터는 유지됩니다.");
+      showToast("클라우드 저장에 실패했어요. 기기 안 데이터는 그대로예요.");
       return;
     }
     localStorageRepository.saveCompanies(nextCompanies, userId);
@@ -888,7 +887,7 @@ export function CompanyTrackerApp() {
         ? true
         : await pushRemoteCompanies(nextCompanies, userId);
     if (!pushed) {
-      showToast("Supabase 초기 seed 저장에 실패했습니다.");
+      showToast("처음 데이터를 저장하지 못했어요. 잠시 후 다시 해주세요.");
       return;
     }
     localStorageRepository.saveCompanies(nextCompanies, userId);
@@ -898,7 +897,7 @@ export function CompanyTrackerApp() {
     setRemotePushEnabled(true);
     setStorageWriteEnabled(true);
     setMigrationPrompt(null);
-    showToast("Supabase 데이터를 기준으로 사용합니다.");
+    showToast("클라우드에 저장된 데이터를 불러왔어요.");
   }
 
   function backupLocalCompaniesForLater() {
@@ -909,7 +908,7 @@ export function CompanyTrackerApp() {
     setRemotePushEnabled(false);
     setStorageWriteEnabled(true);
     setMigrationPrompt(null);
-    showToast("JSON 백업을 생성했습니다. 이번 세션은 로컬 데이터로 계속합니다.");
+    showToast("백업 파일을 만들었어요. 지금은 기기 안 데이터로 계속할게요.");
   }
 
   if (isAuthLoading) {
@@ -1148,7 +1147,7 @@ export function CompanyTrackerApp() {
                 }}
                 onSave={(company) => {
                   upsertCompany(company);
-                  showToast("회사 목록에 추가했어요. 상세에서 더 자세히 입력할 수 있어요.");
+                  showToast("회사 목록에 추가했어요. 상세 정보는 나중에 채워도 돼요.");
                 }}
               />
             ) : viewMode === "form" && editingCompany ? (
@@ -1323,7 +1322,7 @@ export function CompanyTrackerApp() {
           const prev = filteredCompanies[idx - 1];
           if (prev) openCompanyDrawer(prev.id);
         }}
-        onStatusAutoChanged={() => showToast("지원 상태를 '지원 완료'로 업데이트했습니다.")}
+        onStatusAutoChanged={() => showToast("지원 상태를 '지원 완료'로 바꿨어요.")}
         onToast={showToast}
         open={drawerOpen}
         score={selectedScore ?? null}

@@ -6,8 +6,9 @@ describe("FitAnalyzerApp", () => {
   it("leads with the decision job and keeps the legacy tracker secondary", () => {
     const html = renderToStaticMarkup(<FitAnalyzerApp />);
 
-    expect(html).toContain("이 공고, 지원할지 5분 안에 결정하세요");
-    expect(html).toContain("이력서 원문은 저장하지 않습니다");
+    expect(html).toContain("이 공고, 나랑 얼마나 맞을까?");
+    expect(html).toContain("PDF, DOCX, TXT");
+    expect(html).toContain("텍스트로 직접 입력");
     expect(html).toContain('href="/tracker"');
   });
 });

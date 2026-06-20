@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { getPasswordResetRedirectUrl, getSupabaseClient } from "@/lib/supabase-client";
+import { USER_COPY } from "@/lib/user-copy";
 
 type AuthMode = "login" | "signup" | "reset";
 
@@ -16,9 +17,9 @@ function isValidEmail(value: string) {
 function getAuthErrorMessage(message?: string) {
   const normalized = message?.toLowerCase() ?? "";
   if (normalized.includes("rate") || normalized.includes("limit") || normalized.includes("429")) {
-    return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+    return USER_COPY.auth.rateLimited;
   }
-  return "이메일 또는 비밀번호를 확인해주세요.";
+  return USER_COPY.auth.invalidCredentials;
 }
 
 export function AuthGate() {
@@ -74,7 +75,7 @@ export function AuthGate() {
       return false;
     }
     if (!isValidEmail(nextEmail)) {
-      setError("올바른 이메일 형식이 아닙니다.");
+      setError("이메일 주소를 다시 확인해주세요.");
       return false;
     }
     return true;
@@ -82,7 +83,7 @@ export function AuthGate() {
 
   function validatePassword(nextPassword: string) {
     if (nextPassword.length < 8) {
-      setError("비밀번호는 8자 이상 입력해주세요.");
+      setError("비밀번호는 8자 이상으로 만들어주세요.");
       return false;
     }
     return true;
@@ -91,7 +92,7 @@ export function AuthGate() {
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) {
-      setError("Supabase 환경변수가 설정되지 않았습니다.");
+      setError("로그인 연결이 아직 준비되지 않았어요.");
       return;
     }
     const nextEmail = email.trim();
@@ -118,13 +119,13 @@ export function AuthGate() {
   async function handleSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) {
-      setError("Supabase 환경변수가 설정되지 않았습니다.");
+      setError("로그인 연결이 아직 준비되지 않았어요.");
       return;
     }
     const nextEmail = email.trim();
     if (!validateEmail(nextEmail) || !validatePassword(password)) return;
     if (password !== confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError("비밀번호가 서로 달라요.");
       return;
     }
 
@@ -146,9 +147,9 @@ export function AuthGate() {
     }
 
     if (data.session) {
-      setMessage("회원가입이 완료되었습니다.");
+      setMessage("가입이 완료됐어요.");
     } else {
-      setMessage("가입 확인 메일을 보냈습니다. 메일함을 확인해주세요.");
+      setMessage("확인 메일을 보냈어요. 메일함을 확인해주세요.");
     }
   }
 
@@ -156,7 +157,7 @@ export function AuthGate() {
     event.preventDefault();
     if (resetCooldown > 0) return;
     if (!supabase) {
-      setError("Supabase 환경변수가 설정되지 않았습니다.");
+      setError("로그인 연결이 아직 준비되지 않았어요.");
       return;
     }
     const nextEmail = email.trim();
@@ -166,7 +167,6 @@ export function AuthGate() {
     setError("");
     setMessage("");
     const redirectTo = getPasswordResetRedirectUrl();
-    console.log("[RESET_REQUEST_EMAIL]", nextEmail, redirectTo);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(nextEmail, {
       redirectTo,
     });
@@ -177,18 +177,18 @@ export function AuthGate() {
       const normalized = resetError.message?.toLowerCase() ?? "";
       const isRateLimit = normalized.includes("rate") || normalized.includes("limit");
       if (isRateLimit) {
-        setError("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+        setError(USER_COPY.auth.rateLimited);
       } else if (process.env.NODE_ENV === "development") {
         setError(
           `비밀번호 재설정 메일을 보내지 못했습니다.\n오류: ${resetError.message}\n\nSupabase 대시보드 → Authentication → Redirect URLs에 "${redirectTo}" 추가 여부를 확인하세요.`,
         );
       } else {
-        setError("비밀번호 재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.");
+        setError("재설정 메일을 보내지 못했어요. 잠시 후 다시 해주세요.");
       }
       return;
     }
     setResetCooldown(60);
-    setMessage("비밀번호 재설정 메일을 보냈습니다. 메일함을 확인해주세요.");
+    setMessage("재설정 메일을 보냈어요. 메일함을 확인해주세요.");
   }
 
   if (recoveringCode) {
@@ -196,7 +196,7 @@ export function AuthGate() {
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="text-center text-sm text-slate-500">
           <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
-          인증 링크 확인 중...
+          인증 링크를 확인하고 있어요...
         </div>
       </main>
     );
@@ -213,10 +213,10 @@ export function AuthGate() {
           CompanyRadar
         </div>
         <h1 className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
-          지원할 회사를 기준 있게 정리하세요
+          지원할 공고, 한곳에서 관리해요
         </h1>
         <p className="mt-1.5 text-sm leading-5 text-slate-500">
-          회사핏 점수, 리스크, 면접 준비 기록을 한 곳에서 관리하는 개인용 지원 트래커입니다.
+          공고 분석부터 지원 상태, 면접 준비까지 이어서 볼 수 있어요.
         </p>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {["회사 추가", "점수 확인", "면접 준비"].map((step, index) => (
@@ -229,10 +229,10 @@ export function AuthGate() {
 
         <div className="mt-5 rounded-lg bg-slate-50 px-3 py-2.5 text-sm leading-5 text-slate-600">
           {isReset
-            ? "가입한 이메일을 입력하면 비밀번호 재설정 메일을 보내드립니다."
+            ? "가입한 이메일로 비밀번호 재설정 링크를 보내드릴게요."
             : isSignup
-              ? "CompanyRadar에 가입하고 지원할 회사를 체계적으로 관리해보세요."
-              : "이메일과 비밀번호로 로그인하세요."}
+              ? "계정을 만들면 분석한 공고를 계속 저장할 수 있어요."
+              : "다시 오셨네요. 이어서 준비해볼까요?"}
         </div>
 
         <form
@@ -283,10 +283,10 @@ export function AuthGate() {
             {isReset ? <Mail className="h-4 w-4" /> : isSignup ? <UserPlus className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
             {loading
               ? isReset
-                ? "메일 보내는 중..."
+                ? "메일을 보내고 있어요..."
                 : isSignup
-                  ? "가입 중..."
-                  : "로그인 중..."
+                  ? "계정을 만들고 있어요..."
+                  : "로그인하고 있어요..."
               : isReset && resetCooldown > 0
                 ? `${resetCooldown}초 후 다시 요청`
               : isReset

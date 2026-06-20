@@ -50,7 +50,7 @@ export async function POST(request: Request) {
           message:
             error instanceof Error
               ? error.message
-              : "결제 승인에 실패했습니다.",
+              : "결제를 승인하지 못했어요.",
         },
       },
       { status: 502 },

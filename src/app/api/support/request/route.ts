@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       {
         error: {
           code: "save_failed",
-          message: "문의 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+          message: "문의를 보내지 못했어요. 잠시 후 다시 해주세요.",
         },
       },
       { status: 500 },

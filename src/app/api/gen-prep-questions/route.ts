@@ -59,6 +59,8 @@ export async function POST(request: Request) {
 - situational: 가상 시나리오 기반 판단력 질문
 - 각 카테고리 2~3개, 합계 10~12개
 - 질문은 구체적이고 회사 특성을 반영
+- 실제 면접관이 말하듯 짧고 자연스러운 한국어로 작성
+- 번역투, 보고서 말투, AI식 상투어는 피할 것
 - JSON만 출력, 설명 없음`;
 
   const userContent = `
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
         return apiError(
           502,
           "ai_failed",
-          "OpenAI API 사용량 또는 요청 제한에 걸렸습니다. 잠시 후 다시 시도하세요.",
+          "예상 질문을 만들지 못했어요. 잠시 후 다시 해주세요.",
         );
       return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
     }

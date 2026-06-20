@@ -130,7 +130,7 @@ export function CandidateInboxPanel({
         | { ok: true; result: Partial<Company> & { name?: string; industry?: string } }
         | { error: { code?: string; message: string } };
       if (!res.ok || !("ok" in data) || !data.ok) {
-        const msg = "error" in data ? data.error.message : "AI 파싱에 실패했습니다.";
+        const msg = "error" in data ? data.error.message : "공고를 정리하지 못했어요.";
         setParseError({ id: candidate.id, msg });
         onPatch(candidate.id, { parseStatus: "failed" });
         return;

@@ -1,10 +1,10 @@
 # CompanyRadar
 
-채용공고와 이력서 근거를 비교해 `지원 추천 / 확인 후 결정 / 패스 고려` 판단을 제공하는 공고 핏 분석기입니다. 기존 회사 관리 도구는 `/tracker` 경로에서 계속 사용할 수 있습니다.
+이력서와 채용공고를 비교해 지원 우선순위와 확인할 점을 정리하는 공고 핏 분석기입니다. 기존 회사 관리 도구는 `/tracker`에서 계속 사용할 수 있습니다.
 
 ## 핵심 흐름
 
-- `/`: 로그인 없이 이력서 텍스트와 공고 URL/원문을 분석하고, 로그인 후 결과 저장
+- `/`: PDF·DOCX·TXT 이력서 또는 텍스트와 공고 URL/원문을 분석하고, 로그인 후 결과 저장
 - 판단 등급, 보조 점수, 매칭·부족·불확실 요구사항, 다음 행동 제공
 - 이력서 원문은 저장하지 않고 추출된 구조화 프로필만 브라우저와 계정에 저장
 - `/tracker`: 저장한 공고·지원 목록을 기본으로 제공하고 기존 회사 평가는 보조 메뉴로 유지
@@ -21,6 +21,10 @@
 
 ## 이번 빌드 변경사항
 
+- **이력서 파일 업로드**: PDF·DOCX·TXT 파일에서 커리어 정보만 추출. 사용자가 목표 직무·연차·역량·도메인·성과를 수정하고 확정한 뒤에만 구조화 프로필을 저장. 파일·원문·파일명은 저장하거나 GA에 전송하지 않음.
+- **익명 분석 사용량 fallback**: Upstash 설정 누락·장애 시 Supabase `reserve_ai_quota` RPC로 자동 전환. 두 저장소가 모두 실패한 경우에만 입력을 유지한 채 재시도 안내.
+- **이력서 정리 무료 한도**: 핏 분석 크레딧과 별도로 브라우저/사용자 기준 하루 3회 제공.
+- **사용자 화면 라이팅 개편**: 분석기·트래커·인증·결제·설정·AI 코칭 문구를 짧고 자연스러운 존댓말로 통일. 운영자·약관과 회사 발송 이메일은 기존 업무 톤 유지.
 - **공고 핏 분석과 지원 관리 통합**: 분석 결과에서 `관심 공고로 저장`, `지원 예정으로 저장`, `패스`를 선택하고 `/tracker` 공고·지원 목록으로 바로 연결. 비로그인 사용자는 현재 결과를 유지한 채 로그인/회원가입 후 자동 저장.
 - **공고 중심 DB 모델 추가**: `candidate_profiles`, `job_companies`, `job_postings`, `fit_analyses`, `fit_requirements`, `job_decisions`, `applications`와 원자적 저장 RPC 추가. 기존 JSON `companies` 테이블과 회사 평가 기능은 유지.
 - **트래커 기본 화면 변경**: `/tracker` 진입 시 공고·지원 목록을 먼저 표시. 패스 공고는 기본 목록에서 숨기고 전용 필터에서 확인. 데스크톱 표와 390px 모바일 카드 지원.
@@ -31,7 +35,7 @@
 - **온보딩 "직접 추가하기" → 간단 추가 화면**: 온보딩에서 "회사명만 먼저 저장하기"를 선택하면 구 전체 폼 대신 최소 입력만 받는 QuickAddPanel로 연결. 회사명·채용공고 URL·지원 상태만 입력 후 바로 저장 가능. "자세히 입력할래요" 링크로 전체 폼 접근 가능.
 
 - **비밀번호 재설정 근본 버그 수정**: 복구 코드가 `/auth/confirm`으로 라우팅될 때 `PASSWORD_RECOVERY` 이벤트를 감지하지 않고 즉시 로그인 처리하던 문제 수정. 이제 `/auth/confirm`이 exchange 전에 `onAuthStateChange`를 구독하여 `PASSWORD_RECOVERY` 이벤트가 발생하면 `/auth/reset-password?recovery=1`으로 전달. `/auth/reset-password`는 `?recovery=1`을 인식해 이미 수립된 세션을 재사용. 설정 화면의 `resetPassword()`도 `redirectTo`를 `/auth/reset-password` → `/auth/callback`으로 수정해 AuthGate 경로와 통일.
-- **비밀번호 재설정 하드닝**: `[RESET_REQUEST_EMAIL]` 콘솔 로그를 두 경로 모두에 추가. 비밀번호 변경 성공 후 2초 뒤 로그인 화면으로 자동 이동.
+- **비밀번호 재설정 하드닝**: 비밀번호 변경 성공 후 2초 뒤 로그인 화면으로 자동 이동. 이메일 주소는 콘솔에 기록하지 않음.
 - **AI 무료 사용 5회 제한 버그 수정**: `getEntitlement`(server-billing.ts)이 계정을 1회로 초기화하던 버그 수정. 이제 처음 로그인 시 5회로 올바르게 초기화됨. 탈퇴 후 재가입해도 동일 이메일은 `ai_free_used_emails` 테이블로 0회 처리. DB `consume_ai_credit` 함수 fallback도 1→5로 수정. `getOrCreateAiEntitlement`의 중복 로직 제거, `getEntitlement` 위임으로 통일. v044 마이그레이션: 기존 1회 계정(미사용) 5회로 업그레이드.
 - **툴팁 클리핑 버그 수정**: `overflow-hidden` 부모로 인해 위쪽 방향 툴팁이 잘리던 문제 해결. 툴팁을 아래(`top-full`)에 표시하고 오른쪽 앵커(`right-0`)로 수정. 헤더 내 공고 확인 툴팁은 버튼 텍스트를 명확하게 해 툴팁 자체를 제거.
 - **다음 할일 날짜 필드 클리핑 수정**: `sm:contents` 래퍼 div를 제거하고 타이틀·날짜·버튼을 3-column 그리드에 직접 배치. 날짜 컬럼 너비 128px → 144px. 모바일에서는 각 항목이 세로로 쌓여 날짜 필드가 전체 너비를 사용.
@@ -172,6 +176,17 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 
+# 익명 분석 사용량 제한. 미설정/장애 시 v046 Supabase RPC를 사용합니다.
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+FIT_QUOTA_SALT=
+FIT_DAILY_CLIENT_LIMIT=10
+FIT_DAILY_GLOBAL_LIMIT=200
+FIT_IP_MINUTE_LIMIT=20
+RESUME_DAILY_CLIENT_LIMIT=3
+RESUME_DAILY_GLOBAL_LIMIT=300
+RESUME_IP_MINUTE_LIMIT=10
+
 # 운영자/무제한 AI 계정
 AI_ALLOWED_EMAILS=
 AI_ALLOWED_USER_IDS=
@@ -240,9 +255,10 @@ supabase/migrations/20260614_v042_ai_free_used_emails.sql
 supabase/migrations/20260614_v043_request_fk_set_null.sql
 supabase/migrations/20260614_v044_ai_free_uses_5.sql
 supabase/migrations/20260620_v045_fit_tracker_integration.sql
+supabase/migrations/20260620_v046_ai_quota_fallback.sql
 ```
 
-v045 rollback은 `supabase/rollback/20260620_v045_fit_tracker_integration.rollback.sql`에 있습니다.
+rollback SQL은 `supabase/rollback/`에 migration별로 있습니다.
 
 `v038` 적용 후 운영자 계정을 `owner`로 설정:
 

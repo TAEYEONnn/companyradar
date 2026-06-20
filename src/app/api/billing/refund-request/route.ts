@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[billing/refund-request] failed to save refund request", error);
     return NextResponse.json(
-      { error: { code: "save_failed", message: "환불 요청 접수에 실패했습니다." } },
+      { error: { code: "save_failed", message: "환불 요청을 보내지 못했어요." } },
       { status: 500 },
     );
   }

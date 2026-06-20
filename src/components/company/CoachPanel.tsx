@@ -155,13 +155,13 @@ export function CoachPanel({ companies, scoreMap, settings, onBack, strategy, on
         | { error: { code?: string; message: string } };
 
       if (!("ok" in data) || !data.ok) {
-        setError(getApiErrorMessage(res, data, "전략 생성에 실패했습니다."));
+        setError(getApiErrorMessage(res, data, "이번 주 전략을 만들지 못했어요."));
         return;
       }
       onStrategyChange(data.strategy);
       setStrategyOpen(true);
     } catch {
-      setError("AI 코치 요청에 실패했습니다.");
+      setError("이번 주 전략을 만들지 못했어요.");
     } finally {
       setLoading(false);
     }

@@ -9,7 +9,7 @@ import { getSupabaseClient } from "@/lib/supabase-client";
 export function BillingSuccessClient() {
   const searchParams = useSearchParams();
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
-  const [message, setMessage] = useState("결제를 확인하고 있습니다.");
+  const [message, setMessage] = useState("결제 내용을 확인하고 있어요.");
 
   useEffect(() => {
     async function confirmPayment() {
@@ -19,7 +19,7 @@ export function BillingSuccessClient() {
 
       if (!paymentKey || !orderId || !amount) {
         setState("error");
-        setMessage("결제 승인 정보가 부족합니다.");
+        setMessage("결제 정보를 확인하지 못했어요.");
         return;
       }
 
@@ -30,7 +30,7 @@ export function BillingSuccessClient() {
           : undefined;
         if (!accessToken) {
           setState("error");
-          setMessage("로그인이 필요합니다. 다시 로그인한 뒤 결제를 확인해주세요.");
+          setMessage("로그인한 뒤 결제 내용을 다시 확인해주세요.");
           return;
         }
 
@@ -50,8 +50,8 @@ export function BillingSuccessClient() {
           setState("error");
           setMessage(
             "error" in json
-              ? json.error?.message ?? "결제 승인에 실패했습니다."
-              : "결제 승인에 실패했습니다.",
+              ? json.error?.message ?? "결제를 승인하지 못했어요."
+              : "결제를 승인하지 못했어요.",
           );
           return;
         }
@@ -59,12 +59,12 @@ export function BillingSuccessClient() {
         setState("success");
         setMessage(
           json.alreadyApproved
-            ? "이미 반영된 결제입니다. AI 이용권을 사용할 수 있어요."
-            : "AI 10회권이 추가되었습니다.",
+            ? "이미 반영된 결제예요. AI 이용권을 바로 사용할 수 있어요."
+            : "AI 10회 이용권을 추가했어요.",
         );
       } catch {
         setState("error");
-        setMessage("결제 승인 요청 중 오류가 발생했습니다.");
+        setMessage("결제를 확인하는 중 문제가 생겼어요.");
       }
     }
 
@@ -84,7 +84,7 @@ export function BillingSuccessClient() {
           </div>
         )}
         <h1 className="mt-4 text-lg font-semibold">
-          {state === "success" ? "결제가 완료되었습니다" : "결제 확인"}
+          {state === "success" ? "결제가 완료됐어요" : "결제 확인"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
         <Button className="mt-5" onClick={() => { window.location.href = "/"; }}>

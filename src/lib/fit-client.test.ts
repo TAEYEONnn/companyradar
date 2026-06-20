@@ -5,6 +5,7 @@ import {
   parsePendingFitSave,
   serializeCandidateProfile,
   serializePendingFitSave,
+  type FitEventName,
 } from "./fit-client";
 
 const profile = {
@@ -78,5 +79,19 @@ describe("fit save recovery", () => {
   it("uses the newest structured candidate profile", () => {
     const remote = { ...profile, updatedAt: "2026-06-20T00:00:00.000Z" };
     expect(chooseNewestCandidateProfile(profile, remote)).toEqual(remote);
+  });
+});
+
+describe("fit analytics event names", () => {
+  it("includes the resume upload and profile confirmation funnel", () => {
+    const events: FitEventName[] = [
+      "resume_upload_started",
+      "resume_parse_completed",
+      "resume_parse_failed",
+      "profile_confirmed",
+      "profile_edited",
+    ];
+
+    expect(events).toHaveLength(5);
   });
 });

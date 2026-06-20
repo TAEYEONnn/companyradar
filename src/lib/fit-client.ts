@@ -15,7 +15,12 @@ export type FitEventName =
   | "fit_decision_recorded"
   | "application_started"
   | "second_job_analysis_started"
-  | "fit_analysis_failed";
+  | "fit_analysis_failed"
+  | "resume_upload_started"
+  | "resume_parse_completed"
+  | "resume_parse_failed"
+  | "profile_confirmed"
+  | "profile_edited";
 
 export interface PendingFitSave {
   analysis: FitAnalysis;

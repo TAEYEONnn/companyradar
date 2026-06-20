@@ -15,6 +15,7 @@ import {
   fetchPublicText,
   PublicFetchError,
 } from "@/lib/safe-public-fetch";
+import { USER_COPY } from "@/lib/user-copy";
 
 export const runtime = "nodejs";
 
@@ -87,6 +88,12 @@ export async function POST(request: Request) {
       request.headers.get("x-companyradar-client")?.slice(0, 100) ||
       "anonymous";
     const quota = await reserveFitQuota(request, clientId);
+    console.info("[ai-quota]", {
+      feature: "analyze-fit",
+      backend: quota.backend ?? "unknown",
+      status: quota.reason ? "rejected" : "reserved",
+      errorCode: quota.reason,
+    });
     if (!quota.allowed) {
       return quotaError(quota.reason);
     }
@@ -204,6 +211,8 @@ function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
 - 요구사항은 최대 12개입니다.
 - score와 recommendation은 생성하지 마세요. 서버가 계산합니다.
 - nextAction은 가장 중요한 확인 또는 지원 행동 한 문장입니다.
+- summary와 nextAction은 짧고 자연스러운 한국어 존댓말로 씁니다.
+- "대체로 연결됩니다", "검토가 필요합니다" 같은 보고서 말투와 과한 AI식 표현을 피합니다.
 
 형식:
 {
@@ -289,7 +298,7 @@ function quotaError(reason: QuotaReason | null) {
     return apiError(
       503,
       "quota_unavailable",
-      "사용량 확인에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      USER_COPY.ai.unavailable,
     );
   }
   return apiError(
@@ -299,7 +308,7 @@ function quotaError(reason: QuotaReason | null) {
       ? "오늘 준비된 전체 AI 분석량을 모두 사용했습니다."
       : reason === "ip_minute"
         ? "요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요."
-        : "오늘 무료 분석 10회를 모두 사용했습니다.",
+      : USER_COPY.ai.quotaExceeded,
   );
 }
 

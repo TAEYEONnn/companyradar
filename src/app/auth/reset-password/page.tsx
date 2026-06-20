@@ -105,24 +105,24 @@ export default function ResetPasswordPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirm) {
-      setErrorMsg("비밀번호가 일치하지 않습니다.");
+      setErrorMsg("비밀번호가 서로 달라요.");
       return;
     }
     if (password.length < 8) {
-      setErrorMsg("비밀번호는 8자 이상이어야 합니다.");
+      setErrorMsg("비밀번호는 8자 이상으로 만들어주세요.");
       return;
     }
     setStatus("loading");
     setErrorMsg("");
     const supabase = getSupabaseClient();
     if (!supabase || !hasSession) {
-      setErrorMsg("비밀번호 재설정 링크를 다시 열어주세요.");
+      setErrorMsg("메일에서 재설정 링크를 다시 열어주세요.");
       setStatus("error");
       return;
     }
     const { error } = (await supabase?.auth.updateUser({ password })) ?? {};
     if (error) {
-      setErrorMsg("비밀번호 변경에 실패했습니다. 링크가 만료되었을 수 있습니다.");
+      setErrorMsg("비밀번호를 바꾸지 못했어요. 새 링크를 요청해주세요.");
       setStatus("error");
     } else {
       // Sign out the recovery session — prevents the reset user from being
@@ -135,21 +135,20 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">비밀번호 재설정</h1>
-        <p className="mb-6 text-sm text-slate-500">새 비밀번호를 입력해주세요.</p>
+        <h1 className="mb-1 text-xl font-semibold text-slate-900">새 비밀번호 만들기</h1>
+        <p className="mb-6 text-sm text-slate-500">앞으로 사용할 비밀번호를 입력해주세요.</p>
 
         {hasSession === false ? (
           <div className="space-y-3">
             <p className="rounded-md bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-              재설정 링크가 만료됐거나 이미 사용된 링크입니다.
-              메일 링크는 같은 브라우저에서만 사용할 수 있습니다.
-              새 재설정 메일을 요청해주세요.
+              이 링크는 만료됐거나 이미 사용됐어요.
+              로그인 화면에서 새 링크를 요청해주세요.
             </p>
             <Link
               className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"
               href="/?reset=1"
             >
-              새 재설정 메일 요청하기
+              새 링크 요청하기
             </Link>
             <Link
               className="block w-full rounded-md border border-slate-200 px-4 py-2 text-center text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -161,7 +160,7 @@ export default function ResetPasswordPage() {
         ) : status === "done" ? (
           <div className="space-y-4">
             <p className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">
-              비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해주세요.
+              비밀번호를 바꿨어요. 새 비밀번호로 로그인해주세요.
             </p>
             <Link
               className="block w-full rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-slate-700"
@@ -171,7 +170,7 @@ export default function ResetPasswordPage() {
             </Link>
           </div>
         ) : hasSession === null ? (
-          <div className="py-8 text-center text-sm text-slate-500">재설정 링크 확인 중...</div>
+          <div className="py-8 text-center text-sm text-slate-500">재설정 링크를 확인하고 있어요...</div>
         ) : (
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
@@ -213,7 +212,7 @@ export default function ResetPasswordPage() {
               disabled={status === "loading"}
               type="submit"
             >
-              {status === "loading" ? "변경 중..." : "비밀번호 변경"}
+              {status === "loading" ? "바꾸고 있어요..." : "비밀번호 바꾸기"}
             </button>
           </form>
         )}

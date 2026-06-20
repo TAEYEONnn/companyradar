@@ -5,7 +5,7 @@ export function getSupabaseAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for billing operations.");
+    throw new Error("Supabase server credentials are required.");
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {

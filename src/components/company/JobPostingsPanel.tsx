@@ -10,6 +10,7 @@ import type {
   JobDecision,
   TrackedJobPosting,
 } from "@/lib/job-tracker";
+import { USER_COPY } from "@/lib/user-copy";
 
 type JobFilter = "all" | "interested" | "planned" | "active" | "pass";
 
@@ -30,9 +31,9 @@ const STATUS_LABELS: Record<JobApplicationStatus, string> = {
 };
 
 const RECOMMENDATION_LABELS = {
-  apply: "지원 추천",
-  verify: "확인 후 결정",
-  pass: "패스 고려",
+  apply: "지원해볼 만해요",
+  verify: "조금 더 확인해봐요",
+  pass: "우선순위가 낮아요",
 } as const;
 
 export function JobPostingsPanel({
@@ -62,7 +63,7 @@ export function JobPostingsPanel({
           error?: { message?: string };
         };
         if (!response.ok) {
-          throw new Error(data.error?.message || "공고 목록을 불러오지 못했습니다.");
+          throw new Error(data.error?.message || USER_COPY.save.loadedFailed);
         }
         if (active) setJobs(data.jobs ?? []);
       } catch (caught) {
@@ -70,7 +71,7 @@ export function JobPostingsPanel({
           setError(
             caught instanceof Error
               ? caught.message
-              : "공고 목록을 불러오지 못했습니다.",
+              : USER_COPY.save.loadedFailed,
           );
         }
       } finally {
@@ -117,7 +118,7 @@ export function JobPostingsPanel({
     });
     setUpdatingId("");
     if (!response.ok) {
-      setError("지원 상태를 변경하지 못했습니다.");
+      setError(USER_COPY.save.failed);
       return;
     }
     setJobs((current) =>
@@ -132,13 +133,13 @@ export function JobPostingsPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold text-emerald-700">
-            공고와 지원을 한 흐름으로
+            분석한 공고를 바로 이어서
           </p>
           <h1 className="mt-1 text-xl font-semibold text-slate-900">
             공고·지원 목록
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            분석한 공고의 판단 근거와 지원 상태를 이어서 관리합니다.
+            관심 공고와 지원 현황을 한눈에 정리해요.
           </p>
         </div>
         <Link
@@ -185,18 +186,18 @@ export function JobPostingsPanel({
       {loading ? (
         <div className="flex min-h-48 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-500">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          저장한 공고를 불러오는 중...
+          저장한 공고를 불러오고 있어요...
         </div>
       ) : filteredJobs.length === 0 ? (
         <div className="flex min-h-52 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 text-center">
           <BriefcaseBusiness className="h-7 w-7 text-slate-300" />
           <p className="mt-3 text-sm font-medium text-slate-700">
             {filter === "all"
-              ? "아직 저장한 공고가 없습니다."
-              : "이 상태의 공고가 없습니다."}
+              ? "아직 저장한 공고가 없어요."
+              : "여기에 해당하는 공고가 없어요."}
           </p>
           <Link className="mt-2 text-sm text-emerald-700 underline" href="/">
-            공고 핏 분석부터 시작하기
+            첫 공고 확인해보기
           </Link>
         </div>
       ) : (
@@ -270,7 +271,7 @@ function JobTableRow({
         <p className="truncate font-medium text-slate-900">{job.companyName}</p>
         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{job.title}</p>
         <p className="mt-1 text-[11px] text-slate-400">
-          {job.deadline ? `마감 ${job.deadline}` : "마감일 미확인"}
+          {job.deadline ? `마감 ${job.deadline}` : "마감일을 확인해주세요"}
         </p>
       </td>
       <td className="px-3 py-3 align-top">

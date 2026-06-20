@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, order });
   } catch {
     return NextResponse.json(
-      { error: { code: "billing_failed", message: "주문 생성에 실패했습니다." } },
+      { error: { code: "billing_failed", message: "결제를 시작하지 못했어요." } },
       { status: 500 },
     );
   }
