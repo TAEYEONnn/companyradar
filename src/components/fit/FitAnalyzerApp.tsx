@@ -600,9 +600,18 @@ export function FitAnalyzerApp() {
             </Link>
             {authReady ? (
               session ? (
-                <span className="hidden max-w-48 truncate text-xs text-slate-500 sm:inline">
-                  {session.user.email}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="hidden max-w-40 truncate text-xs text-slate-500 sm:inline">
+                    {session.user.email}
+                  </span>
+                  <button
+                    className="text-xs text-slate-500 hover:text-slate-900"
+                    onClick={() => { void getSupabaseClient()?.auth.signOut(); }}
+                    type="button"
+                  >
+                    로그아웃
+                  </button>
+                </div>
               ) : (
                 <button
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-950"

@@ -14,6 +14,8 @@ export const USER_COPY = {
     textNotFound:
       "파일에서 읽을 수 있는 글자를 찾지 못했어요. 스캔본이라면 TXT나 DOCX로 올려주세요.",
     parseFailed: "이력서를 읽지 못했어요. 다른 파일로 다시 시도해주세요.",
+    pdfInvalid: "PDF 파일의 구조를 읽지 못했어요. 파일을 다시 저장한 뒤 업로드해 주세요.",
+    pdfWorkerFailed: "PDF 처리 중 내부 오류가 발생했어요. 잠시 후 다시 시도해주세요.",
     quotaExceeded: "오늘 이력서 정리 3회를 모두 사용했어요.",
   },
   job: {

@@ -228,6 +228,40 @@ describe("POST /api/parse-resume", () => {
     });
   });
 
+  it("returns 422 pdf_invalid for a structurally corrupt PDF", async () => {
+    mocks.extractResumeText.mockRejectedValue(new ResumeParseError("pdf_invalid"));
+    const form = new FormData();
+    form.set("file", makePdfFile());
+    const response = await POST(
+      new Request("http://localhost/api/parse-resume", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "pdf_invalid",
+    });
+  });
+
+  it("returns 422 pdf_worker_failed when the pdfjs worker cannot initialise", async () => {
+    mocks.extractResumeText.mockRejectedValue(new ResumeParseError("pdf_worker_failed"));
+    const form = new FormData();
+    form.set("file", makePdfFile());
+    const response = await POST(
+      new Request("http://localhost/api/parse-resume", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "pdf_worker_failed",
+    });
+  });
+
   // ── Quota ─────────────────────────────────────────────────────────────────
 
   it("returns 503 quota_unavailable when both quota stores fail", async () => {

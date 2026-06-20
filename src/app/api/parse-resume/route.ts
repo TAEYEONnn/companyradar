@@ -12,8 +12,8 @@ import { USER_COPY } from "@/lib/user-copy";
 
 export const runtime = "nodejs";
 
-// file_missing / file_empty are distinct client errors (not covered by ResumeParseErrorCode).
-// pdf_parse_failed / pdf_text_empty are 422 aliases for parse_failed / text_not_found.
+// file_missing / file_empty are client errors not in ResumeParseErrorCode.
+// pdf_invalid / pdf_worker_failed are server-side 422s distinct from parse_failed.
 type ErrorCode =
   | "file_missing"
   | "file_empty"
@@ -116,6 +116,7 @@ export async function POST(request: Request) {
     console.error("[parse-resume]", {
       stage: "text-extraction-failed",
       errorCode: code,
+      errorMessage: error instanceof Error ? error.message : String(error),
     });
     return resumeError(error);
   }
@@ -294,6 +295,8 @@ function resumeError(error: unknown) {
     encrypted_file: USER_COPY.resume.encrypted,
     text_not_found: USER_COPY.resume.textNotFound,
     parse_failed: USER_COPY.resume.parseFailed,
+    pdf_invalid: USER_COPY.resume.pdfInvalid,
+    pdf_worker_failed: USER_COPY.resume.pdfWorkerFailed,
   };
   // 400 = bad user input (wrong type, too large)
   // 422 = valid file the server cannot process (scanned PDF, corrupt, encrypted)
