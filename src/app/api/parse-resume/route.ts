@@ -7,7 +7,7 @@ import {
   type ResumeParseErrorCode,
   validateResumeFile,
 } from "@/lib/resume-parser";
-import { requireSupabaseUser } from "@/lib/server-auth";
+import { isAllowedAiOperator, requireSupabaseUser } from "@/lib/server-auth";
 import { USER_COPY } from "@/lib/user-copy";
 
 export const runtime = "nodejs";
@@ -88,11 +88,19 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── 5. Quota ─────────────────────────────────────────────────────────────
+  // ── 5. Auth + quota ──────────────────────────────────────────────────────
+  // Operators (AI_ALLOWED_EMAILS / AI_ALLOWED_USER_IDS / role=owner) bypass
+  // the per-client daily quota so they can test the full service without limit.
+  // This mirrors the bypass in analyze-fit and every other AI route.
   const clientId = await resolveQuotaClientId(request);
-  const quota = await reserveResumeQuota(request, clientId);
-  logQuota("parse-resume", quota.backend ?? "unknown", quota.reason);
-  if (!quota.allowed) return quotaError(quota.reason);
+  const isOperator = await checkIsOperator(request);
+  if (!isOperator) {
+    const quota = await reserveResumeQuota(request, clientId);
+    logQuota("parse-resume", quota.backend ?? "unknown", quota.reason);
+    if (!quota.allowed) return quotaError(quota.reason);
+  } else {
+    console.log("[parse-resume]", { stage: "quota-bypassed", clientId });
+  }
 
   // ── 6. Text extraction ───────────────────────────────────────────────────
   let resumeText: string;
@@ -193,6 +201,13 @@ ${resumeText}`,
   } catch {
     return apiError(502, "ai_failed", USER_COPY.ai.timeout);
   }
+}
+
+async function checkIsOperator(request: Request): Promise<boolean> {
+  const bearer = /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
+  if (!bearer) return false;
+  const auth = await requireSupabaseUser(request);
+  return auth.user ? isAllowedAiOperator(auth.user) : false;
 }
 
 async function resolveQuotaClientId(request: Request): Promise<string> {
