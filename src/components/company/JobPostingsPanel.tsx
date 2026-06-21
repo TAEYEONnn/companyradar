@@ -279,6 +279,7 @@ export function JobPostingsPanel({
                     initialExpanded={selectedJobId === job.id}
                     job={job}
                     key={job.id}
+                    onFilterChange={setFilter}
                     onOpenFull={() => setFullViewJobId(job.id)}
                     onStatusChange={(status, onRevert) =>
                       void updateApplicationStatus(job.id, status, onRevert)
@@ -297,6 +298,7 @@ export function JobPostingsPanel({
                 initialExpanded={selectedJobId === job.id}
                 job={job}
                 key={job.id}
+                onFilterChange={setFilter}
                 onOpenFull={() => setFullViewJobId(job.id)}
                 onStatusChange={(status, onRevert) =>
                   void updateApplicationStatus(job.id, status, onRevert)
@@ -327,6 +329,7 @@ function JobTableRow({
   updating,
   onStatusChange,
   onOpenFull,
+  onFilterChange,
   initialExpanded,
 }: {
   job: TrackedJobPosting;
@@ -338,6 +341,7 @@ function JobTableRow({
     onRevert: () => void,
   ) => void;
   onOpenFull: () => void;
+  onFilterChange?: (filter: JobFilter) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded ?? false);
   const [localStatus, setLocalStatus] = useState<JobApplicationStatus>(
@@ -370,7 +374,14 @@ function JobTableRow({
             {RECOMMENDATION_LABELS[job.recommendation]}
           </Badge>
           <p className="mt-1 text-xs text-slate-500">
-            {job.score}점 · {DECISION_LABELS[job.decision]}
+            {job.score}점 ·{" "}
+            <button
+              className="underline-offset-2 hover:text-slate-800 hover:underline"
+              onClick={(e) => { e.stopPropagation(); onFilterChange?.(job.decision as JobFilter); }}
+              type="button"
+            >
+              {DECISION_LABELS[job.decision]}
+            </button>
           </p>
         </td>
         <td className="px-3 py-3 align-top text-xs leading-5 text-slate-700">
@@ -439,6 +450,7 @@ function JobMobileCard({
   updating,
   onStatusChange,
   onOpenFull,
+  onFilterChange,
   initialExpanded,
 }: {
   job: TrackedJobPosting;
@@ -450,6 +462,7 @@ function JobMobileCard({
     onRevert: () => void,
   ) => void;
   onOpenFull: () => void;
+  onFilterChange?: (filter: JobFilter) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded ?? false);
   const [localStatus, setLocalStatus] = useState<JobApplicationStatus>(
@@ -513,7 +526,14 @@ function JobMobileCard({
         onClick={(e) => e.stopPropagation()}
       >
         <span className="text-xs text-slate-500">
-          {job.score}점 · {DECISION_LABELS[job.decision]}
+          {job.score}점 ·{" "}
+          <button
+            className="underline-offset-2 hover:text-slate-800 hover:underline"
+            onClick={(e) => { e.stopPropagation(); onFilterChange?.(job.decision as JobFilter); }}
+            type="button"
+          >
+            {DECISION_LABELS[job.decision]}
+          </button>
           {job.deadline ? ` · ${job.deadline} 마감` : ""}
         </span>
         {job.decision === "pass" ? (
