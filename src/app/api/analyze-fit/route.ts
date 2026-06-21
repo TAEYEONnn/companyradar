@@ -32,6 +32,18 @@ type ErrorCode =
   | "forbidden"
   | "url_invalid"
   | "url_blocked"
+  | "blocked_private_address"
+  | "dns_failed"
+  | "remote_timeout"
+  | "remote_connection_failed"
+  | "remote_tls_failed"
+  | "remote_http_forbidden"
+  | "remote_http_rate_limited"
+  | "remote_http_error"
+  | "redirect_limit_exceeded"
+  | "redirect_blocked"
+  | "response_too_large"
+  | "decompression_failed"
   | "url_timeout"
   | "url_access_denied"
   | "url_content_not_found"
@@ -306,10 +318,8 @@ async function resolveJobText(
             "fetch_failed",
             "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
           );
-    const status =
-      publicError.code === "url_invalid" || publicError.code === "url_blocked"
-        ? 400
-        : 422;
+    const ssrfCodes = new Set(["url_invalid", "url_blocked", "blocked_private_address", "redirect_blocked"]);
+    const status = ssrfCodes.has(publicError.code) ? 400 : 422;
     return {
       ok: false,
       status,

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -8,8 +9,20 @@ import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 export type PublicFetchErrorCode =
   | "url_invalid"
   | "url_blocked"
-  | "url_timeout"
+  | "blocked_private_address"
+  | "dns_failed"
+  | "remote_timeout"
+  | "remote_connection_failed"
+  | "remote_tls_failed"
+  | "remote_http_forbidden"
+  | "remote_http_rate_limited"
+  | "remote_http_error"
+  | "redirect_limit_exceeded"
+  | "redirect_blocked"
+  | "response_too_large"
+  | "decompression_failed"
   | "url_access_denied"
+  | "url_timeout"
   | "url_content_not_found"
   | "fetch_failed";
 
@@ -19,6 +32,7 @@ export class PublicFetchError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = "PublicFetchError";
   }
 }
 
@@ -29,23 +43,93 @@ interface PublicFetchOptions {
   maxRedirects?: number;
 }
 
+interface NodeError extends Error {
+  code?: string;
+}
+
+function isNodeError(error: unknown): error is NodeError {
+  return error instanceof Error && "code" in error;
+}
+
+function nodeErrToPublicFetchError(error: unknown): PublicFetchError {
+  if (error instanceof PublicFetchError) return error;
+
+  const nodeCode = isNodeError(error) ? (error.code ?? "") : "";
+
+  if (nodeCode === "ENOTFOUND" || nodeCode === "EAI_NONAME" || nodeCode === "EAI_AGAIN") {
+    return new PublicFetchError("dns_failed", "공고 페이지의 주소를 찾지 못했습니다. URL을 다시 확인해 주세요.");
+  }
+  if (nodeCode === "ETIMEDOUT" || nodeCode === "ESOCKETTIMEDOUT") {
+    return new PublicFetchError("remote_timeout", "공고 페이지 연결 시간이 초과됐습니다. 공고 원문을 붙여넣어 주세요.");
+  }
+  if (
+    nodeCode === "ECONNREFUSED" ||
+    nodeCode === "ECONNRESET" ||
+    nodeCode === "EPIPE" ||
+    nodeCode === "EHOSTUNREACH" ||
+    nodeCode === "ENETUNREACH"
+  ) {
+    return new PublicFetchError("remote_connection_failed", "공고 페이지에 연결하지 못했습니다. 공고 원문을 붙여넣어 주세요.");
+  }
+  if (
+    nodeCode === "ERR_TLS_CERT_ALTNAME_INVALID" ||
+    nodeCode === "DEPTH_ZERO_SELF_SIGNED_CERT" ||
+    nodeCode === "CERT_HAS_EXPIRED" ||
+    nodeCode === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+    nodeCode.startsWith("ERR_SSL") ||
+    nodeCode.startsWith("ERR_TLS")
+  ) {
+    return new PublicFetchError("remote_tls_failed", "공고 페이지의 보안 연결에 실패했습니다. 공고 원문을 붙여넣어 주세요.");
+  }
+
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("blocked")) {
+    return new PublicFetchError("url_blocked", "내부 네트워크 주소는 사용할 수 없습니다.");
+  }
+
+  return new PublicFetchError("fetch_failed", "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.");
+}
+
+function safeHostname(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).hostname;
+  } catch {
+    return "(invalid)";
+  }
+}
+
 export async function fetchPublicText(
   rawUrl: string,
   options: PublicFetchOptions,
 ): Promise<string> {
-  return fetchPublicTextHop(rawUrl, options, options.maxRedirects ?? 3);
+  const traceId = randomUUID().slice(0, 8);
+  console.log("[safe-public-fetch]", {
+    traceId,
+    stage: "request-received",
+    hostname: safeHostname(rawUrl),
+  });
+  return fetchPublicTextHop(rawUrl, options, options.maxRedirects ?? 3, traceId);
 }
 
 async function fetchPublicTextHop(
   rawUrl: string,
   options: PublicFetchOptions,
   redirectsLeft: number,
+  traceId: string,
 ): Promise<string> {
   const url = parsePublicUrl(rawUrl);
-  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  console.log("[safe-public-fetch]", { traceId, stage: "url-validated", hostname: url.hostname });
+
+  const makeRequest = url.protocol === "https:" ? httpsRequest : httpRequest;
 
   return new Promise<string>((resolve, reject) => {
-    const req = request(
+    console.log("[safe-public-fetch]", {
+      traceId,
+      stage: "remote-request-started",
+      hostname: url.hostname,
+    });
+
+    const req = makeRequest(
       url,
       {
         headers: {
@@ -55,168 +139,214 @@ async function fetchPublicTextHop(
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
         },
-        lookup: safeLookup,
+        lookup: makeSafeLookup(traceId),
       },
       (response) => {
-        const status = response.statusCode ?? 0;
+        const statusCode = response.statusCode ?? 0;
+        const contentEncoding = (response.headers["content-encoding"] ?? "").toLowerCase();
+        const contentType = response.headers["content-type"] ?? "";
+
+        console.log("[safe-public-fetch]", {
+          traceId,
+          stage: "remote-response-received",
+          statusCode,
+          contentType,
+          contentEncoding,
+          locationPresent: Boolean(response.headers.location),
+        });
+
+        // ── Redirect ─────────────────────────────────────────────────────────
         const location = response.headers.location;
-        if (status >= 300 && status < 400 && location) {
+        if (statusCode >= 300 && statusCode < 400 && location) {
           response.resume();
           if (redirectsLeft <= 0) {
-            reject(
-              new PublicFetchError(
-                "fetch_failed",
-                "공고 페이지의 리디렉션이 너무 많습니다.",
-              ),
-            );
+            console.warn("[safe-public-fetch]", { traceId, stage: "redirect-limit-exceeded" });
+            reject(new PublicFetchError("redirect_limit_exceeded", "공고 페이지의 리디렉션이 너무 많습니다."));
             return;
           }
           const nextUrl = new URL(location, url).toString();
-          void fetchPublicTextHop(nextUrl, options, redirectsLeft - 1).then(
-            resolve,
-            reject,
-          );
-          return;
-        }
-        if (status === 401 || status === 403) {
-          response.resume();
-          reject(
-            new PublicFetchError(
-              "url_access_denied",
-              "이 페이지는 로그인이 필요하거나 접근이 제한돼 있어요. 공고 내용을 붙여넣어 주세요.",
-            ),
-          );
-          return;
-        }
-        if (status === 429) {
-          response.resume();
-          reject(
-            new PublicFetchError(
-              "url_access_denied",
-              "요청이 잠깐 차단됐어요. 공고 내용을 붙여넣어 주세요.",
-            ),
-          );
-          return;
-        }
-        if (status < 200 || status >= 300) {
-          response.resume();
-          reject(
-            new PublicFetchError(
-              "fetch_failed",
-              "공고 페이지를 불러오지 못했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-            ),
-          );
+          console.log("[safe-public-fetch]", {
+            traceId,
+            stage: "redirect-following",
+            statusCode,
+            redirectsLeft,
+            targetHostname: safeHostname(nextUrl),
+          });
+          void fetchPublicTextHop(nextUrl, options, redirectsLeft - 1, traceId).then(resolve, reject);
           return;
         }
 
+        // ── HTTP error status ─────────────────────────────────────────────────
+        if (statusCode === 401) {
+          response.resume();
+          reject(new PublicFetchError("url_access_denied", "이 페이지는 로그인이 필요해요. 공고 내용을 붙여넣어 주세요."));
+          return;
+        }
+        if (statusCode === 403) {
+          response.resume();
+          reject(new PublicFetchError("remote_http_forbidden", "이 페이지 접근이 차단됐어요. 공고 내용을 붙여넣어 주세요."));
+          return;
+        }
+        if (statusCode === 429) {
+          response.resume();
+          reject(new PublicFetchError("remote_http_rate_limited", "요청이 잠깐 차단됐어요. 공고 내용을 붙여넣어 주세요."));
+          return;
+        }
+        if (statusCode < 200 || statusCode >= 300) {
+          response.resume();
+          reject(new PublicFetchError(
+            "remote_http_error",
+            `공고 페이지를 불러오지 못했습니다 (HTTP ${statusCode}). 공고 원문을 직접 붙여넣어 주세요.`,
+          ));
+          return;
+        }
+
+        // ── Size limit (Content-Length pre-check) ─────────────────────────────
         const contentLength = Number(response.headers["content-length"] ?? 0);
         if (contentLength > options.maxBytes) {
           response.resume();
-          reject(
-            new PublicFetchError(
-              "fetch_failed",
-              "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요.",
-            ),
-          );
+          reject(new PublicFetchError("response_too_large", "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요."));
           return;
         }
 
-        const encoding = (response.headers["content-encoding"] ?? "").toLowerCase();
+        // ── Decompression ─────────────────────────────────────────────────────
         let dataStream: Readable;
-        if (encoding === "gzip" || encoding === "x-gzip") {
+        if (contentEncoding === "gzip" || contentEncoding === "x-gzip") {
+          console.log("[safe-public-fetch]", { traceId, stage: "decompressing", method: "gzip" });
           dataStream = response.pipe(createGunzip());
-        } else if (encoding === "deflate") {
+        } else if (contentEncoding === "deflate") {
+          console.log("[safe-public-fetch]", { traceId, stage: "decompressing", method: "deflate" });
           dataStream = response.pipe(createInflate());
-        } else if (encoding === "br") {
+        } else if (contentEncoding === "br") {
+          console.log("[safe-public-fetch]", { traceId, stage: "decompressing", method: "br" });
           dataStream = response.pipe(createBrotliDecompress());
+        } else if (contentEncoding && contentEncoding !== "identity") {
+          // Unsupported encoding — reject rather than treating binary as text
+          response.resume();
+          console.warn("[safe-public-fetch]", { traceId, stage: "unsupported-encoding", contentEncoding });
+          reject(new PublicFetchError(
+            "decompression_failed",
+            `지원하지 않는 압축 방식 (${contentEncoding})입니다. 공고 원문을 붙여넣어 주세요.`,
+          ));
+          return;
         } else {
           dataStream = response;
         }
 
+        // ── Accumulate decompressed data ──────────────────────────────────────
         const chunks: Buffer[] = [];
         let totalBytes = 0;
         dataStream.on("data", (chunk: Buffer) => {
           totalBytes += chunk.length;
           if (totalBytes > options.maxBytes) {
             response.destroy();
-            reject(
-              new PublicFetchError(
-                "fetch_failed",
-                "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요.",
-              ),
-            );
+            reject(new PublicFetchError("response_too_large", "페이지가 너무 큽니다. 공고 원문을 직접 붙여넣어 주세요."));
             return;
           }
           chunks.push(chunk);
         });
+
         dataStream.on("end", () => {
+          console.log("[safe-public-fetch]", {
+            traceId,
+            stage: "response-read-completed",
+            decompressedBytes: totalBytes,
+          });
           const rawHtml = Buffer.concat(chunks).toString("utf8");
           const text = extractJobText(rawHtml).slice(0, options.maxChars);
+          console.log("[safe-public-fetch]", {
+            traceId,
+            stage: "fetch-completed",
+            extractedTextLength: text.length,
+          });
           if (text.length < 100) {
-            reject(
-              new PublicFetchError(
-                "url_content_not_found",
-                "공고 내용을 충분히 읽지 못했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-              ),
-            );
+            reject(new PublicFetchError("url_content_not_found", "공고 내용을 충분히 읽지 못했습니다. 공고 원문을 직접 붙여넣어 주세요."));
             return;
           }
           resolve(text);
         });
+
         dataStream.on("error", (error) => {
           response.destroy();
+          console.error("[safe-public-fetch]", {
+            traceId,
+            stage: "decompression-error",
+            errorName: error.name,
+            errorMessage: error.message,
+            errorCode: isNodeError(error) ? error.code : null,
+          });
           reject(
             error instanceof PublicFetchError
               ? error
-              : new PublicFetchError(
-                  "fetch_failed",
-                  "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-                ),
+              : new PublicFetchError("decompression_failed", "응답 데이터 처리에 실패했습니다. 공고 원문을 붙여넣어 주세요."),
           );
         });
       },
     );
+
     req.setTimeout(options.timeoutMs, () => {
       req.destroy(
-        new PublicFetchError(
-          "url_timeout",
-          "공고 페이지 요청 시간이 초과됐습니다. 공고 원문을 직접 붙여넣어 주세요.",
-        ),
+        new PublicFetchError("url_timeout", "공고 페이지 요청 시간이 초과됐습니다. 공고 원문을 직접 붙여넣어 주세요."),
       );
     });
+
     req.on("error", (error) => {
-      reject(
-        error instanceof PublicFetchError
-          ? error
-          : new PublicFetchError(
-              error.message.includes("blocked")
-                ? "url_blocked"
-                : "fetch_failed",
-              error.message.includes("blocked")
-                ? "내부 네트워크 주소는 사용할 수 없습니다."
-                : "공고 페이지 요청이 실패했습니다. 공고 원문을 직접 붙여넣어 주세요.",
-            ),
-      );
+      console.error("[safe-public-fetch]", {
+        traceId,
+        stage: "fetch-failed",
+        errorName: error.name,
+        errorMessage: error.message,
+        errorCode: isNodeError(error) ? error.code : null,
+      });
+      reject(nodeErrToPublicFetchError(error));
     });
+
     req.end();
   });
 }
 
-const safeLookup: LookupFunction = (hostname, _options, callback) => {
-  void lookup(hostname, { all: true, verbatim: true })
-    .then((addresses) => {
-      if (
-        addresses.length === 0 ||
-        addresses.some(({ address }) => isPrivateAddress(address))
-      ) {
-        callback(new Error("blocked private address"), "", 4);
-        return;
-      }
-      const selected = addresses.find((a) => a.family === 4) ?? addresses[0];
-      callback(null, selected.address, selected.family);
-    })
-    .catch((error: Error) => callback(error, "", 4));
-};
+function makeSafeLookup(traceId: string): LookupFunction {
+  return (hostname, _options, callback) => {
+    console.log("[safe-public-fetch]", { traceId, stage: "dns-lookup-started", hostname });
+    void lookup(hostname, { all: true, verbatim: true })
+      .then((addresses) => {
+        console.log("[safe-public-fetch]", {
+          traceId,
+          stage: "dns-lookup-completed",
+          hostname,
+          addressCount: addresses.length,
+          addressFamilies: addresses.map(({ family }) => family),
+        });
+        if (addresses.length === 0) {
+          callback(new Error(`DNS returned no addresses for ${hostname}`), "", 4);
+          return;
+        }
+        if (addresses.some(({ address }) => isPrivateAddress(address))) {
+          console.warn("[safe-public-fetch]", { traceId, stage: "ssrf-blocked", hostname });
+          callback(
+            new PublicFetchError("blocked_private_address", "접근이 허용되지 않는 주소로 연결됩니다."),
+            "",
+            4,
+          );
+          return;
+        }
+        console.log("[safe-public-fetch]", { traceId, stage: "ssrf-validation-completed", hostname });
+        const selected = addresses.find((a) => a.family === 4) ?? addresses[0];
+        callback(null, selected.address, selected.family);
+      })
+      .catch((err: Error) => {
+        console.error("[safe-public-fetch]", {
+          traceId,
+          stage: "dns-lookup-failed",
+          hostname,
+          errorName: err.name,
+          errorMessage: err.message,
+          errorCode: isNodeError(err) ? err.code : null,
+        });
+        callback(err, "", 4);
+      });
+  };
+}
 
 function parsePublicUrl(rawUrl: string): URL {
   let url: URL;

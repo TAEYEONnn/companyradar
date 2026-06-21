@@ -170,6 +170,74 @@ describe("POST /api/fetch-job-text", () => {
     });
   });
 
+  it("returns 422 for dns_failed", async () => {
+    mocks.fetchPublicText.mockRejectedValue(
+      new PublicFetchError("dns_failed", "주소를 찾지 못했습니다."),
+    );
+    const response = await POST(makeRequest({ url: "https://bad.example.com/job" }));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "dns_failed",
+    });
+  });
+
+  it("returns 422 for remote_connection_failed", async () => {
+    mocks.fetchPublicText.mockRejectedValue(
+      new PublicFetchError("remote_connection_failed", "연결하지 못했습니다."),
+    );
+    const response = await POST(makeRequest({ url: "https://example.com/job" }));
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "remote_connection_failed",
+    });
+  });
+
+  it("returns 400 for redirect_blocked (SSRF via redirect)", async () => {
+    mocks.fetchPublicText.mockRejectedValue(
+      new PublicFetchError("redirect_blocked", "리디렉션 대상이 허용되지 않습니다."),
+    );
+    const response = await POST(makeRequest({ url: "https://example.com/job" }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "redirect_blocked",
+    });
+  });
+
+  it("returns 400 for blocked_private_address (DNS resolves to private IP)", async () => {
+    mocks.fetchPublicText.mockRejectedValue(
+      new PublicFetchError("blocked_private_address", "접근이 허용되지 않는 주소입니다."),
+    );
+    const response = await POST(makeRequest({ url: "https://internal.example.com/job" }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      errorCode: "blocked_private_address",
+    });
+  });
+
+  // ── Error origin is logged ────────────────────────────────────────────────
+
+  it("logs rawErrorName and rawErrorCode on failure", async () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const nodeErr = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    mocks.fetchPublicText.mockRejectedValue(nodeErr);
+    await POST(makeRequest({ url: "https://example.com/job" }));
+
+    const warnLog = spy.mock.calls.find(
+      (args) =>
+        typeof args[1] === "object" &&
+        (args[1] as Record<string, unknown>).stage === "failed",
+    );
+    expect(warnLog).toBeDefined();
+    const entry = warnLog![1] as Record<string, unknown>;
+    expect(entry.rawErrorCode).toBe("ECONNRESET");
+    expect(entry.rawErrorName).toBe("Error");
+    spy.mockRestore();
+  });
+
   // ── Text is not logged ────────────────────────────────────────────────────
 
   it("logs textLength but never the job text content", async () => {
