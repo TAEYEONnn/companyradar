@@ -2,12 +2,13 @@
 
 import { CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase-client";
 
 export function BillingSuccessClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("결제 내용을 확인하고 있어요.");
@@ -88,7 +89,7 @@ export function BillingSuccessClient() {
           {state === "success" ? "결제가 완료됐어요" : "결제 확인"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
-        <Button className="mt-5" onClick={() => { window.location.href = "/"; }}>
+        <Button className="mt-5" onClick={() => { router.push("/"); }}>
           트래커로 돌아가기
         </Button>
         <nav className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">

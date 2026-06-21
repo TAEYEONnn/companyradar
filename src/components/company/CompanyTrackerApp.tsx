@@ -3,6 +3,7 @@
 import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -88,6 +89,7 @@ interface MigrationPromptState {
 }
 
 export function CompanyTrackerApp() {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -1044,7 +1046,6 @@ export function CompanyTrackerApp() {
                 onCompleteFollowUpTask={completeFollowUpTask}
                 onDeleteFollowUpTask={deleteFollowUpTask}
                 onMarkVerified={markCompanyVerified}
-                onOpenCompanyList={() => setViewMode("jobs")}
                 onReopenFollowUpTask={reopenFollowUpTask}
                 onSelectCompany={openCompanyDrawer}
               />
@@ -1097,7 +1098,7 @@ export function CompanyTrackerApp() {
                     aiCredit={aiCredit}
                     onAddCompany={startCreate}
                     onAddSamples={addSampleCompanies}
-                    onOpenInbox={() => { window.location.href = "/"; }}
+                    onOpenInbox={() => { router.push("/"); }}
                   />
                 ) : (
                   <>
@@ -1173,7 +1174,7 @@ export function CompanyTrackerApp() {
                 ) : (
                   <CompanyTable
                     companies={filteredCompanies}
-                    onAddCompany={() => { window.location.href = "/"; }}
+                    onAddCompany={() => { router.push("/"); }}
                     onEdit={startEdit}
                     onResetFilter={
                       query || statusFilter !== "all" || advancedFilter !== EMPTY_ADVANCED_FILTER
@@ -1317,7 +1318,7 @@ export function CompanyTrackerApp() {
               // ai / manual mode — no auto-seeding
             }
             setShowOnboarding(false);
-            if (startMode === "ai") { window.location.href = "/"; }
+            if (startMode === "ai") { router.push("/"); }
             else if (startMode === "manual") setViewMode("quick-add");
           }}
         />

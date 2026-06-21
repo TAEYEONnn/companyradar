@@ -2,6 +2,7 @@
 
 import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -250,6 +251,7 @@ function TimelineSection({
   emptyMessage: string;
   onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }) {
+  const router = useRouter();
   if (groups.length === 0 && !emptyMessage) return null;
 
   return (
@@ -286,7 +288,7 @@ function TimelineSection({
                     key={event.id}
                     onClick={() => {
                       if (event.jobPostingId) {
-                        window.location.href = `/tracker?job=${encodeURIComponent(event.jobPostingId)}`;
+                        router.push(`/tracker?job=${encodeURIComponent(event.jobPostingId)}`);
                         return;
                       }
                       onSelectCompany(event.companyId, getTimelineDrawerTarget(event));

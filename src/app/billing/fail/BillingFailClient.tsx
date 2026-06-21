@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function BillingFailClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const message =
     searchParams.get("message") ??
@@ -18,7 +19,7 @@ export function BillingFailClient() {
         </div>
         <h1 className="mt-4 text-lg font-semibold">결제가 취소됐어요</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
-        <Button className="mt-5" onClick={() => { window.location.href = "/"; }}>
+        <Button className="mt-5" onClick={() => { router.push("/"); }}>
           트래커로 돌아가기
         </Button>
         <nav className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">

@@ -1,6 +1,8 @@
 "use client";
 
 import { ArrowRight, CalendarCheck, CheckCircle2, CircleHelp, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +61,6 @@ interface TodayPanelProps {
   onCompleteFollowUpTask: (companyId: string, taskId: string) => void;
   onDeleteFollowUpTask: (companyId: string, taskId: string) => void;
   onMarkVerified: (companyId: string) => void;
-  onOpenCompanyList: () => void;
   onReopenFollowUpTask: (companyId: string, taskId: string) => void;
   onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }
@@ -70,10 +71,10 @@ export function TodayPanel({
   onCompleteFollowUpTask,
   onDeleteFollowUpTask,
   onMarkVerified,
-  onOpenCompanyList,
   onReopenFollowUpTask,
   onSelectCompany,
 }: TodayPanelProps) {
+  const router = useRouter();
   const [showCompleted, setShowCompleted] = useState(false);
   const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
   const today = useCurrentDate();
@@ -277,7 +278,7 @@ export function TodayPanel({
 
   function openAction(item: ActionItem) {
     if (item.jobPostingId) {
-      window.location.href = `/tracker?job=${encodeURIComponent(item.jobPostingId)}`;
+      router.push(`/tracker?job=${encodeURIComponent(item.jobPostingId)}`);
       return;
     }
     onSelectCompany(item.companyId, getTodayDrawerTarget(item));
@@ -403,9 +404,12 @@ export function TodayPanel({
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
           <CheckCircle2 className="h-8 w-8" />
           <p className="text-sm">오늘 할 일이 없습니다. 잘 하고 계세요!</p>
-          <Button onClick={onOpenCompanyList} size="sm" variant="secondary">
-            회사 목록에서 다음 할 일 추가
-          </Button>
+          <Link
+            className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            href="/"
+          >
+            새 공고 분석하기
+          </Link>
         </div>
       ) : (
         <ul className="divide-y divide-slate-100 py-1">
