@@ -5,6 +5,7 @@ import {
   Bookmark,
   Building2,
   CalendarPlus,
+  Check,
   ChevronRight,
   Loader2,
   LogIn,
@@ -135,6 +136,7 @@ export function FitAnalyzerApp() {
   const [analysisErrorCode, setAnalysisErrorCode] = useState("");
   const [urlHint, setUrlHint] = useState("");
   const [isFetchingJob, setIsFetchingJob] = useState(false);
+  const [jobSourceDomain, setJobSourceDomain] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -352,6 +354,7 @@ export function FitAnalyzerApp() {
     setError("");
     setAnalysisErrorCode("");
     setUrlHint("");
+    setJobSourceDomain("");
     trackFitEvent("second_job_analysis_started");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -393,6 +396,11 @@ export function FitAnalyzerApp() {
     setJobText("");
     setUrlHint("");
     trackFitEvent("fit_input_started");
+    try {
+      setJobSourceDomain(new URL(trimmedUrl).hostname);
+    } catch {
+      setJobSourceDomain("");
+    }
     try {
       const response = await fetch("/api/fetch-job-text", {
         method: "POST",
@@ -617,6 +625,18 @@ export function FitAnalyzerApp() {
     }
   }
 
+  function handleCompanyNameChange(name: string) {
+    setAnalysis((prev) =>
+      prev
+        ? {
+            ...prev,
+            companyName: name,
+            jobPosting: { ...prev.jobPosting, companyName: name },
+          }
+        : prev,
+    );
+  }
+
   useEffect(() => {
     const accessToken = session?.access_token;
     if (!accessToken) return;
@@ -700,6 +720,9 @@ export function FitAnalyzerApp() {
           </section>
 
           {!analysis ? (
+            loading ? (
+              <AnalysisProgress />
+            ) : (
             <section className="mt-10 grid gap-5 lg:grid-cols-2">
               <article className="rounded-2xl border border-slate-900/10 bg-white p-5 shadow-sm sm:p-7">
                 <StepHeader
@@ -946,7 +969,7 @@ export function FitAnalyzerApp() {
                         </p>
                       ) : jobText ? (
                         <p className="mt-1.5 text-xs text-emerald-600">
-                          공고 내용을 가져왔어요 ({jobText.length}자)
+                          공고 내용을 가져왔어요 ({jobText.length}자){jobSourceDomain ? ` · ${jobSourceDomain}` : ""}
                         </p>
                       ) : null}
                     </>
@@ -1019,11 +1042,6 @@ export function FitAnalyzerApp() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                       공고를 가져오는 중이에요
                     </>
-                  ) : loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      공고와 경력을 맞춰보고 있어요
-                    </>
                   ) : (
                     <>
                       나와 맞는지 확인하기
@@ -1033,12 +1051,14 @@ export function FitAnalyzerApp() {
                 </Button>
               </article>
             </section>
+            )
           ) : (
             <FitResultView
               analysis={analysis}
               confidenceAfter={confidenceAfter}
               decision={decision}
               onAnalyzeAnother={analyzeAnother}
+              onCompanyNameChange={handleCompanyNameChange}
               onConfidenceAfterChange={setConfidenceAfter}
               onSaveDecision={(value) => void saveDecision(value)}
               saveError={saveError}
@@ -1080,11 +1100,44 @@ export function FitAnalyzerApp() {
   );
 }
 
+const ANALYSIS_STEPS = [
+  "공고를 읽고 있어요...",
+  "요구사항을 파악하고 있어요...",
+  "경력과 맞춰보고 있어요...",
+  "결과를 정리하고 있어요...",
+];
+
+function AnalysisProgress() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStep((s) => (s + 1) % ANALYSIS_STEPS.length);
+    }, 1800);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <section className="mt-10 flex min-h-64 items-center justify-center rounded-2xl border border-slate-900/10 bg-white p-8 shadow-sm">
+      <div className="text-center">
+        <Loader2 className="mx-auto h-9 w-9 animate-spin text-emerald-600" />
+        <p className="mt-5 text-lg font-medium text-slate-900">
+          {ANALYSIS_STEPS[step]}
+        </p>
+        <p className="mt-1.5 text-sm text-slate-500">
+          보통 15~30초 정도 걸려요
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function FitResultView({
   analysis,
   confidenceAfter,
   decision,
   onAnalyzeAnother,
+  onCompanyNameChange,
   onConfidenceAfterChange,
   onSaveDecision,
   saveError,
@@ -1095,12 +1148,15 @@ function FitResultView({
   confidenceAfter: number;
   decision: Decision | "";
   onAnalyzeAnother: () => void;
+  onCompanyNameChange: (name: string) => void;
   onConfidenceAfterChange: (value: number) => void;
   onSaveDecision: (decision: JobDecision) => void;
   saveError: string;
   saveLoading: JobDecision | null;
   savedJobId: string;
 }) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
   const copy = RECOMMENDATION_COPY[analysis.recommendation];
   const groups = useMemo(
     () => ({
@@ -1122,10 +1178,51 @@ function FitResultView({
       <div className={cn("rounded-2xl border p-6 sm:p-8", copy.tone)}>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">
-              {analysis.companyName || "회사 미확인"}
-              {analysis.roleTitle ? ` · ${analysis.roleTitle}` : ""}
-            </p>
+            {editingName ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  className="rounded border border-current bg-transparent px-2 py-0.5 text-sm font-semibold outline-none placeholder:opacity-50"
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onCompanyNameChange(nameInput.trim() || analysis.companyName);
+                      setEditingName(false);
+                    }
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                  placeholder="회사명 입력"
+                  value={nameInput}
+                />
+                <button
+                  aria-label="확인"
+                  className="opacity-70 hover:opacity-100"
+                  onClick={() => {
+                    onCompanyNameChange(nameInput.trim() || analysis.companyName);
+                    setEditingName(false);
+                  }}
+                  type="button"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                {analysis.companyName || "회사 미확인"}
+                {analysis.roleTitle ? ` · ${analysis.roleTitle}` : ""}
+                <button
+                  aria-label="회사명 수정"
+                  className="opacity-50 hover:opacity-100"
+                  onClick={() => {
+                    setNameInput(analysis.companyName || "");
+                    setEditingName(true);
+                  }}
+                  type="button"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </p>
+            )}
             <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
               {copy.label}
             </h2>
