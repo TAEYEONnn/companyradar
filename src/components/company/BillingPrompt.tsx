@@ -119,7 +119,7 @@ export function BillingPrompt() {
                 AI 기능은 유료 베타입니다
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                계정당 1회 무료로 체험할 수 있고, 이후에는 10회권을 구매해 계속 사용할 수 있어요.
+                계정당 5회 무료로 체험할 수 있고, 이후에는 10회권을 구매해 계속 사용할 수 있어요.
               </p>
             </div>
           </div>

@@ -31,7 +31,6 @@ export async function POST(request: Request) {
     replyBody?: string;
     markReplied?: boolean;
     deleteUser?: boolean;
-    userEmail?: string;
   };
   try {
     body = await request.json();
@@ -102,34 +101,41 @@ export async function POST(request: Request) {
   }
 
   // Auto-delete the Supabase auth user when a deletion request is completed.
+  // Look up user_id from the DB record — never trust operator-supplied email.
   let userDeletedId: string | null = null;
-  if (
-    body.deleteUser === true &&
-    table === "account_deletion_requests" &&
-    body.userEmail
-  ) {
-    try {
-      const { data: usersPage } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      const target = usersPage?.users?.find(
-        (u) => u.email?.toLowerCase() === body.userEmail!.toLowerCase(),
+  if (body.deleteUser === true && table === "account_deletion_requests" && body.status === "completed") {
+    const { data: reqRecord, error: reqErr } = await admin
+      .from("account_deletion_requests")
+      .select("user_id, email")
+      .eq("id", body.id)
+      .single<{ user_id: string; email: string }>();
+
+    if (reqErr || !reqRecord) {
+      // Revert the status update if we cannot look up the record
+      await admin.from(table).update({ status: "in_review" }).eq("id", body.id);
+      return NextResponse.json(
+        { error: { code: "lookup_failed", message: "탈퇴 요청 기록을 찾을 수 없습니다." } },
+        { status: 500 },
       );
-      if (target) {
-        // Permanently block free AI credit for this email so re-registration doesn't reset it.
-        if (target.email) {
-          await admin
-            .from("ai_free_used_emails")
-            .upsert({ email: target.email }, { onConflict: "email", ignoreDuplicates: true });
-        }
-        const { error: delErr } = await admin.auth.admin.deleteUser(target.id);
-        if (delErr) {
-          console.error("[admin] auth user deletion failed", delErr);
-        } else {
-          userDeletedId = target.id;
-        }
-      }
-    } catch (e) {
-      console.error("[admin] user lookup failed", e);
     }
+
+    // Block re-registration free credits before deleting
+    if (reqRecord.email) {
+      await admin
+        .from("ai_free_used_emails")
+        .upsert({ email: reqRecord.email }, { onConflict: "email", ignoreDuplicates: true });
+    }
+
+    const { error: delErr } = await admin.auth.admin.deleteUser(reqRecord.user_id);
+    if (delErr) {
+      // Revert status to in_review so operator can retry
+      await admin.from(table).update({ status: "in_review" }).eq("id", body.id);
+      return NextResponse.json(
+        { error: { code: "delete_failed", message: "계정 삭제에 실패했습니다. 다시 시도해 주세요." } },
+        { status: 500 },
+      );
+    }
+    userDeletedId = reqRecord.user_id;
   }
 
   return NextResponse.json({ ok: true, userDeletedId });

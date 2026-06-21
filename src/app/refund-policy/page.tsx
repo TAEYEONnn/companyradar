@@ -13,7 +13,7 @@ export default function RefundPolicyPage() {
 
       <div className="mb-8 rounded-md border border-sky-200 bg-sky-50 px-4 py-3">
         <p className="text-sm text-amber-700">
-          CompanyRadar의 AI 기능은 유료 베타입니다. 계정당 첫 성공 1회는 무료이며, 이후
+          CompanyRadar의 AI 기능은 유료 베타입니다. 계정당 첫 성공 5회는 무료이며, 이후
           AI 10회권을 구매해 사용할 수 있습니다.
         </p>
       </div>
@@ -23,7 +23,7 @@ export default function RefundPolicyPage() {
           <h2 className="mb-2 text-base font-semibold text-slate-800">1. 환불 가능 조건</h2>
           <p>
             AI 10회권은 결제 후 7일 이내이고 유료 크레딧을 사용하지 않은 경우 전액 환불을
-            요청할 수 있습니다. 계정당 제공되는 무료 1회 체험은 환불 대상 결제가 아닙니다.
+            요청할 수 있습니다. 계정당 제공되는 무료 5회 체험은 환불 대상 결제가 아닙니다.
           </p>
         </section>
 

@@ -211,6 +211,24 @@ async function getPaymentForUser(userId: string, orderId: string) {
   return data;
 }
 
+export async function verifyTossPayment(paymentKey: string): Promise<{ status: string; orderId: string } | null> {
+  const secretKey = process.env.TOSS_SECRET_KEY;
+  if (!secretKey) return null;
+  try {
+    const response = await fetch(`https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`,
+      },
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as { status?: string; orderId?: string };
+    if (!json.status || !json.orderId) return null;
+    return { status: json.status, orderId: json.orderId };
+  } catch {
+    return null;
+  }
+}
+
 async function requestTossPaymentConfirm(input: {
   paymentKey: string;
   orderId: string;

@@ -70,7 +70,6 @@ export async function POST(request: Request) {
       stage: "failed",
       errorCode: publicError.code,
       rawErrorName,
-      rawErrorMessage,
       rawErrorCode,
     });
 

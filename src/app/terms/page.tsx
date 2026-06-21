@@ -25,7 +25,7 @@ export default function TermsPage() {
           <p>
             본 서비스는 이직/취업 준비 중인 개인 이용자를 대상으로 회사 정보 트래킹, 지원 상태
             관리, AI 전략 제안 기능을 제공합니다. AI 기능은 유료 베타로 운영될 수 있으며,
-            계정당 첫 성공 1회 무료 체험을 제공합니다.
+            계정당 첫 성공 5회 무료 체험을 제공합니다.
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1">
             <li>이용자는 본인의 계정을 타인과 공유하거나 양도할 수 없습니다.</li>

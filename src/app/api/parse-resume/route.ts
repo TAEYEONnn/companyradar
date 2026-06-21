@@ -47,10 +47,7 @@ export async function POST(request: Request) {
   const file = form.get("file");
   console.log("[parse-resume]", {
     stage: "file-received",
-    formKeys: [...form.keys()],
     isFile: file instanceof File,
-    name: file instanceof File ? file.name : null,
-    type: file instanceof File ? file.type : null,
     size: file instanceof File ? file.size : null,
   });
 
@@ -81,7 +78,6 @@ export async function POST(request: Request) {
     if (!isPdf) {
       console.warn("[parse-resume]", {
         stage: "magic-bytes-fail",
-        name: file.name,
         size: file.size,
       });
       return apiError(400, "unsupported_file", USER_COPY.resume.unsupported);
