@@ -10,31 +10,20 @@ import { getSupabaseClient } from "@/lib/supabase-client";
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "";
 const REPLY_SIGNATURE = `\n\n---\nCompanyRadar 운영팀${SUPPORT_EMAIL ? `\n${SUPPORT_EMAIL}` : ""}`;
 
-// TODO: 삭제 예정 (MVP 전)
 const MOCK_SUPPORT: SupportRequest[] = [
   {
     id: "mock-s1",
-    email: "ulbba08@gmail.com",
+    email: "user1@example.com",
     request_type: "bug",
     subject: "AI 분석 점수가 0으로 나와요",
     message:
-      "당근마켓 회사 등록 후 AI 분석 버튼을 클릭하면 점수가 0.0으로 나옵니다.\n\n재현 방법:\n1. 메인화면 > 회사 추가 > 당근마켓\n2. 드로어 > AI 분석 탭 클릭\n3. 결과 점수: 0.0\n\n정상 점수가 나오길 기대했습니다.",
+      "회사 등록 후 AI 분석 버튼을 클릭하면 점수가 0.0으로 나옵니다.\n\n재현 방법:\n1. 메인화면 > 회사 추가\n2. 드로어 > AI 분석 탭 클릭\n3. 결과 점수: 0.0\n\n정상 점수가 나오길 기대했습니다.",
     status: "open",
     created_at: "2026-06-14T09:15:00Z",
   },
   {
-    id: "mock-s2",
-    email: "ulbba08@gmail.com",
-    request_type: "feature",
-    subject: "면접 일정 캘린더 연동 기능 요청",
-    message:
-      "구글 캘린더나 애플 캘린더와 면접 일정이 연동되면 편할 것 같아요. 드로어에서 일정을 등록하면 자동으로 캘린더에 추가되는 방식이면 좋겠습니다.",
-    status: "in_review",
-    created_at: "2026-06-13T14:30:00Z",
-  },
-  {
     id: "mock-s3",
-    email: "ulbba08@gmail.com",
+    email: "user2@example.com",
     request_type: "account",
     subject: "비밀번호 변경 메일이 오지 않아요",
     message:
@@ -47,7 +36,7 @@ const MOCK_SUPPORT: SupportRequest[] = [
 const MOCK_REFUNDS: RefundRequest[] = [
   {
     id: "mock-r1",
-    email: "ulbba08@gmail.com",
+    email: "user3@example.com",
     order_id: "ORDER-20260613-00142",
     payment_key: null,
     reason:
@@ -60,7 +49,7 @@ const MOCK_REFUNDS: RefundRequest[] = [
 const MOCK_DELETIONS: DeletionRequest[] = [
   {
     id: "mock-d1",
-    email: "ulbba08@gmail.com",
+    email: "user4@example.com",
     reason:
       "취업에 성공해서 더 이상 서비스를 이용하지 않게 됐습니다. 개인정보 삭제 부탁드립니다.",
     status: "requested",
@@ -376,11 +365,17 @@ export function AdminDashboard({
     setUpdating(null);
   }
 
-  async function handleReplyOpen(table: string, id: string, replyBody: string) {
+  async function handleDraftOpen(table: string, id: string, replyBody: string) {
+    // Only save the draft body — Gmail compose opened, not yet sent
+    const token = await getAccessToken();
+    if (!token) return;
+    await updateStatus(table, id, token, { replyBody });
+  }
+
+  async function handleReplySent(table: string, id: string, replyBody: string) {
     const token = await getAccessToken();
     if (!token) { showToast("로그인이 필요합니다."); return; }
 
-    // Snapshot current state for rollback on failure.
     const snapSupport = support;
     const snapRefunds = refunds;
     const snapDeletions = deletions;
@@ -392,13 +387,13 @@ export function AdminDashboard({
 
     const ok = await updateStatus(table, id, token, { replyBody, markReplied: true });
     if (ok) {
-      // Clear the local draft so the textarea now reflects req.reply_body (what was saved to DB).
       setReplyDrafts((prev) => { const next = { ...prev }; delete next[id]; return next; });
+      showToast("발송 완료로 기록했습니다.");
     } else {
       setSupport(snapSupport);
       setRefunds(snapRefunds);
       setDeletions(snapDeletions);
-      showToast("답장 내용 저장에 실패했습니다. 운영자 권한 또는 DB 스키마를 확인해주세요.");
+      showToast("발송 기록 저장에 실패했습니다.");
     }
   }
 
@@ -420,20 +415,6 @@ export function AdminDashboard({
             <p className="mt-1 text-sm text-slate-500">문의·환불·탈퇴 요청을 관리합니다.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {/* TODO: MVP 전에 삭제 */}
-            <button
-              className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-100"
-              onClick={() => {
-                setSupport(MOCK_SUPPORT);
-                setRefunds(MOCK_REFUNDS);
-                setDeletions(MOCK_DELETIONS);
-                setStatusFilter("all");
-                showToast("테스트 데이터를 불러왔습니다.");
-              }}
-              type="button"
-            >
-              테스트 데이터
-            </button>
             <Link
               className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
               href="/"
@@ -516,6 +497,7 @@ export function AdminDashboard({
                         </Badge>
                         <span className="text-xs text-slate-400">{req.request_type}</span>
                         <span className="text-xs text-slate-400">{formatDate(req.created_at)}</span>
+                        {req.replied_at && <span className="text-xs text-emerald-600">발송 완료 {formatDate(req.replied_at)}</span>}
                       </div>
                       <p className="mt-1 text-sm font-medium text-slate-700">{req.email}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{req.subject}</p>
@@ -524,12 +506,19 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
-                        onClick={() => void handleReplyOpen("support_requests", req.id, replyBody)}
+                        onClick={() => void handleDraftOpen("support_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
-                        Gmail로 답장
+                        Gmail 초안 열기
                       </a>
+                      <button
+                        className="inline-flex h-8 items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => void handleReplySent("support_requests", req.id, replyBody)}
+                        type="button"
+                      >
+                        발송 완료 기록
+                      </button>
                       <button
                         className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-500 hover:bg-slate-50"
                         onClick={() => togglePreview(req.id)}
@@ -613,6 +602,7 @@ export function AdminDashboard({
                           {REFUND_STATUS_LABELS[req.status] ?? req.status}
                         </Badge>
                         <span className="text-xs text-slate-400">{formatDate(req.created_at)}</span>
+                        {req.replied_at && <span className="text-xs text-emerald-600">발송 완료 {formatDate(req.replied_at)}</span>}
                       </div>
                       <p className="mt-1 text-sm font-medium text-slate-700">{req.email}</p>
                       {req.order_id && <p className="mt-0.5 text-xs text-slate-400">주문 ID: {req.order_id}</p>}
@@ -621,12 +611,19 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
-                        onClick={() => void handleReplyOpen("refund_requests", req.id, replyBody)}
+                        onClick={() => void handleDraftOpen("refund_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
-                        Gmail로 답장
+                        Gmail 초안 열기
                       </a>
+                      <button
+                        className="inline-flex h-8 items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => void handleReplySent("refund_requests", req.id, replyBody)}
+                        type="button"
+                      >
+                        발송 완료 기록
+                      </button>
                       <button
                         className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-500 hover:bg-slate-50"
                         onClick={() => togglePreview(req.id)}
@@ -710,6 +707,7 @@ export function AdminDashboard({
                           {DELETION_STATUS_LABELS[req.status] ?? req.status}
                         </Badge>
                         <span className="text-xs text-slate-400">{formatDate(req.created_at)}</span>
+                        {req.replied_at && <span className="text-xs text-emerald-600">발송 완료 {formatDate(req.replied_at)}</span>}
                       </div>
                       <p className="mt-1 text-sm font-medium text-slate-700">{req.email}</p>
                     </div>
@@ -717,12 +715,19 @@ export function AdminDashboard({
                       <a
                         className="inline-flex h-8 items-center rounded-md border border-sky-300 bg-sky-50 px-3 text-xs font-medium text-sky-700 hover:bg-sky-100"
                         href={gmailLink}
-                        onClick={() => void handleReplyOpen("account_deletion_requests", req.id, replyBody)}
+                        onClick={() => void handleDraftOpen("account_deletion_requests", req.id, replyBody)}
                         rel="noopener noreferrer"
                         target="_blank"
                       >
-                        Gmail로 답장
+                        Gmail 초안 열기
                       </a>
+                      <button
+                        className="inline-flex h-8 items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => void handleReplySent("account_deletion_requests", req.id, replyBody)}
+                        type="button"
+                      >
+                        발송 완료 기록
+                      </button>
                       <button
                         className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-500 hover:bg-slate-50"
                         onClick={() => togglePreview(req.id)}
