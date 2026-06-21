@@ -56,7 +56,12 @@ function nodeErrToPublicFetchError(error: unknown): PublicFetchError {
 
   const nodeCode = isNodeError(error) ? (error.code ?? "") : "";
 
-  if (nodeCode === "ENOTFOUND" || nodeCode === "EAI_NONAME" || nodeCode === "EAI_AGAIN") {
+  if (
+    nodeCode === "ENOTFOUND" ||
+    nodeCode === "EAI_NONAME" ||
+    nodeCode === "EAI_AGAIN" ||
+    nodeCode === "ERR_INVALID_IP_ADDRESS"
+  ) {
     return new PublicFetchError("dns_failed", "공고 페이지의 주소를 찾지 못했습니다. URL을 다시 확인해 주세요.");
   }
   if (nodeCode === "ETIMEDOUT" || nodeCode === "ESOCKETTIMEDOUT") {
@@ -129,18 +134,25 @@ async function fetchPublicTextHop(
       hostname: url.hostname,
     });
 
+    const baseOpts = {
+      headers: {
+        Accept: "text/html,application/xhtml+xml,text/plain",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      },
+      lookup: makeSafeLookup(traceId),
+    };
+
+    // autoSelectFamily (net.TcpSocketConnectOpts, Node.js v20+) is not typed
+    // in http.RequestOptions, so we spread then cast back to the base type.
+    // Setting it to false disables Happy Eyeballs, which would otherwise call
+    // our LookupFunction a second time with { all: true } and expect a
+    // LookupAddress[] response instead of the single (address, family) form.
     const req = makeRequest(
       url,
-      {
-        headers: {
-          Accept: "text/html,application/xhtml+xml,text/plain",
-          "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-          "Accept-Encoding": "gzip, deflate, br",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        },
-        lookup: makeSafeLookup(traceId),
-      },
+      { ...baseOpts, autoSelectFamily: false } as typeof baseOpts,
       (response) => {
         const statusCode = response.statusCode ?? 0;
         const contentEncoding = (response.headers["content-encoding"] ?? "").toLowerCase();
@@ -306,8 +318,17 @@ async function fetchPublicTextHop(
 }
 
 function makeSafeLookup(traceId: string): LookupFunction {
-  return (hostname, _options, callback) => {
-    console.log("[safe-public-fetch]", { traceId, stage: "dns-lookup-started", hostname });
+  return (hostname, options, callback) => {
+    // Node.js v20+ Happy Eyeballs may call the lookup a second time with
+    // options.all === true expecting a LookupAddress[] callback. Log it so we
+    // can diagnose, then handle both forms.
+    const wantsAll = (options as Record<string, unknown>).all === true;
+    console.log("[safe-public-fetch]", {
+      traceId,
+      stage: "dns-lookup-started",
+      hostname,
+      lookupAll: wantsAll,
+    });
     void lookup(hostname, { all: true, verbatim: true })
       .then((addresses) => {
         console.log("[safe-public-fetch]", {
@@ -316,6 +337,7 @@ function makeSafeLookup(traceId: string): LookupFunction {
           hostname,
           addressCount: addresses.length,
           addressFamilies: addresses.map(({ family }) => family),
+          lookupAll: wantsAll,
         });
         if (addresses.length === 0) {
           callback(new Error(`DNS returned no addresses for ${hostname}`), "", 4);
@@ -331,8 +353,19 @@ function makeSafeLookup(traceId: string): LookupFunction {
           return;
         }
         console.log("[safe-public-fetch]", { traceId, stage: "ssrf-validation-completed", hostname });
-        const selected = addresses.find((a) => a.family === 4) ?? addresses[0];
-        callback(null, selected.address, selected.family);
+
+        if (wantsAll) {
+          // Happy Eyeballs second call: return all safe addresses as an array.
+          // Cast required because LookupFunction types only declare the
+          // single-address callback form.
+          (callback as unknown as (err: null, addrs: typeof addresses) => void)(
+            null,
+            addresses,
+          );
+        } else {
+          const selected = addresses.find((a) => a.family === 4) ?? addresses[0];
+          callback(null, selected.address, selected.family);
+        }
       })
       .catch((err: Error) => {
         console.error("[safe-public-fetch]", {
