@@ -361,7 +361,7 @@ function JobTableRow({
         <td className="px-3 py-3 align-top">
           <p className="truncate font-medium text-slate-900">{job.companyName}</p>
           <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{job.title}</p>
-          <p className="mt-1 text-[11px] text-slate-400">
+          <p className="mt-1 text-xs text-slate-400">
             {job.deadline ? `마감 ${job.deadline}` : "마감일을 확인해주세요"}
           </p>
         </td>
@@ -406,7 +406,7 @@ function JobTableRow({
           )}
           <button
             aria-label={expanded ? "상세 접기" : "상세 보기"}
-            className="mt-1.5 flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-slate-700"
+            className="mt-1.5 flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-700"
             onClick={(e) => {
               e.stopPropagation();
               setExpanded((v) => !v);

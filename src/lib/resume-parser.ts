@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 // Type-only: zero runtime cost, used to type the module singleton below
 import type * as PdfJsModule from "pdfjs-dist/legacy/build/pdf.mjs";
 
-const MAX_RESUME_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_RESUME_FILE_BYTES = 5 * 1024 * 1024;
 const MIN_RESUME_TEXT_CHARS = 20;
 const MAX_RESUME_TEXT_CHARS = 20_000;
 

@@ -18,6 +18,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import Script from "next/script";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
@@ -107,6 +108,7 @@ const MATCH_COPY: Record<
 };
 
 export function FitAnalyzerApp() {
+  const router = useRouter();
   const resumeInteractionRef = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -253,10 +255,10 @@ export function FitAnalyzerApp() {
   useEffect(() => {
     if (!savedJobId) return;
     const timer = window.setTimeout(() => {
-      window.location.href = `/tracker?job=${encodeURIComponent(savedJobId)}`;
+      router.push(`/tracker?job=${encodeURIComponent(savedJobId)}`);
     }, 3_000);
     return () => window.clearTimeout(timer);
-  }, [savedJobId]);
+  }, [savedJobId, router]);
 
   const canSubmit =
     Boolean(

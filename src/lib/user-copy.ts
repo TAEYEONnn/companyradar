@@ -8,8 +8,8 @@ export const USER_COPY = {
   },
   resume: {
     unsupported: "PDF, DOCX, TXT 파일만 올릴 수 있어요.",
-    tooLarge: "파일은 4MB까지 올릴 수 있어요. 더 큰 파일은 내용을 직접 붙여넣어 주세요.",
-    payloadTooLarge: "파일이 너무 커요. 4MB 이하 파일이나 텍스트 붙여넣기를 사용해주세요.",
+    tooLarge: "파일은 5MB까지 올릴 수 있어요. 더 큰 파일은 내용을 직접 붙여넣어 주세요.",
+    payloadTooLarge: "파일이 너무 커요. 5MB 이하 파일이나 텍스트 붙여넣기를 사용해주세요.",
     encrypted: "잠긴 파일은 읽을 수 없어요. 잠금을 해제한 뒤 다시 올려주세요.",
     textNotFound:
       "파일에서 읽을 수 있는 글자를 찾지 못했어요. 스캔본이라면 TXT나 DOCX로 올려주세요.",

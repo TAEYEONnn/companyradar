@@ -108,8 +108,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: "jobs", icon: BriefcaseBusiness, label: "지원 현황" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
   { id: "timeline", icon: CalendarDays, label: "지원 일정" },
-  { id: "coach", icon: BrainCircuit, label: "지원 전략" },
-  { id: "stats", icon: BarChart3, label: "활동 리포트" },
+  { id: "coach", icon: BrainCircuit, label: "주간 계획" },
+  { id: "stats", icon: BarChart3, label: "지원 리포트" },
 ];
 
 interface AppSidebarProps {
@@ -240,6 +240,13 @@ export function AppSidebar({
   );
 }
 
+const MOBILE_NAV_ITEMS: NavItem[] = [
+  { id: "jobs", icon: BriefcaseBusiness, label: "저장한 공고" },
+  { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
+  { id: "timeline", icon: CalendarDays, label: "지원 일정" },
+  { id: "settings", icon: Settings2, label: "더보기" },
+];
+
 export function MobileBottomNav({
   viewMode,
   onNavigate,
@@ -247,27 +254,25 @@ export function MobileBottomNav({
   viewMode: ViewMode;
   onNavigate: (mode: ViewMode) => void;
 }) {
-  const items: NavItem[] = [
-    ...NAV_ITEMS,
-    { id: "settings", icon: Settings2, label: "설정" },
-  ];
-
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-      {items.map(({ id, icon: Icon, label }) => {
-        const active = viewMode === id;
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {MOBILE_NAV_ITEMS.map(({ id, icon: Icon, label }) => {
+        const isMoreTab = id === "settings";
+        const active = isMoreTab
+          ? !MOBILE_NAV_ITEMS.slice(0, 3).some((item) => item.id === viewMode)
+          : viewMode === id;
         return (
           <button
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px]",
+              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-1 text-xs",
               active ? "font-semibold text-slate-950" : "text-slate-500",
             )}
             key={id}
             onClick={() => onNavigate(id)}
             type="button"
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-5 w-5" />
             <span className="w-full truncate text-center">{label}</span>
           </button>
         );

@@ -11,7 +11,9 @@ export async function GET(request: Request) {
   const error = searchParams.get("error");
 
   if (code) {
-    if (!type || type === "recovery") {
+    // Only treat as password recovery when type is explicitly "recovery"
+    // — a missing type means regular signup confirmation
+    if (type === "recovery") {
       const resetUrl = new URL("/auth/reset-password", origin);
       resetUrl.searchParams.set("code", code);
       return NextResponse.redirect(resetUrl.toString());
@@ -28,10 +30,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(resetUrl.toString());
   }
 
-  if (!error) {
-    return NextResponse.redirect(new URL("/auth/reset-password", origin));
-  }
-
-  // No code → show a friendly error page
+  // No code, no tokenHash → show a friendly error page
   return NextResponse.redirect(new URL("/auth/error", origin));
 }
