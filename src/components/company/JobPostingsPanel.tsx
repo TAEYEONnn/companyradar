@@ -28,6 +28,30 @@ const DECISION_LABELS: Record<JobDecision, string> = {
   pass: "패스",
 };
 
+const STAGE_LABELS: Partial<Record<string, string>> = {
+  interested: "관심",
+  planned: "지원 예정",
+  applied: "지원 완료",
+  interviewing: "면접 중",
+  offer: "합격",
+  rejected: "불합격",
+  on_hold: "보류",
+  pass: "패스",
+};
+
+function effectiveStage(job: TrackedJobPosting): string {
+  if (job.decision === "pass") return "pass";
+  return job.applicationStatus ?? job.decision;
+}
+
+function stageToFilter(stage: string): JobFilter {
+  if (stage === "planned") return "planned";
+  if (stage === "interested") return "interested";
+  if (stage === "pass") return "pass";
+  if (["applied", "interviewing", "offer"].includes(stage)) return "active";
+  return "all";
+}
+
 const STATUS_LABELS: Record<JobApplicationStatus, string> = {
   interested: "관심",
   planned: "지원 예정",
@@ -117,16 +141,14 @@ export function JobPostingsPanel({
     if (filter === "pass") return jobs.filter((job) => job.decision === "pass");
     const visible = jobs.filter((job) => job.decision !== "pass");
     if (filter === "interested") {
-      return visible.filter((job) => job.decision === "interested");
+      return visible.filter((job) => effectiveStage(job) === "interested");
     }
     if (filter === "planned") {
-      return visible.filter((job) => job.decision === "planned");
+      return visible.filter((job) => effectiveStage(job) === "planned");
     }
     if (filter === "active") {
       return visible.filter((job) =>
-        ["applied", "interviewing", "offer"].includes(
-          job.applicationStatus ?? "",
-        ),
+        ["applied", "interviewing", "offer"].includes(effectiveStage(job)),
       );
     }
     return visible;
@@ -136,10 +158,10 @@ export function JobPostingsPanel({
     const visible = jobs.filter((j) => j.decision !== "pass");
     return {
       all: visible.length,
-      interested: visible.filter((j) => j.decision === "interested").length,
-      planned: visible.filter((j) => j.decision === "planned").length,
+      interested: visible.filter((j) => effectiveStage(j) === "interested").length,
+      planned: visible.filter((j) => effectiveStage(j) === "planned").length,
       active: visible.filter((j) =>
-        ["applied", "interviewing", "offer"].includes(j.applicationStatus ?? ""),
+        ["applied", "interviewing", "offer"].includes(effectiveStage(j)),
       ).length,
       pass: jobs.filter((j) => j.decision === "pass").length,
     };
@@ -377,10 +399,13 @@ function JobTableRow({
             {job.score}점 ·{" "}
             <button
               className="underline-offset-2 hover:text-slate-800 hover:underline"
-              onClick={(e) => { e.stopPropagation(); onFilterChange?.(job.decision as JobFilter); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFilterChange?.(stageToFilter(effectiveStage(job)));
+              }}
               type="button"
             >
-              {DECISION_LABELS[job.decision]}
+              {STAGE_LABELS[effectiveStage(job)] ?? DECISION_LABELS[job.decision]}
             </button>
           </p>
         </td>
@@ -529,10 +554,13 @@ function JobMobileCard({
           {job.score}점 ·{" "}
           <button
             className="underline-offset-2 hover:text-slate-800 hover:underline"
-            onClick={(e) => { e.stopPropagation(); onFilterChange?.(job.decision as JobFilter); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onFilterChange?.(stageToFilter(effectiveStage(job)));
+            }}
             type="button"
           >
-            {DECISION_LABELS[job.decision]}
+            {STAGE_LABELS[effectiveStage(job)] ?? DECISION_LABELS[job.decision]}
           </button>
           {job.deadline ? ` · ${job.deadline} 마감` : ""}
         </span>
