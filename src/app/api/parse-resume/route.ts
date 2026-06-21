@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { reserveResumeQuota, type QuotaReason } from "@/lib/fit-quota";
+import { cancelResumeQuota, reserveResumeQuota, type QuotaReason } from "@/lib/fit-quota";
 import type { CandidateProfile } from "@/lib/fit-analysis";
 import {
   extractResumeText,
@@ -84,19 +84,12 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── 5. Auth + quota ──────────────────────────────────────────────────────
+  // ── 5. Auth + clientId ───────────────────────────────────────────────────
   // Operators (AI_ALLOWED_EMAILS / AI_ALLOWED_USER_IDS / role=owner) bypass
   // the per-client daily quota so they can test the full service without limit.
   // This mirrors the bypass in analyze-fit and every other AI route.
   const clientId = await resolveQuotaClientId(request);
   const isOperator = await checkIsOperator(request);
-  if (!isOperator) {
-    const quota = await reserveResumeQuota(request, clientId);
-    logQuota("parse-resume", quota.backend ?? "unknown", quota.reason);
-    if (!quota.allowed) return quotaError(quota.reason);
-  } else {
-    console.log("[parse-resume]", { stage: "quota-bypassed", clientId });
-  }
 
   // ── 6. Text extraction ───────────────────────────────────────────────────
   let resumeText: string;
@@ -118,9 +111,19 @@ export async function POST(request: Request) {
   }
 
   // ── 7. AI extraction ─────────────────────────────────────────────────────
+  // Quota is reserved here (after text extraction) so corrupt/unsupported files
+  // never consume the user's daily allowance.
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return apiError(503, "ai_failed", USER_COPY.ai.unavailable);
+  }
+
+  if (!isOperator) {
+    const quota = await reserveResumeQuota(request, clientId);
+    logQuota("parse-resume", quota.backend ?? "unknown", quota.reason);
+    if (!quota.allowed) return quotaError(quota.reason);
+  } else {
+    console.log("[parse-resume]", { stage: "quota-bypassed", clientId });
   }
 
   try {
@@ -173,6 +176,7 @@ ${resumeText}`,
         stage: "ai-call-failed",
         status: response.status,
       });
+      if (!isOperator) void cancelResumeQuota(request, clientId);
       return apiError(502, "ai_failed", USER_COPY.ai.failed);
     }
 
@@ -185,6 +189,7 @@ ${resumeText}`,
       parsed = JSON.parse(content.replace(/```json|```/g, "").trim()) as ModelProfile;
     } catch {
       console.error("[parse-resume]", { stage: "ai-json-parse-failed" });
+      if (!isOperator) void cancelResumeQuota(request, clientId);
       return apiError(502, "ai_failed", USER_COPY.ai.failed);
     }
 
@@ -196,6 +201,7 @@ ${resumeText}`,
       warnings: profileWarnings(profile),
     });
   } catch {
+    if (!isOperator) void cancelResumeQuota(request, clientId);
     return apiError(502, "ai_failed", USER_COPY.ai.timeout);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reserveUrlFetchQuota } from "@/lib/fit-quota";
 import { fetchPublicText, PublicFetchError } from "@/lib/safe-public-fetch";
 
 export const runtime = "nodejs";
@@ -27,6 +28,14 @@ type ErrorCode =
 const SSRF_CODES = new Set<ErrorCode>(["url_invalid", "url_blocked", "blocked_private_address", "redirect_blocked"]);
 
 export async function POST(request: Request) {
+  const quota = await reserveUrlFetchQuota(request);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { ok: false, errorCode: "rate_limited", error: "잠시 후 다시 시도해주세요." },
+      { status: 429 },
+    );
+  }
+
   let url = "";
   try {
     const body = (await request.json()) as { url?: unknown };

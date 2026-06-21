@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 import { getSupabaseAdminClient } from "@/lib/server-supabase-admin";
 
+const CANCEL_QUOTA_LUA = `
+local client = tonumber(redis.call("GET", KEYS[1]) or "0")
+if client > 0 then redis.call("DECR", KEYS[1]) end
+local global = tonumber(redis.call("GET", KEYS[2]) or "0")
+if global > 0 then redis.call("DECR", KEYS[2]) end
+local ip = tonumber(redis.call("GET", KEYS[3]) or "0")
+if ip > 0 then redis.call("DECR", KEYS[3]) end
+return 1
+`;
+
 export type QuotaReason =
   | "client_daily"
   | "global_daily"
@@ -89,6 +99,72 @@ export async function reserveResumeQuota(
     globalDaily: envLimit("RESUME_DAILY_GLOBAL_LIMIT", 300),
     ipMinute: envLimit("RESUME_IP_MINUTE_LIMIT", 10),
   });
+}
+
+export async function reserveUrlFetchQuota(
+  request: Request,
+): Promise<QuotaResult> {
+  const clientId =
+    request.headers.get("x-companyradar-client")?.slice(0, 100) || "anonymous";
+  return reserveAiQuota(request, clientId, {
+    feature: "url-fetch",
+    clientDaily: envLimit("URL_FETCH_DAILY_CLIENT_LIMIT", 200),
+    globalDaily: envLimit("URL_FETCH_DAILY_GLOBAL_LIMIT", 10000),
+    ipMinute: envLimit("URL_FETCH_IP_MINUTE_LIMIT", 10),
+  });
+}
+
+export async function cancelResumeQuota(
+  request: Request,
+  clientId: string,
+): Promise<void> {
+  return cancelAiQuota(request, clientId, "parse-resume");
+}
+
+export async function cancelFitQuota(
+  request: Request,
+  clientId: string,
+): Promise<void> {
+  return cancelAiQuota(request, clientId, "analyze-fit");
+}
+
+async function cancelAiQuota(
+  request: Request,
+  clientId: string,
+  feature: string,
+): Promise<void> {
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!redisUrl || !redisToken) return;
+
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const minute = now.toISOString().slice(0, 16);
+  const salt =
+    process.env.FIT_QUOTA_SALT ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    "companyradar-development";
+  const forwardedFor = request.headers.get("x-forwarded-for") ?? "local";
+  const ip = forwardedFor.split(",")[0]?.trim() || "local";
+  const clientHash = hashIdentifier(`${salt}:${clientId}`);
+  const ipHash = hashIdentifier(`${salt}:${ip}`);
+  const clientKey = hashIdentifier(`${salt}:${feature}:client:${day}:${clientHash}`);
+  const globalKey = hashIdentifier(`${salt}:${feature}:global:${day}`);
+  const ipKey = hashIdentifier(`${salt}:${feature}:ip:${minute}:${ipHash}`);
+
+  try {
+    await fetch(`${redisUrl.replace(/\/$/, "")}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(["EVAL", CANCEL_QUOTA_LUA, 3, clientKey, globalKey, ipKey]),
+      signal: AbortSignal.timeout(2_000),
+    });
+  } catch {
+    // best-effort
+  }
 }
 
 export async function reserveWithFallback(

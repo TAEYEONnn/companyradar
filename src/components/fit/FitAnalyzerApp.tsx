@@ -421,6 +421,7 @@ export function FitAnalyzerApp() {
     const trimmedUrl = url.trim();
     if (!trimmedUrl || isFetchingJob) return;
     setIsFetchingJob(true);
+    const prevJobText = jobText;
     setJobText("");
     setUrlHint("");
     trackFitEvent("fit_input_started");
@@ -443,6 +444,7 @@ export function FitAnalyzerApp() {
       };
       if (!data.ok || typeof data.text !== "string" || !data.text.trim()) {
         setJobMode("text");
+        setJobText(prevJobText);
         setUrlHint(
           data.error ??
             "URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.",
@@ -456,6 +458,7 @@ export function FitAnalyzerApp() {
       });
     } catch {
       setJobMode("text");
+      setJobText(prevJobText);
       setUrlHint("URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.");
     } finally {
       setIsFetchingJob(false);
@@ -1124,6 +1127,14 @@ export function FitAnalyzerApp() {
             onSuccess={() => setAuthOpen(false)}
           />
         ) : null}
+        <footer className="border-t border-slate-200 py-6 text-center">
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-slate-400">
+            <Link className="hover:text-slate-600" href="/terms">이용약관</Link>
+            <Link className="hover:text-slate-600" href="/privacy">개인정보처리방침</Link>
+            <Link className="hover:text-slate-600" href="/refund-policy">환불정책</Link>
+            <a className="hover:text-slate-600" href="mailto:support@companyradar.io">문의하기</a>
+          </nav>
+        </footer>
       </main>
     </>
   );

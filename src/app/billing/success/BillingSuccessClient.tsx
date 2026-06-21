@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,11 @@ export function BillingSuccessClient() {
         <Button className="mt-5" onClick={() => { window.location.href = "/"; }}>
           트래커로 돌아가기
         </Button>
+        <nav className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
+          <Link className="hover:text-slate-600" href="/terms">이용약관</Link>
+          <Link className="hover:text-slate-600" href="/refund-policy">환불정책</Link>
+          <a className="hover:text-slate-600" href="mailto:support@companyradar.io">문의하기</a>
+        </nav>
       </section>
     </main>
   );

@@ -6,7 +6,7 @@ import {
   type AnalyzeFitInput,
   type ModelFitAnalysis,
 } from "@/lib/fit-api";
-import { reserveFitQuota, type QuotaReason } from "@/lib/fit-quota";
+import { cancelFitQuota, reserveFitQuota, type QuotaReason } from "@/lib/fit-quota";
 import {
   authorizeAiRequest,
   consumeAiCredit,
@@ -107,11 +107,12 @@ export async function POST(request: Request) {
     );
   }
 
+  let freeQuotaClientId = "";
   if (!authorized?.user) {
-    const clientId =
+    freeQuotaClientId =
       request.headers.get("x-companyradar-client")?.slice(0, 100) ||
       "anonymous";
-    const quota = await reserveFitQuota(request, clientId);
+    const quota = await reserveFitQuota(request, freeQuotaClientId);
     console.info("[ai-quota]", {
       feature: "analyze-fit",
       backend: quota.backend ?? "unknown",
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
         code: providerBody?.error?.code,
         type: providerBody?.error?.type,
       });
+      if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
       return apiError(
         502,
         "ai_failed",
@@ -175,6 +177,7 @@ export async function POST(request: Request) {
         content.replace(/```json|```/g, "").trim(),
       ) as ModelFitAnalysis;
     } catch {
+      if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
       return apiError(
         502,
         "ai_parse_failed",

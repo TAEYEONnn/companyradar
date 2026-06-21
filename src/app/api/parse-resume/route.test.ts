@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   extractResumeText: vi.fn(),
   reserveResumeQuota: vi.fn(),
+  cancelResumeQuota: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/resume-parser", async (importOriginal) => {
@@ -15,6 +16,7 @@ vi.mock("@/lib/resume-parser", async (importOriginal) => {
 
 vi.mock("@/lib/fit-quota", () => ({
   reserveResumeQuota: mocks.reserveResumeQuota,
+  cancelResumeQuota: mocks.cancelResumeQuota,
 }));
 
 import { ResumeParseError } from "@/lib/resume-parser";
@@ -303,7 +305,8 @@ describe("POST /api/parse-resume", () => {
       ok: false,
       errorCode: "quota_unavailable",
     });
-    expect(mocks.extractResumeText).not.toHaveBeenCalled();
+    // text extraction now runs before quota check (so corrupt files don't consume quota)
+    expect(mocks.extractResumeText).toHaveBeenCalled();
   });
 
   // ── AI failures → 502 (not 400) ──────────────────────────────────────────
