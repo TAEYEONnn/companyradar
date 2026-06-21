@@ -51,6 +51,15 @@ export async function POST(request: Request) {
     );
   }
 
+  console.log("[analyze-fit]", {
+    stage: "request-received",
+    hasJobUrl: Boolean(input.jobUrl),
+    hasJobText: Boolean(input.jobText),
+    jobTextLength: input.jobText?.length ?? 0,
+    resumeTextLength: input.resumeText?.length ?? 0,
+    hasCandidateProfile: Boolean(input.candidateProfile),
+  });
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return apiError(

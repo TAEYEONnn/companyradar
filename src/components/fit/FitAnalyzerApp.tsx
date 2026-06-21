@@ -134,6 +134,7 @@ export function FitAnalyzerApp() {
   const [error, setError] = useState("");
   const [analysisErrorCode, setAnalysisErrorCode] = useState("");
   const [urlHint, setUrlHint] = useState("");
+  const [isFetchingJob, setIsFetchingJob] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -238,14 +239,30 @@ export function FitAnalyzerApp() {
     ) &&
     !profileDraft &&
     !resumeParsing &&
+    !isFetchingJob &&
     Boolean(
       jobMode === "url"
-        ? jobUrl.trim().length > 0
+        ? jobText.trim().length > 0
         : jobText.trim().length >= 50,
     );
 
   async function analyze() {
     if (!canSubmit || loading) return;
+
+    const activeProfile = showResumeInput ? null : profile;
+    const normalizedJobText = jobText.trim();
+    const normalizedResumeText = activeProfile ? "" : resumeText.trim();
+
+    // Pre-validation: guard against empty texts before calling the AI
+    if (!normalizedJobText) {
+      setError("채용공고 내용이 없어요. 공고 URL을 입력하고 잠시 기다리거나 내용을 붙여넣어 주세요.");
+      return;
+    }
+    if (!activeProfile && normalizedResumeText.length < 50) {
+      setError("이력서 내용이 준비되지 않았어요. 이력서를 업로드하거나 텍스트를 붙여넣어 주세요.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setAnalysisErrorCode("");
@@ -253,7 +270,15 @@ export function FitAnalyzerApp() {
     setAnalysis(null);
     setDecision("");
     const startedAt = performance.now();
-    const activeProfile = showResumeInput ? null : profile;
+
+    console.log("[fit-analyzer]", {
+      stage: "analyze-fit-request",
+      jobMode,
+      jobTextLength: normalizedJobText.length,
+      resumeTextLength: normalizedResumeText.length,
+      hasCandidateProfile: Boolean(activeProfile),
+    });
+
     trackFitEvent("fit_analysis_submitted", {
       job_input_mode: jobMode,
       has_saved_profile: Boolean(activeProfile),
@@ -272,25 +297,14 @@ export function FitAnalyzerApp() {
         },
         body: JSON.stringify({
           jobUrl: jobMode === "url" ? jobUrl.trim() : "",
-          jobText: jobMode === "text" ? jobText.trim() : "",
-          resumeText: activeProfile ? "" : resumeText.trim(),
+          jobText: normalizedJobText,
+          resumeText: normalizedResumeText,
           candidateProfile: activeProfile,
           confidenceBefore,
         }),
       });
       const data = (await response.json()) as AnalyzeResponse;
       if (!data.ok || !data.result) {
-        const urlFetchFailed =
-          data.errorCode === "fetch_failed" ||
-          data.errorCode === "url_timeout" ||
-          data.errorCode === "url_access_denied" ||
-          data.errorCode === "url_content_not_found";
-        if (urlFetchFailed) {
-          setJobMode("text");
-          setAnalysisErrorCode(data.errorCode ?? "unknown");
-          setUrlHint("URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.");
-          return;
-        }
         setAnalysisErrorCode(data.errorCode ?? "unknown");
         throw new Error(data.error || "분석 요청에 실패했습니다.");
       }
@@ -370,6 +384,46 @@ export function FitAnalyzerApp() {
     setEditingExistingProfile(false);
     setResumeError("");
     if (profile) setShowResumeInput(false);
+  }
+
+  async function fetchJobFromUrl(url: string) {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl || isFetchingJob) return;
+    setIsFetchingJob(true);
+    setJobText("");
+    setUrlHint("");
+    trackFitEvent("fit_input_started");
+    try {
+      const response = await fetch("/api/fetch-job-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+      const data = (await response.json()) as {
+        ok: boolean;
+        text?: string;
+        error?: string;
+        errorCode?: string;
+      };
+      if (!data.ok || typeof data.text !== "string" || !data.text.trim()) {
+        setJobMode("text");
+        setUrlHint(
+          data.error ??
+            "URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.",
+        );
+        return;
+      }
+      setJobText(data.text);
+      console.log("[fit-analyzer]", {
+        stage: "job-text-fetched",
+        textLength: data.text.length,
+      });
+    } catch {
+      setJobMode("text");
+      setUrlHint("URL에서 공고를 가져오지 못했어요. 공고 내용을 아래에 붙여넣어 주세요.");
+    } finally {
+      setIsFetchingJob(false);
+    }
   }
 
   function confirmProfileDraft() {
@@ -870,12 +924,31 @@ export function FitAnalyzerApp() {
                       <Input
                         className="mt-2"
                         id="job-url"
-                        onChange={(event) => setJobUrl(event.target.value)}
+                        onBlur={(event) => {
+                          if (event.target.value.trim()) {
+                            void fetchJobFromUrl(event.target.value);
+                          }
+                        }}
+                        onChange={(event) => {
+                          setJobUrl(event.target.value);
+                          if (jobText) setJobText("");
+                          setUrlHint("");
+                        }}
                         onFocus={() => trackFitEvent("fit_input_started")}
                         placeholder="https://..."
                         type="url"
                         value={jobUrl}
                       />
+                      {isFetchingJob ? (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          공고를 가져오는 중이에요...
+                        </p>
+                      ) : jobText ? (
+                        <p className="mt-1.5 text-xs text-emerald-600">
+                          공고 내용을 가져왔어요 ({jobText.length}자)
+                        </p>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -937,11 +1010,16 @@ export function FitAnalyzerApp() {
                 ) : null}
                 <Button
                   className="mt-6 h-12 text-base"
-                  disabled={!canSubmit || loading}
+                  disabled={!canSubmit || loading || isFetchingJob}
                   onClick={() => void analyze()}
                   width="fill"
                 >
-                  {loading ? (
+                  {isFetchingJob ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      공고를 가져오는 중이에요
+                    </>
+                  ) : loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       공고와 경력을 맞춰보고 있어요
