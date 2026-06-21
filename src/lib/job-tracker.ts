@@ -1,4 +1,5 @@
 import type {
+  CompanyOverview,
   FitAnalysis,
   FitRecommendation,
   FitRequirement,
@@ -52,11 +53,73 @@ export interface TrackedJobPosting {
   analysisId: string;
   recommendation: FitRecommendation;
   score: number;
+  evidenceCoverage: number;
   summary: string;
   nextAction: string;
   requirements: FitRequirement[];
+  companyOverview: CompanyOverview | null;
+  structuredData: {
+    responsibilities: string[];
+    requiredQualifications: string[];
+    preferredQualifications: string[];
+  } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ApplicationEventType =
+  | "saved"
+  | "decision_changed"
+  | "status_changed"
+  | "interview_scheduled";
+
+export interface ApplicationEvent {
+  id: string;
+  jobPostingId: string;
+  eventType: ApplicationEventType;
+  fromStatus: string;
+  toStatus: string;
+  companyName: string;
+  jobTitle: string;
+  note: string;
+  occurredAt: string;
+}
+
+export function normalizeTrackedJobPosting(
+  value: TrackedJobPosting,
+): TrackedJobPosting {
+  return {
+    ...value,
+    evidenceCoverage: Number.isFinite(value.evidenceCoverage)
+      ? value.evidenceCoverage
+      : 0,
+    companyOverview: value.companyOverview ?? null,
+    structuredData: value.structuredData ?? null,
+  };
+}
+
+export function normalizeApplicationEvent(value: {
+  id: string;
+  job_posting_id: string;
+  event_type: string;
+  from_status: string | null;
+  to_status: string;
+  company_name: string | null;
+  job_title: string | null;
+  note: string | null;
+  occurred_at: string;
+}): ApplicationEvent {
+  return {
+    id: value.id,
+    jobPostingId: value.job_posting_id,
+    eventType: value.event_type as ApplicationEventType,
+    fromStatus: value.from_status ?? "",
+    toStatus: value.to_status,
+    companyName: value.company_name ?? "회사명 확인 필요",
+    jobTitle: value.job_title ?? "",
+    note: value.note ?? "",
+    occurredAt: value.occurred_at,
+  };
 }
 
 export function canonicalizeJobUrl(value: string): string {

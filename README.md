@@ -1,13 +1,13 @@
 # CompanyRadar
 
-이력서와 채용공고를 비교해 지원 우선순위와 확인할 점을 정리하는 공고 핏 분석기입니다. 기존 회사 관리 도구는 `/tracker`에서 계속 사용할 수 있습니다.
+이력서와 채용공고를 비교해 지원 우선순위와 확인할 점을 정리하고, 저장한 분석부터 지원 결과까지 이어서 관리하는 서비스입니다.
 
 ## 핵심 흐름
 
 - `/`: PDF·DOCX·TXT 이력서 또는 텍스트와 공고 URL/원문을 분석하고, 로그인 후 결과 저장
 - 판단 등급, 보조 점수, 매칭·부족·불확실 요구사항, 다음 행동 제공
 - 이력서 원문은 저장하지 않고 추출된 구조화 프로필만 브라우저와 계정에 저장
-- `/tracker`: 저장한 공고·지원 목록을 기본으로 제공하고 기존 회사 평가는 보조 메뉴로 유지
+- `/tracker`: 저장한 전체 분석, 지원 상태, 오늘 할 일, 지원 일정을 한 흐름으로 관리
 
 ## 주요 기능
 
@@ -21,6 +21,12 @@
 
 ## 이번 빌드 변경사항
 
+- **저장한 분석 전체 다시 보기**: 지원 현황에서 저장한 공고의 점수, 근거 충족률, 요구사항별 근거, 회사 개요, 주요 업무와 자격요건을 전체 화면으로 다시 확인할 수 있습니다.
+- **회사 정보 탭 통합**: 별도 `회사 정보` 사이드바 항목을 제거하고 공고별 회사 개요를 저장 분석 화면 안에 배치했습니다.
+- **지원 상태와 일정 연결**: 관심, 지원 예정, 지원 완료, 면접, 합격·불합격 상태 변경을 `application_events`에 기록하고 지원 일정에 표시합니다.
+- **지원 후 자동 확인 알림**: 지원 완료 후 14일 동안 다음 상태가 없으면 오늘 할 일에 확인 카드가 나타납니다.
+- **저장 후 바로 이어가기**: 분석 결과 저장 후 3초 뒤 `/tracker?job=`으로 이동하며 저장한 전체 분석을 바로 엽니다.
+- **모바일 하단 내비게이션**: 작은 화면의 숨겨진 사이드 메뉴를 지원 현황, 오늘 할 일, 지원 일정, 지원 전략, 활동 리포트, 설정 하단 탭으로 교체했습니다.
 - **이력서 파일 업로드**: PDF·DOCX·TXT 파일에서 커리어 정보만 추출. 사용자가 목표 직무·연차·역량·도메인·성과를 수정하고 확정한 뒤에만 구조화 프로필을 저장. 파일·원문·파일명은 저장하거나 GA에 전송하지 않음.
 - **익명 분석 사용량 fallback**: Upstash 설정 누락·장애 시 Supabase `reserve_ai_quota` RPC로 자동 전환. 두 저장소가 모두 실패한 경우에만 입력을 유지한 채 재시도 안내.
 - **이력서 정리 무료 한도**: 핏 분석 크레딧과 별도로 브라우저/사용자 기준 하루 3회 제공.
@@ -256,6 +262,9 @@ supabase/migrations/20260614_v043_request_fk_set_null.sql
 supabase/migrations/20260614_v044_ai_free_uses_5.sql
 supabase/migrations/20260620_v045_fit_tracker_integration.sql
 supabase/migrations/20260620_v046_ai_quota_fallback.sql
+supabase/migrations/20260620_v047_company_overview_and_id.sql
+supabase/migrations/20260621_v045p1_fix_canonical_url_ambiguity.sql
+supabase/migrations/20260621_v048_application_events.sql
 ```
 
 rollback SQL은 `supabase/rollback/`에 migration별로 있습니다.
@@ -272,6 +281,11 @@ where email = 'your-operator@example.com';
 
 - `companies`: 사용자별 회사 데이터
 - `candidate_inbox_items`: 검토 전 후보 회사/공고
+- `job_postings`: 저장한 채용공고와 구조화된 주요 업무·자격요건
+- `fit_analyses`: 공고 핏 점수, 요약, 회사 개요
+- `fit_requirements`: 요구사항별 공고 근거와 경력 근거
+- `applications`: 공고별 현재 지원 상태
+- `application_events`: 저장·결정·지원 상태 변경 이력
 - `profiles`: `owner / beta_user / blocked` 역할
 - `ai_requests`: AI 요청 로그
 - `ai_credit_accounts`: 무료/유료 AI 잔여 횟수

@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowLeft, CalendarDays } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentDate } from "@/lib/use-current-date";
@@ -11,15 +12,17 @@ import {
   STATUS_LABELS,
 } from "@/lib/criteria";
 import type { Company } from "@/lib/types";
+import type { ApplicationEvent } from "@/lib/job-tracker";
 import { STATUS_TONE, type DrawerFocusTarget } from "./shared";
 
-type EventKind = "status" | "interview";
+type EventKind = "status" | "interview" | "application";
 
 interface UnifiedEvent {
   id: string;
   companyId: string;
   companyName: string;
   companyStatus: Company["status"];
+  jobPostingId?: string;
   date: string;
   kind: EventKind;
   title: string;
@@ -38,17 +41,57 @@ const STATUS_DOT: Record<Company["status"], string> = {
 };
 
 interface TimelinePanelProps {
+  accessToken: string;
   companies: Company[];
   onBack: () => void;
   onSelectCompany: (id: string, target?: DrawerFocusTarget) => void;
 }
 
 export function TimelinePanel({
+  accessToken,
   companies,
   onBack,
   onSelectCompany,
 }: TimelinePanelProps) {
   const today = useCurrentDate();
+  const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function loadEvents() {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch("/api/application-events?days=365", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = (await response.json()) as {
+          events?: ApplicationEvent[];
+          error?: { message?: string };
+        };
+        if (!response.ok) {
+          throw new Error(data.error?.message || "지원 일정을 불러오지 못했어요.");
+        }
+        if (active) setApplicationEvents(data.events ?? []);
+      } catch (caught) {
+        if (active) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "지원 일정을 불러오지 못했어요.",
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void loadEvents();
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
 
   const { past, upcoming } = useMemo(() => {
     const events: UnifiedEvent[] = [];
@@ -99,13 +142,31 @@ export function TimelinePanel({
       }
     }
 
+    for (const event of applicationEvents) {
+      const status = isCompanyStatus(event.toStatus)
+        ? event.toStatus
+        : "interested";
+      events.push({
+        id: `application-${event.id}`,
+        companyId: "",
+        companyName: event.companyName,
+        companyStatus: status,
+        jobPostingId: event.jobPostingId,
+        date: event.occurredAt.slice(0, 10),
+        kind: "application",
+        title: applicationEventTitle(event),
+        subtitle: event.jobTitle || event.note || undefined,
+        dotColor: STATUS_DOT[status],
+      });
+    }
+
     events.sort((a, b) => a.date.localeCompare(b.date));
 
     return {
       past: events.filter((e) => e.date <= today),
       upcoming: events.filter((e) => e.date > today),
     };
-  }, [companies, today]);
+  }, [applicationEvents, companies, today]);
 
   // Group events by date
   function groupByDate(events: UnifiedEvent[]): [string, UnifiedEvent[]][] {
@@ -127,7 +188,7 @@ export function TimelinePanel({
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <CalendarDays className="h-5 w-5 text-violet-600" />
-            지원 타임라인
+            지원 일정
           </h2>
           <p className="mt-0.5 text-sm text-slate-500">
             상태 변경 · 면접 이력
@@ -135,11 +196,22 @@ export function TimelinePanel({
         </div>
         <Button onClick={onBack} variant="secondary">
           <ArrowLeft className="h-4 w-4" />
-          대시보드
+          지원 현황
         </Button>
       </div>
 
       <div className="divide-y divide-slate-100 p-4 space-y-8">
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-sm text-slate-500">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            지원 기록을 불러오고 있어요
+          </div>
+        ) : null}
+        {error ? (
+          <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </p>
+        ) : null}
         {/* 예정 */}
         {upcomingGroups.length > 0 && (
           <TimelineSection
@@ -154,7 +226,7 @@ export function TimelinePanel({
         {/* 지난 이력 */}
         <div className={upcomingGroups.length > 0 ? "pt-2" : ""}>
           <TimelineSection
-            emptyMessage="기록된 이력이 없습니다."
+            emptyMessage="아직 지원 기록이 없어요."
             groups={pastGroups}
             onSelectCompany={onSelectCompany}
             title="지난 이력"
@@ -184,7 +256,15 @@ function TimelineSection({
     <div>
       <h3 className="mb-3 text-sm font-semibold text-slate-600">{title}</h3>
       {groups.length === 0 ? (
-        <p className="text-sm text-slate-400">{emptyMessage}</p>
+        <div className="py-8 text-center">
+          <p className="text-sm text-slate-400">{emptyMessage}</p>
+          <Link
+            className="mt-3 inline-flex text-sm font-semibold text-emerald-700 underline underline-offset-4"
+            href="/"
+          >
+            공고 분석하러 가기
+          </Link>
+        </div>
       ) : (
         <div className="space-y-4">
           {groups.map(([date, events]) => (
@@ -204,7 +284,13 @@ function TimelineSection({
                   <button
                     className="group flex w-full items-start gap-2 text-left"
                     key={event.id}
-                    onClick={() => onSelectCompany(event.companyId, getTimelineDrawerTarget(event))}
+                    onClick={() => {
+                      if (event.jobPostingId) {
+                        window.location.href = `/tracker?job=${encodeURIComponent(event.jobPostingId)}`;
+                        return;
+                      }
+                      onSelectCompany(event.companyId, getTimelineDrawerTarget(event));
+                    }}
                     type="button"
                   >
                     {/* 도트 */}
@@ -241,4 +327,40 @@ function getTimelineDrawerTarget(event: UnifiedEvent): DrawerFocusTarget {
   return {
     tab: event.kind === "interview" ? "interview" : "summary",
   };
+}
+
+function applicationEventTitle(event: ApplicationEvent): string {
+  if (event.eventType === "saved") {
+    return event.toStatus === "pass" ? "패스로 정리" : "공고 저장";
+  }
+  if (event.eventType === "decision_changed") {
+    return `결정 변경 · ${applicationStatusLabel(event.toStatus)}`;
+  }
+  return applicationStatusLabel(event.toStatus);
+}
+
+function applicationStatusLabel(value: string): string {
+  const labels: Record<string, string> = {
+    interested: "관심",
+    planned: "지원 예정",
+    applied: "지원 완료",
+    interviewing: "면접 진행",
+    rejected: "불합격",
+    offer: "합격",
+    on_hold: "보류",
+    pass: "패스",
+  };
+  return labels[value] ?? value;
+}
+
+function isCompanyStatus(value: string): value is Company["status"] {
+  return [
+    "interested",
+    "planned",
+    "applied",
+    "interviewing",
+    "rejected",
+    "offer",
+    "on_hold",
+  ].includes(value);
 }

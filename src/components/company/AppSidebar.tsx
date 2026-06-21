@@ -4,7 +4,6 @@ import {
   BarChart3,
   BrainCircuit,
   BriefcaseBusiness,
-  Building2,
   CalendarCheck,
   CalendarDays,
   Pencil,
@@ -108,7 +107,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "jobs", icon: BriefcaseBusiness, label: "지원 현황" },
   { id: "today", icon: CalendarCheck, label: "오늘 할 일" },
-  { id: "dashboard", icon: Building2, label: "회사 정보" },
   { id: "timeline", icon: CalendarDays, label: "지원 일정" },
   { id: "coach", icon: BrainCircuit, label: "지원 전략" },
   { id: "stats", icon: BarChart3, label: "활동 리포트" },
@@ -148,7 +146,7 @@ export function AppSidebar({
         onClick={() => onNavigate("jobs")}
         type="button"
       >
-        <Building2 className="h-4 w-4 text-slate-500" />
+        <BriefcaseBusiness className="h-4 w-4 text-slate-500" />
         <span className="text-sm font-semibold text-slate-900">CompanyRadar</span>
       </button>
 
@@ -156,9 +154,7 @@ export function AppSidebar({
       <nav className="flex flex-col gap-1 p-2 md:block md:space-y-0.5 md:overflow-y-auto">
         {NAV_ITEMS.map(({ id, icon: Icon, label, badgeKey }) => {
           const count = badgeKey ? (badges[badgeKey] ?? 0) : 0;
-          const isActive =
-            viewMode === id ||
-            (id === "dashboard" && (viewMode === "compare" || viewMode === "form"));
+          const isActive = viewMode === id;
           return (
             <button
               key={id}
@@ -241,5 +237,41 @@ export function AppSidebar({
         </div>
       </div>
     </aside>
+  );
+}
+
+export function MobileBottomNav({
+  viewMode,
+  onNavigate,
+}: {
+  viewMode: ViewMode;
+  onNavigate: (mode: ViewMode) => void;
+}) {
+  const items: NavItem[] = [
+    ...NAV_ITEMS,
+    { id: "settings", icon: Settings2, label: "설정" },
+  ];
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {items.map(({ id, icon: Icon, label }) => {
+        const active = viewMode === id;
+        return (
+          <button
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px]",
+              active ? "font-semibold text-slate-950" : "text-slate-500",
+            )}
+            key={id}
+            onClick={() => onNavigate(id)}
+            type="button"
+          >
+            <Icon className="h-4 w-4" />
+            <span className="w-full truncate text-center">{label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }

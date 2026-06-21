@@ -3,10 +3,8 @@
 import {
   ArrowRight,
   Bookmark,
-  Building2,
   CalendarPlus,
   Check,
-  ChevronRight,
   Loader2,
   LogIn,
   Pencil,
@@ -24,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import { ResumeProfileEditor } from "@/components/fit/ResumeProfileEditor";
+import { CompanyOverviewCard } from "@/components/company/CompanyOverviewCard";
 import {
   chooseNewestCandidateProfile,
   parsePendingFitSave,
@@ -35,7 +34,6 @@ import {
 import type { PendingFitSave } from "@/lib/fit-client";
 import type {
   CandidateProfile,
-  CompanyOverview,
   FitAnalysis,
   FitRecommendation,
   FitRequirement,
@@ -141,6 +139,7 @@ export function FitAnalyzerApp() {
   const [saveLoading, setSaveLoading] = useState<JobDecision | null>(null);
   const [saveError, setSaveError] = useState("");
   const [savedJobId, setSavedJobId] = useState("");
+  const [savedJobCount, setSavedJobCount] = useState(0);
   const [analyticsConsent, setAnalyticsConsent] = useState<
     "accepted" | "declined" | null
   >(null);
@@ -231,6 +230,33 @@ export function FitAnalyzerApp() {
       active = false;
     };
   }, [session?.access_token]);
+
+  useEffect(() => {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+    let active = true;
+    void fetch("/api/job-postings", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as { jobs?: unknown[] };
+        if (active && response.ok) setSavedJobCount(data.jobs?.length ?? 0);
+      })
+      .catch(() => {
+        // The analysis flow remains usable when the count cannot be loaded.
+      });
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!savedJobId) return;
+    const timer = window.setTimeout(() => {
+      window.location.href = `/tracker?job=${encodeURIComponent(savedJobId)}`;
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+  }, [savedJobId]);
 
   const canSubmit =
     Boolean(
@@ -599,6 +625,7 @@ export function FitAnalyzerApp() {
       }
       localStorage.removeItem(PENDING_SAVE_KEY);
       setSavedJobId(data.jobPostingId);
+      setSavedJobCount((count) => count + (data.duplicate ? 0 : 1));
       setDecision(decisionToLegacy(data.decision));
       trackFitEvent("fit_result_saved", {
         decision: data.decision,
@@ -670,7 +697,7 @@ export function FitAnalyzerApp() {
               className="text-sm text-slate-500 underline-offset-4 hover:text-slate-900 hover:underline"
               href="/tracker"
             >
-              지원 관리
+              지원 관리{savedJobCount > 0 ? ` (${savedJobCount})` : ""}
             </Link>
             {authReady ? (
               session ? (
@@ -1293,7 +1320,7 @@ function FitResultView({
                     <Bookmark className="h-4 w-4" />
                   )
                 }
-                label="관심 공고로 둘게요"
+                label="관심으로 저장"
                 onClick={() => onSaveDecision("interested")}
               />
               <DecisionButton
@@ -1306,7 +1333,7 @@ function FitResultView({
                     <CalendarPlus className="h-4 w-4" />
                   )
                 }
-                label="지원할 공고로 둘게요"
+                label="지원 예정으로 저장"
                 onClick={() => onSaveDecision("planned")}
               />
               <DecisionButton
@@ -1319,7 +1346,7 @@ function FitResultView({
                     <XCircle className="h-4 w-4" />
                   )
                 }
-                label="패스"
+                label="이번엔 패스"
                 onClick={() => onSaveDecision("pass")}
               />
             </div>
@@ -1342,6 +1369,9 @@ function FitResultView({
                 <p className="text-sm font-medium text-emerald-900">
                   지원 관리에 저장했어요.
                 </p>
+                <p className="mt-1 text-xs text-emerald-700">
+                  3초 뒤 저장한 공고로 이동해요.
+                </p>
                 <Link
                   className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-emerald-800 underline underline-offset-4"
                   href={`/tracker?job=${encodeURIComponent(savedJobId)}`}
@@ -1358,95 +1388,6 @@ function FitResultView({
             다른 공고도 확인하기
           </Button>
         </aside>
-      </div>
-    </section>
-  );
-}
-
-function CompanyOverviewCard({ overview }: { overview: CompanyOverview }) {
-  const hasContent =
-    overview.industry ||
-    overview.productSummary ||
-    overview.appealPoints.length > 0 ||
-    overview.greenSignals.length > 0 ||
-    overview.cautionSignals.length > 0 ||
-    overview.unknownSignals.length > 0;
-
-  if (!hasContent) return null;
-
-  return (
-    <section className="rounded-2xl border border-slate-900/10 bg-white p-5 sm:p-6">
-      <div className="flex items-center gap-2">
-        <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
-        <h3 className="text-lg font-semibold">회사 정보도 함께 정리했어요</h3>
-      </div>
-      <p className="mt-1 text-xs text-slate-400">공고에서 확인된 내용만 담았어요.</p>
-      <div className="mt-4 space-y-4">
-        {(overview.industry || overview.productSummary) ? (
-          <div>
-            {overview.industry ? (
-              <p className="text-sm">
-                <span className="font-medium text-slate-600">업종</span>{" "}
-                <span className="text-slate-800">{overview.industry}</span>
-              </p>
-            ) : null}
-            {overview.productSummary ? (
-              <p className="mt-1 text-sm leading-6 text-slate-700">{overview.productSummary}</p>
-            ) : null}
-          </div>
-        ) : null}
-        {overview.appealPoints.length > 0 ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">지원 매력 포인트</p>
-            <ul className="mt-2 space-y-1">
-              {overview.appealPoints.map((point, i) => (
-                <li className="flex items-start gap-1.5 text-sm text-slate-700" key={i}>
-                  <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  {point}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {overview.greenSignals.length > 0 ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">긍정 신호</p>
-            <ul className="mt-2 space-y-1">
-              {overview.greenSignals.map((signal, i) => (
-                <li className="flex items-start gap-1.5 text-sm text-emerald-800" key={i}>
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  {signal}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {overview.cautionSignals.length > 0 ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">주의 신호</p>
-            <ul className="mt-2 space-y-1">
-              {overview.cautionSignals.map((signal, i) => (
-                <li className="flex items-start gap-1.5 text-sm text-amber-800" key={i}>
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                  {signal}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {overview.unknownSignals.length > 0 ? (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">확인이 필요해요</p>
-            <ul className="mt-2 space-y-1">
-              {overview.unknownSignals.map((signal, i) => (
-                <li className="flex items-start gap-1.5 text-sm text-slate-600" key={i}>
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                  {signal}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </div>
     </section>
   );

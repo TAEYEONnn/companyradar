@@ -85,3 +85,31 @@ describe("AI quota fallback migration", () => {
     expect(rollback).toContain("drop table if exists public.ai_quota_counters");
   });
 });
+
+describe("application events migration", () => {
+  it("keeps events user-owned and provides a rollback", () => {
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/migrations/20260621_v048_application_events.sql",
+      ),
+      "utf8",
+    );
+    const rollback = readFileSync(
+      resolve(
+        process.cwd(),
+        "supabase/rollback/20260621_v048_application_events.rollback.sql",
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain("create table if not exists public.application_events");
+    expect(migration).toContain("alter table public.application_events enable row level security");
+    expect(migration).toContain("auth.uid()");
+    expect(migration).toContain("company_overview");
+    expect(migration).toContain("'saved'");
+    expect(migration).toContain("job_decisions_record_event");
+    expect(migration).toContain("applications_record_status_event");
+    expect(rollback).toContain("drop table if exists public.application_events");
+  });
+});

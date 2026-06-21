@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, CloudOff, Loader2, Menu, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, CloudOff, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -53,7 +53,7 @@ import type {
   SortMode,
 } from "@/lib/types";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
-import { AppSidebar, type SidebarBadges } from "./AppSidebar";
+import { AppSidebar, MobileBottomNav, type SidebarBadges } from "./AppSidebar";
 import { OnboardingModal, type OnboardingStartMode } from "./OnboardingModal";
 import { AuthGate } from "./AuthGate";
 import { BillingPrompt } from "./BillingPrompt";
@@ -111,7 +111,6 @@ export function CompanyTrackerApp() {
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter>(EMPTY_ADVANCED_FILTER);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerFocusTarget, setDrawerFocusTarget] = useState<DrawerFocusTarget>({ tab: "summary" });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [remotePushEnabled, setRemotePushEnabled] = useState(true);
@@ -811,18 +810,15 @@ export function CompanyTrackerApp() {
   useKeyboardShortcuts({
     onNewCompany: () => {
       if (viewMode === "dashboard") {
-        setMobileMenuOpen(false);
         startCreate();
       }
     },
     onEscape: () => {
-      if (mobileMenuOpen) {
-        setMobileMenuOpen(false);
-      } else if (drawerOpen) {
+      if (drawerOpen) {
         setDrawerOpen(false);
       } else if (viewMode !== "dashboard") {
         setEditingCompany(null);
-        setViewMode("dashboard");
+        setViewMode("jobs");
       }
     },
     onFocusSearch: () => {
@@ -942,65 +938,10 @@ export function CompanyTrackerApp() {
         viewMode={viewMode}
       />
 
-      {/* ─── Mobile sidebar drawer ─── */}
-      <div
-        aria-hidden="true"
-        className={cn(
-          "fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 md:hidden",
-          mobileMenuOpen ? "opacity-100" : "pointer-events-none opacity-0",
-        )}
-        onClick={() => setMobileMenuOpen(false)}
-      />
-      <div
-        aria-label="모바일 메뉴"
-        aria-modal="true"
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] bg-white shadow-2xl transition-transform duration-200 ease-in-out md:hidden",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full",
-        )}
-        role="dialog"
-      >
-        <button
-          aria-label="메뉴 닫기"
-          className="absolute right-3 top-3 z-10 rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-          onClick={() => setMobileMenuOpen(false)}
-          type="button"
-        >
-          <X className="h-4 w-4" />
-        </button>
-        <AppSidebar
-          appliedCount={
-            companies.filter((c) => c.status === "applied").length
-          }
-          badges={sidebarBadges}
-          className="h-full w-full border-r-0"
-          devToolsEnabled={devToolsEnabled}
-          onNavigate={(mode) => {
-            navigateTo(mode);
-            setMobileMenuOpen(false);
-          }}
-          onSignOut={() => {
-            setMobileMenuOpen(false);
-            void signOut();
-          }}
-          userEmail={userEmail}
-          viewMode={viewMode}
-        />
-      </div>
-
       {/* ─── Main column ─── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top header */}
         <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 sm:px-5">
-          <Button
-            aria-label="메뉴 열기"
-            className="md:hidden"
-            onClick={() => setMobileMenuOpen(true)}
-            size="sm"
-            variant="secondary"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
           <span className="truncate text-sm font-semibold text-slate-700">
             CompanyRadar
           </span>
@@ -1061,7 +1002,7 @@ export function CompanyTrackerApp() {
         ) : null}
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto pb-16 md:pb-0">
           <div className="p-3 sm:p-4">
             {viewMode === "jobs" ? (
               <JobPostingsPanel
@@ -1085,23 +1026,25 @@ export function CompanyTrackerApp() {
             ) : viewMode === "stats" ? (
               <StatsPanel
                 companies={companies}
-                onBack={() => setViewMode("dashboard")}
+                onBack={() => setViewMode("jobs")}
                 scoreMap={scoreMap}
                 settings={settings}
               />
             ) : viewMode === "timeline" ? (
               <TimelinePanel
+                accessToken={session.access_token}
                 companies={companies}
-                onBack={() => setViewMode("dashboard")}
+                onBack={() => setViewMode("jobs")}
                 onSelectCompany={openCompanyDrawer}
               />
             ) : viewMode === "today" ? (
               <TodayPanel
+                accessToken={session.access_token}
                 companies={companies}
                 onCompleteFollowUpTask={completeFollowUpTask}
                 onDeleteFollowUpTask={deleteFollowUpTask}
                 onMarkVerified={markCompanyVerified}
-                onOpenCompanyList={() => setViewMode("dashboard")}
+                onOpenCompanyList={() => setViewMode("jobs")}
                 onReopenFollowUpTask={reopenFollowUpTask}
                 onSelectCompany={openCompanyDrawer}
               />
@@ -1109,7 +1052,7 @@ export function CompanyTrackerApp() {
               <CoachPanel
                 companies={companies}
                 settings={settings}
-                onBack={() => setViewMode("dashboard")}
+                onBack={() => setViewMode("jobs")}
                 scoreMap={scoreMap}
                 strategy={coachStrategy}
                 onStrategyChange={setCoachStrategy}
@@ -1338,7 +1281,7 @@ export function CompanyTrackerApp() {
       />
 
       {toast ? (
-        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-slate-900 px-4 py-2 text-sm text-white shadow-lg">
+        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-md bg-slate-900 px-4 py-2 text-sm text-white shadow-lg md:bottom-5">
           {toast}
         </div>
       ) : null}
@@ -1379,6 +1322,7 @@ export function CompanyTrackerApp() {
           }}
         />
       )}
+      <MobileBottomNav onNavigate={navigateTo} viewMode={viewMode} />
     </div>
   );
 }

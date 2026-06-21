@@ -1,11 +1,12 @@
 "use client";
 
 import { ArrowRight, CalendarCheck, CheckCircle2, CircleHelp, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getCompanyValidationReasons } from "@/lib/company-validation";
 import type { Company } from "@/lib/types";
+import type { ApplicationEvent } from "@/lib/job-tracker";
 import { INTERVIEW_ROUND_TYPE_LABELS } from "@/lib/criteria";
 import { addDays, cn, parseLocalDate, today as formatToday } from "@/lib/utils";
 import { useCurrentDate } from "@/lib/use-current-date";
@@ -22,6 +23,7 @@ type ActionItem = {
   urgency: Urgency;
   meta?: string;
   taskId?: string;
+  jobPostingId?: string;
   validationReasons?: string[];
   canCompleteDirectly: boolean;
 };
@@ -52,6 +54,7 @@ const URGENCY_CONFIG: Record<Urgency, { dot: string; label: string; meta: string
 
 
 interface TodayPanelProps {
+  accessToken: string;
   companies: Company[];
   onCompleteFollowUpTask: (companyId: string, taskId: string) => void;
   onDeleteFollowUpTask: (companyId: string, taskId: string) => void;
@@ -62,6 +65,7 @@ interface TodayPanelProps {
 }
 
 export function TodayPanel({
+  accessToken,
   companies,
   onCompleteFollowUpTask,
   onDeleteFollowUpTask,
@@ -71,12 +75,30 @@ export function TodayPanel({
   onSelectCompany,
 }: TodayPanelProps) {
   const [showCompleted, setShowCompleted] = useState(false);
+  const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
   const today = useCurrentDate();
   const todayMs = useMemo(() => parseLocalDate(today).getTime(), [today]);
   const weekEnd = useMemo(
     () => formatToday(addDays(parseLocalDate(today), 7)),
     [today],
   );
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/application-events?days=90", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as { events?: ApplicationEvent[] };
+        if (active && response.ok) setApplicationEvents(data.events ?? []);
+      })
+      .catch(() => {
+        // Existing company tasks remain available if the event feed is offline.
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
 
   const items = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
@@ -225,9 +247,41 @@ export function TodayPanel({
       }
     }
 
+    const latestByJob = new Map<string, ApplicationEvent>();
+    for (const event of applicationEvents) {
+      const current = latestByJob.get(event.jobPostingId);
+      if (!current || event.occurredAt > current.occurredAt) {
+        latestByJob.set(event.jobPostingId, event);
+      }
+    }
+    for (const event of latestByJob.values()) {
+      if (event.toStatus !== "applied") continue;
+      const elapsed = daysSince(event.occurredAt.slice(0, 10), todayMs);
+      if (elapsed < 14) continue;
+      list.push({
+        id: `tracked-followup-${event.jobPostingId}`,
+        type: "generated-follow-up",
+        companyId: "",
+        companyName: event.companyName,
+        jobPostingId: event.jobPostingId,
+        action: "지원 결과를 확인해보세요",
+        urgency: "high",
+        meta: `지원 후 ${elapsed}일 경과`,
+        canCompleteDirectly: false,
+      });
+    }
+
     list.sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency]);
     return list;
-  }, [companies, today, todayMs, weekEnd]);
+  }, [applicationEvents, companies, today, todayMs, weekEnd]);
+
+  function openAction(item: ActionItem) {
+    if (item.jobPostingId) {
+      window.location.href = `/tracker?job=${encodeURIComponent(item.jobPostingId)}`;
+      return;
+    }
+    onSelectCompany(item.companyId, getTodayDrawerTarget(item));
+  }
 
   const completableItems = items.filter((item) => item.canCompleteDirectly && item.taskId);
   const actionRequiredCount = items.length - completableItems.length;
@@ -391,7 +445,7 @@ export function TodayPanel({
                       "w-full text-left text-sm leading-snug transition-colors hover:text-slate-950",
                       cfg.label,
                     )}
-                    onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
+                    onClick={() => openAction(item)}
                     type="button"
                   >
                     <span className="font-medium">{item.companyName}</span>{" "}
@@ -424,7 +478,7 @@ export function TodayPanel({
                   {item.type === "validation" ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button
-                        onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
+                        onClick={() => openAction(item)}
                         size="sm"
                         variant="secondary"
                       >
@@ -441,7 +495,7 @@ export function TodayPanel({
                   ) : !item.canCompleteDirectly && (
                     <div className="mt-2">
                       <Button
-                        onClick={() => onSelectCompany(item.companyId, getTodayDrawerTarget(item))}
+                        onClick={() => openAction(item)}
                         size="sm"
                         variant="secondary"
                       >

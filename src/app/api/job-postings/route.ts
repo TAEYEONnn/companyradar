@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { FitRequirement } from "@/lib/fit-analysis";
-import type { TrackedJobPosting } from "@/lib/job-tracker";
+import {
+  normalizeTrackedJobPosting,
+  type TrackedJobPosting,
+} from "@/lib/job-tracker";
 import {
   createSupabaseUserClient,
   requireSupabaseUser,
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
       client
         .from("fit_analyses")
         .select(
-          "id,job_posting_id,analysis_id,summary,recommendation,score,evidence_coverage,next_action,created_at",
+          "id,job_posting_id,analysis_id,summary,recommendation,score,evidence_coverage,next_action,company_overview,created_at",
         )
         .order("created_at", { ascending: false })
         .limit(400),
@@ -98,7 +101,10 @@ export async function GET(request: Request) {
       const analysis = latestByJob.get(posting.id);
       const decision = decisionMap.get(posting.id);
       if (!analysis || !decision) return null;
-      return {
+      const structuredData = isStructuredData(posting.structured_data)
+        ? posting.structured_data
+        : null;
+      return normalizeTrackedJobPosting({
         id: posting.id,
         companyName: companyMap.get(posting.company_id) ?? "회사명 확인 필요",
         title: posting.title,
@@ -111,16 +117,31 @@ export async function GET(request: Request) {
         analysisId: analysis.analysis_id,
         recommendation: analysis.recommendation,
         score: analysis.score,
+        evidenceCoverage: analysis.evidence_coverage ?? 0,
         summary: analysis.summary,
         nextAction: analysis.next_action,
         requirements: requirementsByAnalysis.get(analysis.id) ?? [],
+        companyOverview: analysis.company_overview ?? null,
+        structuredData,
         createdAt: posting.created_at,
         updatedAt: posting.updated_at,
-      } as TrackedJobPosting;
+      } as TrackedJobPosting);
     })
     .filter((item): item is TrackedJobPosting => Boolean(item));
 
   return NextResponse.json({ ok: true, jobs });
+}
+
+function isStructuredData(
+  value: unknown,
+): value is TrackedJobPosting["structuredData"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Record<string, unknown>;
+  return (
+    Array.isArray(data.responsibilities) &&
+    Array.isArray(data.requiredQualifications) &&
+    Array.isArray(data.preferredQualifications)
+  );
 }
 
 function apiError(status: number, code: string, message: string) {

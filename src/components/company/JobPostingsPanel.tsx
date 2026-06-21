@@ -18,6 +18,7 @@ import type {
   TrackedJobPosting,
 } from "@/lib/job-tracker";
 import { USER_COPY } from "@/lib/user-copy";
+import { SavedJobFullView } from "./SavedJobFullView";
 
 type JobFilter = "all" | "interested" | "planned" | "active" | "pass";
 
@@ -69,6 +70,7 @@ export function JobPostingsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState("");
+  const [fullViewJobId, setFullViewJobId] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -86,7 +88,13 @@ export function JobPostingsPanel({
         if (!response.ok) {
           throw new Error(data.error?.message || USER_COPY.save.loadedFailed);
         }
-        if (active) setJobs(data.jobs ?? []);
+        if (active) {
+          const loadedJobs = data.jobs ?? [];
+          setJobs(loadedJobs);
+          const selected = loadedJobs.find((job) => job.id === selectedJobId);
+          if (selected?.decision === "pass") setFilter("pass");
+          if (selected) setFullViewJobId(selected.id);
+        }
       } catch (caught) {
         if (active) {
           setError(
@@ -103,7 +111,7 @@ export function JobPostingsPanel({
     return () => {
       active = false;
     };
-  }, [accessToken]);
+  }, [accessToken, selectedJobId]);
 
   const filteredJobs = useMemo(() => {
     if (filter === "pass") return jobs.filter((job) => job.decision === "pass");
@@ -136,6 +144,7 @@ export function JobPostingsPanel({
       pass: jobs.filter((j) => j.decision === "pass").length,
     };
   }, [jobs]);
+  const fullViewJob = jobs.find((job) => job.id === fullViewJobId) ?? null;
 
   async function updateApplicationStatus(
     jobId: string,
@@ -180,7 +189,7 @@ export function JobPostingsPanel({
             분석한 공고를 바로 이어서
           </p>
           <h1 className="mt-1 text-xl font-semibold text-slate-900">
-            공고·지원 목록
+            지원 현황
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             관심 공고와 지원 현황을 한눈에 정리해요.
@@ -243,8 +252,11 @@ export function JobPostingsPanel({
               ? "아직 저장한 공고가 없어요."
               : "여기에 해당하는 공고가 없어요."}
           </p>
-          <Link className="mt-2 text-sm text-emerald-700 underline" href="/">
-            첫 공고 확인해보기
+          <Link
+            className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-sm font-medium text-white"
+            href="/"
+          >
+            공고 URL 붙여넣기
           </Link>
         </div>
       ) : (
@@ -267,6 +279,7 @@ export function JobPostingsPanel({
                     initialExpanded={selectedJobId === job.id}
                     job={job}
                     key={job.id}
+                    onOpenFull={() => setFullViewJobId(job.id)}
                     onStatusChange={(status, onRevert) =>
                       void updateApplicationStatus(job.id, status, onRevert)
                     }
@@ -284,6 +297,7 @@ export function JobPostingsPanel({
                 initialExpanded={selectedJobId === job.id}
                 job={job}
                 key={job.id}
+                onOpenFull={() => setFullViewJobId(job.id)}
                 onStatusChange={(status, onRevert) =>
                   void updateApplicationStatus(job.id, status, onRevert)
                 }
@@ -293,6 +307,16 @@ export function JobPostingsPanel({
           </div>
         </>
       )}
+      {fullViewJob ? (
+        <SavedJobFullView
+          job={fullViewJob}
+          onClose={() => setFullViewJobId("")}
+          onStatusChange={(status) =>
+            void updateApplicationStatus(fullViewJob.id, status, () => undefined)
+          }
+          updating={updatingId === fullViewJob.id}
+        />
+      ) : null}
     </section>
   );
 }
@@ -302,6 +326,7 @@ function JobTableRow({
   highlight,
   updating,
   onStatusChange,
+  onOpenFull,
   initialExpanded,
 }: {
   job: TrackedJobPosting;
@@ -312,6 +337,7 @@ function JobTableRow({
     status: JobApplicationStatus,
     onRevert: () => void,
   ) => void;
+  onOpenFull: () => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded ?? false);
   const [localStatus, setLocalStatus] = useState<JobApplicationStatus>(
@@ -399,7 +425,7 @@ function JobTableRow({
       {expanded && (
         <tr className="border-t border-slate-100">
           <td className="bg-slate-50 px-4 py-4" colSpan={5}>
-            <JobDetailPanel job={job} />
+            <JobDetailPanel job={job} onOpenFull={onOpenFull} />
           </td>
         </tr>
       )}
@@ -412,6 +438,7 @@ function JobMobileCard({
   highlight,
   updating,
   onStatusChange,
+  onOpenFull,
   initialExpanded,
 }: {
   job: TrackedJobPosting;
@@ -422,6 +449,7 @@ function JobMobileCard({
     status: JobApplicationStatus,
     onRevert: () => void,
   ) => void;
+  onOpenFull: () => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded ?? false);
   const [localStatus, setLocalStatus] = useState<JobApplicationStatus>(
@@ -513,14 +541,20 @@ function JobMobileCard({
       </div>
       {expanded && (
         <div className="border-t border-slate-100 bg-slate-50 px-4 py-4">
-          <JobDetailPanel job={job} />
+          <JobDetailPanel job={job} onOpenFull={onOpenFull} />
         </div>
       )}
     </article>
   );
 }
 
-function JobDetailPanel({ job }: { job: TrackedJobPosting }) {
+function JobDetailPanel({
+  job,
+  onOpenFull,
+}: {
+  job: TrackedJobPosting;
+  onOpenFull: () => void;
+}) {
   const matched = job.requirements.filter(
     (r) => r.match === "matched" || r.match === "partial",
   );
@@ -529,6 +563,16 @@ function JobDetailPanel({ job }: { job: TrackedJobPosting }) {
 
   return (
     <div className="space-y-4">
+      <button
+        className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-700"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenFull();
+        }}
+        type="button"
+      >
+        전체 분석 보기
+      </button>
       {job.canonicalUrl ? (
         <a
           className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 underline underline-offset-2"
