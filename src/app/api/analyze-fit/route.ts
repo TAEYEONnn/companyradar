@@ -16,6 +16,11 @@ import {
   PublicFetchError,
 } from "@/lib/safe-public-fetch";
 import { USER_COPY } from "@/lib/user-copy";
+import {
+  AiProviderError,
+  createJsonCompletion,
+  getAiProviderConfig,
+} from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -72,8 +77,9 @@ export async function POST(request: Request) {
     hasCandidateProfile: Boolean(input.candidateProfile),
   });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(
       500,
       "config_missing",
@@ -124,103 +130,74 @@ export async function POST(request: Request) {
     }
   }
 
+  let content: string;
   try {
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You analyze job fit using only supplied evidence. Never invent experience. Return one valid JSON object without markdown.",
-          },
-          {
-            role: "user",
-            content: buildAnalysisPrompt(input, jobTextResult.text),
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(25_000),
+    content = await createJsonCompletion({
+      systemPrompt:
+        "You analyze job fit using only supplied evidence. Never invent experience. Return one valid JSON object without markdown.",
+      userPrompt: buildAnalysisPrompt(input, jobTextResult.text),
+      temperature: 0.1,
+      maxTokens: 8192,
+      timeoutMs: 45_000,
     });
-
-    if (!aiResponse.ok) {
-      const providerBody = (await aiResponse.json().catch(() => null)) as {
-        error?: { code?: string; type?: string };
-      } | null;
-      console.error("analyze-fit OpenAI error", {
-        status: aiResponse.status,
-        code: providerBody?.error?.code,
-        type: providerBody?.error?.type,
-      });
-      if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
-      return apiError(
-        502,
-        "ai_failed",
-        getOpenAIErrorMessage(aiResponse.status),
-      );
-    }
-
-    const data = (await aiResponse.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content?.trim() ?? "";
-    let modelAnalysis: ModelFitAnalysis;
-    try {
-      modelAnalysis = JSON.parse(
-        content.replace(/```json|```/g, "").trim(),
-      ) as ModelFitAnalysis;
-    } catch {
-      if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
-      return apiError(
-        502,
-        "ai_parse_failed",
-        "분석 결과를 해석하지 못했습니다. 다시 시도해주세요.",
-      );
-    }
-
-    const result = normalizeFitAnalysis(modelAnalysis, {
-      baseProfile: input.candidateProfile,
-      jobText: jobTextResult.text,
-      jobUrl: input.jobUrl,
-      candidateText: input.candidateProfile
-        ? JSON.stringify(input.candidateProfile)
-        : input.resumeText,
-    });
-
-    if (authorized?.user) {
-      try {
-        await consumeAiCredit(
-          authorized.user,
-          "analyze-fit",
-          authorized.entitlement,
-        );
-      } catch {
-        return apiError(
-          503,
-          "quota_unavailable",
-          "AI 사용량 처리에 실패했습니다. 다시 시도해주세요.",
-        );
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      result,
-    });
-  } catch {
+  } catch (err) {
+    const provider = err instanceof AiProviderError ? err.provider : "unknown";
+    const httpStatus = err instanceof AiProviderError ? err.status : undefined;
+    const errorCode = err instanceof AiProviderError ? err.errorCode : undefined;
+    console.error("[analyze-fit] ai-failed", { provider, status: httpStatus, errorCode });
+    if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
     return apiError(
       502,
       "ai_failed",
-      "AI 분석 시간이 초과됐습니다. 다시 시도해주세요.",
+      httpStatus
+        ? getOpenAIErrorMessage(httpStatus)
+        : "AI 분석 시간이 초과됐습니다. 다시 시도해주세요.",
     );
   }
+
+  let modelAnalysis: ModelFitAnalysis;
+  try {
+    modelAnalysis = JSON.parse(
+      content.replace(/```json|```/g, "").trim(),
+    ) as ModelFitAnalysis;
+  } catch {
+    if (freeQuotaClientId) void cancelFitQuota(request, freeQuotaClientId);
+    return apiError(
+      502,
+      "ai_parse_failed",
+      "분석 결과를 해석하지 못했습니다. 다시 시도해주세요.",
+    );
+  }
+
+  const result = normalizeFitAnalysis(modelAnalysis, {
+    baseProfile: input.candidateProfile,
+    jobText: jobTextResult.text,
+    jobUrl: input.jobUrl,
+    candidateText: input.candidateProfile
+      ? JSON.stringify(input.candidateProfile)
+      : input.resumeText,
+  });
+
+  if (authorized?.user) {
+    try {
+      await consumeAiCredit(
+        authorized.user,
+        "analyze-fit",
+        authorized.entitlement,
+      );
+    } catch {
+      return apiError(
+        503,
+        "quota_unavailable",
+        "AI 사용량 처리에 실패했습니다. 다시 시도해주세요.",
+      );
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    result,
+  });
 }
 
 function buildAnalysisPrompt(input: AnalyzeFitInput, jobText: string): string {
