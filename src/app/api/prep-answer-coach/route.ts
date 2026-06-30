@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -55,8 +56,9 @@ export async function POST(request: Request) {
     return apiError(400, "invalid_request", "답변을 20자 이상 적어주세요.");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
   }
 
@@ -90,64 +92,55 @@ ${mode === "draft"
 }`}
 `.trim();
 
+  let content: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: mode === "draft" ? 0.7 : 0.35,
-        max_tokens: mode === "draft" ? 900 : 1100,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    content = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: userContent,
+      temperature: mode === "draft" ? 0.7 : 0.35,
+      maxTokens: mode === "draft" ? 900 : 1100,
+      timeoutMs: 45_000,
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401) {
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      }
-      if (aiRes.status === 429) {
-        return apiError(502, "ai_failed", "답변 코칭을 마치지 못했어요. 잠시 후 다시 해주세요.");
-      }
-      return apiError(502, "ai_failed", "답변 코칭을 마치지 못했어요.");
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401) {
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
     }
-
-    const json = (await aiRes.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as {
-      draft?: string;
-      score?: number;
-      summary?: string;
-      strengths?: string[];
-      improvements?: string[];
-      rewrite?: string;
-    };
-
-    await consumeAiCredit(auth.user, "prep-answer-coach", auth.entitlement);
-
-    if (mode === "draft") {
-      return NextResponse.json({ ok: true, draft: parsed.draft ?? "" });
+    if (status === 429) {
+      return apiError(502, "ai_failed", "답변 코칭을 마치지 못했어요. 잠시 후 다시 해주세요.");
     }
+    return apiError(502, "ai_failed", "코칭 결과를 정리하지 못했어요. 다시 해주세요.");
+  }
 
-    return NextResponse.json({
-      ok: true,
-      review: {
-        score: Math.max(0, Math.min(100, Math.round(parsed.score ?? 0))),
-        summary: parsed.summary ?? "",
-        strengths: (parsed.strengths ?? []).slice(0, 3),
-        improvements: (parsed.improvements ?? []).slice(0, 3),
-        rewrite: parsed.rewrite ?? "",
-      },
-    });
+  const clean = content.replace(/```json|```/g, "").trim();
+  let parsed: {
+    draft?: string;
+    score?: number;
+    summary?: string;
+    strengths?: string[];
+    improvements?: string[];
+    rewrite?: string;
+  };
+  try {
+    parsed = JSON.parse(clean) as typeof parsed;
   } catch {
     return apiError(502, "ai_failed", "코칭 결과를 정리하지 못했어요. 다시 해주세요.");
   }
+
+  await consumeAiCredit(auth.user, "prep-answer-coach", auth.entitlement);
+
+  if (mode === "draft") {
+    return NextResponse.json({ ok: true, draft: parsed.draft ?? "" });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    review: {
+      score: Math.max(0, Math.min(100, Math.round(parsed.score ?? 0))),
+      summary: parsed.summary ?? "",
+      strengths: (parsed.strengths ?? []).slice(0, 3),
+      improvements: (parsed.improvements ?? []).slice(0, 3),
+      rewrite: parsed.rewrite ?? "",
+    },
+  });
 }

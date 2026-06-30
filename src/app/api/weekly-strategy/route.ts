@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -41,9 +42,11 @@ export async function POST(request: Request) {
   if (companies.length === 0)
     return apiError(400, "invalid_request", "회사 데이터가 없습니다.");
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   const today = body.today ?? new Date().toISOString().slice(0, 10);
   const stats = body.stats;
@@ -83,46 +86,32 @@ export async function POST(request: Request) {
 
 규칙: 한국어로, 구체적인 회사명 사용, 추상적 조언 금지, 오늘 할 일 목록에 나올 법한 단순 팔로업/면접 준비 액션 반복 금지, AI가 지원 여부를 결정하지 말고 판단 근거만 제시`;
 
+  let strategy: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.4,
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `현재 회사 현황 (오늘: ${today}):${statsSummary}\n\n${companySummary}` },
-        ],
-      }),
+    strategy = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: `현재 회사 현황 (오늘: ${today}):${statsSummary}\n\n${companySummary}`,
+      temperature: 0.4,
+      maxTokens: 600,
+      timeoutMs: 45_000,
+      format: "text",
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401)
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429)
-        return apiError(
-          502,
-          "ai_failed",
-          "전략을 만들지 못했어요. 잠시 후 다시 해주세요.",
-        );
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const json = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const strategy = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!strategy)
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-
-    await consumeAiCredit(auth.user, "weekly-strategy", auth.entitlement);
-    return NextResponse.json({ ok: true, strategy });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401)
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429)
+      return apiError(
+        502,
+        "ai_failed",
+        "전략을 만들지 못했어요. 잠시 후 다시 해주세요.",
+      );
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
   }
+
+  if (!strategy)
+    return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
+
+  await consumeAiCredit(auth.user, "weekly-strategy", auth.entitlement);
+  return NextResponse.json({ ok: true, strategy });
 }

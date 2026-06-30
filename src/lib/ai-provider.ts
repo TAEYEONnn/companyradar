@@ -13,6 +13,8 @@ export type JsonCompletionInput = {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  /** "json" adds response_format for OpenAI (default); "text" skips it for plain-text output */
+  format?: "json" | "text";
 };
 
 export class AiProviderError extends Error {
@@ -102,7 +104,7 @@ export async function createJsonCompletion(
 
   if (config.provider === "nvidia") {
     requestBody.stream = false;
-  } else {
+  } else if ((input.format ?? "json") === "json") {
     requestBody.response_format = { type: "json_object" };
   }
 

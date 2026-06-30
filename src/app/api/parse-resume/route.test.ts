@@ -49,7 +49,7 @@ const AI_RESPONSE = {
 
 describe("POST /api/parse-resume", () => {
   beforeEach(() => {
-    process.env.OPENAI_API_KEY = "test-key";
+    process.env.NVIDIA_API_KEY = "test-key";
     mocks.extractResumeText.mockResolvedValue(RESUME_TEXT);
     mocks.reserveResumeQuota.mockResolvedValue({
       allowed: true,
@@ -63,7 +63,7 @@ describe("POST /api/parse-resume", () => {
   });
 
   afterEach(() => {
-    delete process.env.OPENAI_API_KEY;
+    delete process.env.NVIDIA_API_KEY;
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
