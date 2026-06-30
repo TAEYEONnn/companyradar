@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -35,9 +36,11 @@ export async function POST(request: Request) {
   if (companies.length < 2)
     return apiError(400, "invalid_request", "비교할 회사가 2개 이상 필요합니다.");
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   const systemPrompt = `당신은 프로덕트 디자이너 취업 준비를 돕는 커리어 코치입니다.
 여러 회사를 비교 분석하여 지원자 관점에서 핵심 차이와 추천 순서를 작성하세요.
@@ -56,46 +59,32 @@ export async function POST(request: Request) {
     )
     .join("\n");
 
+  let comparison: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.5,
-        max_tokens: 500,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: companyLines },
-        ],
-      }),
+    comparison = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: companyLines,
+      temperature: 0.5,
+      maxTokens: 500,
+      timeoutMs: 45_000,
+      format: "text",
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401)
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429)
-        return apiError(
-          502,
-          "ai_failed",
-          "회사 비교를 만들지 못했어요. 잠시 후 다시 해주세요.",
-        );
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const json = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const comparison = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!comparison)
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-
-    await consumeAiCredit(auth.user, "compare-companies", auth.entitlement);
-    return NextResponse.json({ ok: true, comparison });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401)
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429)
+      return apiError(
+        502,
+        "ai_failed",
+        "회사 비교를 만들지 못했어요. 잠시 후 다시 해주세요.",
+      );
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
   }
+
+  if (!comparison)
+    return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
+
+  await consumeAiCredit(auth.user, "compare-companies", auth.entitlement);
+  return NextResponse.json({ ok: true, comparison });
 }

@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -48,9 +49,11 @@ export async function POST(request: Request) {
     return apiError(400, "invalid_request", "companyName은 필수입니다.");
 
   // --- AI ---
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   const systemPrompt = `당신은 프로덕트 디자이너 취업 준비를 돕는 커리어 코치입니다.
 주어진 회사 정보를 분석하여 지원자에게 실질적으로 도움이 되는 회사 요약을 작성하세요.
@@ -88,47 +91,32 @@ export async function POST(request: Request) {
 ${logLines || "없음"}
 `.trim();
 
+  let summary: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.5,
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    summary = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: userContent,
+      temperature: 0.5,
+      maxTokens: 600,
+      timeoutMs: 45_000,
+      format: "text",
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401)
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429)
-        return apiError(
-          502,
-          "ai_failed",
-          "회사 요약을 만들지 못했어요. 잠시 후 다시 해주세요.",
-        );
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const json = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const summary = json.choices?.[0]?.message?.content?.trim() ?? "";
-
-    if (!summary)
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-
-    await consumeAiCredit(auth.user, "summarize-company", auth.entitlement);
-    return NextResponse.json({ ok: true, summary });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401)
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429)
+      return apiError(
+        502,
+        "ai_failed",
+        "회사 요약을 만들지 못했어요. 잠시 후 다시 해주세요.",
+      );
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
   }
+
+  if (!summary)
+    return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
+
+  await consumeAiCredit(auth.user, "summarize-company", auth.entitlement);
+  return NextResponse.json({ ok: true, summary });
 }

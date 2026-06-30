@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -60,8 +61,9 @@ export async function POST(request: Request) {
     return apiError("URL 또는 공고 텍스트를 입력해주세요.", "invalid_request");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError("AI 분석 중 서버 오류가 발생했습니다.", "config_missing");
   }
 
@@ -145,26 +147,12 @@ export async function POST(request: Request) {
   }
 
   // 4. AI structured parsing
+  let content: string;
   try {
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You extract structured job post information for a personal career tracker. Return only a valid JSON object.",
-          },
-          {
-            role: "user",
-            content: `다음은 채용공고 페이지의 텍스트입니다. 아래 JSON 형식으로만 응답하세요. 마크다운 백틱이나 설명 없이 JSON 객체만 출력합니다.
+    content = await createJsonCompletion({
+      systemPrompt:
+        "You extract structured job post information for a personal career tracker. Return only a valid JSON object.",
+      userPrompt: `다음은 채용공고 페이지의 텍스트입니다. 아래 JSON 형식으로만 응답하세요. 마크다운 백틱이나 설명 없이 JSON 객체만 출력합니다.
 
 규칙:
 - signals: 원문에 근거가 있을 때만 greenFlags/redFlags에 추가. 원문에 없는 추론은 unknowns에 넣을 것.
@@ -194,45 +182,27 @@ export async function POST(request: Request) {
 
 --- 공고 텍스트 ---
 ${pageText}`,
-          },
-        ],
-      }),
+      temperature: 0.2,
+      maxTokens: 1200,
+      timeoutMs: 45_000,
     });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 401) {
-        return apiError("OpenAI API 키가 없거나 유효하지 않습니다.", "ai_failed");
-      }
-      if (aiResponse.status === 429) {
-        return apiError(
-          "공고를 정리하지 못했어요. 잠시 후 다시 해주세요.",
-          "ai_failed",
-        );
-      }
-      return apiError("AI 분석 중 서버 오류가 발생했습니다.", "ai_failed");
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 429) {
+      return apiError("공고를 정리하지 못했어요. 잠시 후 다시 해주세요.", "ai_failed");
     }
-
-    const data = (await aiResponse.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = data.choices?.[0]?.message?.content ?? "";
-    const clean = text.replace(/```json|```/g, "").trim();
-
-    let parsed: ParsedJobPost;
-    try {
-      parsed = JSON.parse(clean) as ParsedJobPost;
-    } catch {
-      return apiError(
-        "AI 응답을 해석하지 못했습니다. 다시 시도해주세요.",
-        "ai_parse_failed",
-      );
-    }
-
-    await consumeAiCredit(auth.user, "parse-job", auth.entitlement);
-    return NextResponse.json({ ok: true, result: parsed }, { status: 200 });
-  } catch {
     return apiError("AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.", "ai_failed");
   }
+
+  let parsed: ParsedJobPost;
+  try {
+    parsed = JSON.parse(content.replace(/```json|```/g, "").trim()) as ParsedJobPost;
+  } catch {
+    return apiError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.", "ai_parse_failed");
+  }
+
+  await consumeAiCredit(auth.user, "parse-job", auth.entitlement);
+  return NextResponse.json({ ok: true, result: parsed }, { status: 200 });
 }
 
 function apiError(message: string, code: ErrorCode, status = 200) {

@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -34,9 +35,11 @@ export async function POST(request: Request) {
   if (!companyName)
     return apiError(400, "invalid_request", "회사 이름이 필요합니다.");
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   let pageText = "";
   let fetchedUrl = "";
@@ -87,66 +90,46 @@ export async function POST(request: Request) {
 
 규칙: 한국어로, 구체적으로, 프로덕트 디자이너 관점에서`;
 
+  let content: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-        max_tokens: 400,
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `회사명: ${companyName}\n산업군: ${body.industry || "미입력"}${contextSection}`,
-          },
-        ],
-      }),
+    content = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: `회사명: ${companyName}\n산업군: ${body.industry || "미입력"}${contextSection}`,
+      temperature: 0.3,
+      maxTokens: 400,
+      timeoutMs: 45_000,
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401)
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429)
-        return apiError(
-          502,
-          "ai_failed",
-          "회사 조사를 마치지 못했어요. 잠시 후 다시 해주세요.",
-        );
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const json = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = (json.choices?.[0]?.message?.content ?? "").trim();
-    const clean = text.replace(/```json|```/g, "").trim();
-
-    let parsed: { positiveSignals?: string; negativeSignals?: string; questions?: string };
-    try {
-      parsed = JSON.parse(clean) as typeof parsed;
-    } catch {
-      return apiError(502, "ai_failed", "AI 응답을 해석하지 못했습니다.");
-    }
-
-    const result: ResearchResult = {
-      source: `AI 리서치 — ${companyName}`,
-      link: fetchedUrl,
-      positiveSignals: parsed.positiveSignals ?? "",
-      negativeSignals: parsed.negativeSignals ?? "",
-      questions: parsed.questions ?? "",
-    };
-
-    await consumeAiCredit(auth.user, "research-company", auth.entitlement);
-    return NextResponse.json({ ok: true, result });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401)
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429)
+      return apiError(
+        502,
+        "ai_failed",
+        "회사 조사를 마치지 못했어요. 잠시 후 다시 해주세요.",
+      );
     return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
   }
+
+  const clean = content.replace(/```json|```/g, "").trim();
+  let parsed: { positiveSignals?: string; negativeSignals?: string; questions?: string };
+  try {
+    parsed = JSON.parse(clean) as typeof parsed;
+  } catch {
+    return apiError(502, "ai_failed", "AI 응답을 해석하지 못했습니다.");
+  }
+
+  const result: ResearchResult = {
+    source: `AI 리서치 — ${companyName}`,
+    link: fetchedUrl,
+    positiveSignals: parsed.positiveSignals ?? "",
+    negativeSignals: parsed.negativeSignals ?? "",
+    questions: parsed.questions ?? "",
+  };
+
+  await consumeAiCredit(auth.user, "research-company", auth.entitlement);
+  return NextResponse.json({ ok: true, result });
 }
 
 function stripHtml(html: string): string {

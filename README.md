@@ -179,6 +179,15 @@ npm run build
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
+# AI provider: nvidia | openai  (default: nvidia)
+# - NVIDIA Build API 키는 https://build.nvidia.com 에서 발급
+# - 로컬: .env.local에 저장 / Vercel: Project Settings → Environment Variables에 등록
+# - NEXT_PUBLIC_ 접두사를 사용하지 않는다 (서버 전용)
+# - AI_PROVIDER=openai 로 설정하면 OpenAI로 즉시 롤백 가능
+# - NVIDIA 무료·시험용 endpoint는 호출 제한이 있으므로 운영 전 사용 조건을 확인할 것
+AI_PROVIDER=nvidia
+NVIDIA_API_KEY=
+NVIDIA_MODEL=mistralai/mistral-medium-3.5-128b
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 

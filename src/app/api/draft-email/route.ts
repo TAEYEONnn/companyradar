@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -41,8 +42,11 @@ export async function POST(request: Request) {
   if (!companyName.trim()) return apiError(400, "invalid_request", "companyName은 필수입니다.");
 
   // --- AI ---
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  try {
+    getAiProviderConfig();
+  } catch {
+    return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   const typeInstructions: Record<EmailType, string> = {
     apply: "지원 이메일(지원동기 + 핵심 역량 강조, 150~200단어 이내 한국어)",
@@ -67,39 +71,25 @@ export async function POST(request: Request) {
 이메일 유형: ${emailType}
 `.trim();
 
+  let draft: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.7,
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    draft = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: userContent,
+      temperature: 0.7,
+      maxTokens: 600,
+      timeoutMs: 45_000,
+      format: "text",
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401) return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429) return apiError(502, "ai_failed", "메일 초안을 만들지 못했어요. 잠시 후 다시 해주세요.");
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const aiJson = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const draft = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!draft) return apiError(502, "ai_failed", "AI가 초안을 생성하지 못했습니다.");
-
-    await consumeAiCredit(auth.user, "draft-email", auth.entitlement);
-    return NextResponse.json({ draft });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401) return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429) return apiError(502, "ai_failed", "메일 초안을 만들지 못했어요. 잠시 후 다시 해주세요.");
     return apiError(502, "ai_failed", "AI 요청 중 오류가 발생했습니다.");
   }
+
+  if (!draft) return apiError(502, "ai_failed", "AI가 초안을 생성하지 못했습니다.");
+
+  await consumeAiCredit(auth.user, "draft-email", auth.entitlement);
+  return NextResponse.json({ draft });
 }

@@ -1,5 +1,6 @@
 import { authorizeAiRequest, consumeAiCredit } from "@/lib/server-ai-entitlements";
 import { NextResponse } from "next/server";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -45,9 +46,11 @@ export async function POST(request: Request) {
     return apiError(400, "invalid_request", "companyName은 필수입니다.");
 
   // --- AI ---
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey)
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(500, "config_missing", "AI 분석 중 서버 오류가 발생했습니다.");
+  }
 
   const systemPrompt = `당신은 ${roleName} 취업 준비를 돕는 커리어 코치입니다.
 주어진 회사 정보를 바탕으로 면접에서 나올 가능성이 높은 예상 질문을 생성하세요.
@@ -82,58 +85,41 @@ export async function POST(request: Request) {
 }
 `.trim();
 
+  let content: string;
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.7,
-        max_tokens: 1200,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    content = await createJsonCompletion({
+      systemPrompt,
+      userPrompt: userContent,
+      temperature: 0.7,
+      maxTokens: 1200,
+      timeoutMs: 45_000,
     });
-
-    if (!aiRes.ok) {
-      if (aiRes.status === 401)
-        return apiError(502, "ai_failed", "OpenAI API 키가 없거나 유효하지 않습니다.");
-      if (aiRes.status === 429)
-        return apiError(
-          502,
-          "ai_failed",
-          "예상 질문을 만들지 못했어요. 잠시 후 다시 해주세요.",
-        );
-      return apiError(502, "ai_failed", "AI 분석 중 서버 오류가 발생했습니다.");
-    }
-
-    const json = (await aiRes.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const raw = json.choices?.[0]?.message?.content?.trim() ?? "";
-    const clean = raw.replace(/```json|```/g, "").trim();
-
-    let parsed: { questions?: { category: string; question: string }[] };
-    try {
-      parsed = JSON.parse(clean) as typeof parsed;
-    } catch {
-      return apiError(502, "ai_failed", "AI 응답을 해석하지 못했습니다.");
-    }
-
-    const validCategories = new Set(["behavioral", "technical", "culture", "situational"]);
-    const questions = (parsed.questions ?? []).filter(
-      (q) => q.category && q.question && validCategories.has(q.category),
-    );
-
-    await consumeAiCredit(auth.user, "gen-prep-questions", auth.entitlement);
-    return NextResponse.json({ ok: true, questions });
-  } catch {
+  } catch (err) {
+    const status = err instanceof AiProviderError ? err.status : undefined;
+    if (status === 401)
+      return apiError(502, "ai_failed", "AI API 키가 없거나 유효하지 않습니다.");
+    if (status === 429)
+      return apiError(
+        502,
+        "ai_failed",
+        "예상 질문을 만들지 못했어요. 잠시 후 다시 해주세요.",
+      );
     return apiError(502, "ai_failed", "AI 질문 생성 중 오류가 발생했습니다.");
   }
+
+  const clean = content.replace(/```json|```/g, "").trim();
+  let parsed: { questions?: { category: string; question: string }[] };
+  try {
+    parsed = JSON.parse(clean) as typeof parsed;
+  } catch {
+    return apiError(502, "ai_failed", "AI 응답을 해석하지 못했습니다.");
+  }
+
+  const validCategories = new Set(["behavioral", "technical", "culture", "situational"]);
+  const questions = (parsed.questions ?? []).filter(
+    (q) => q.category && q.question && validCategories.has(q.category),
+  );
+
+  await consumeAiCredit(auth.user, "gen-prep-questions", auth.entitlement);
+  return NextResponse.json({ ok: true, questions });
 }

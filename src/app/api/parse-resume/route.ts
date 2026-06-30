@@ -9,6 +9,7 @@ import {
 } from "@/lib/resume-parser";
 import { isAllowedAiOperator, requireSupabaseUser } from "@/lib/server-auth";
 import { USER_COPY } from "@/lib/user-copy";
+import { AiProviderError, createJsonCompletion, getAiProviderConfig } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -113,8 +114,9 @@ export async function POST(request: Request) {
   // ── 7. AI extraction ─────────────────────────────────────────────────────
   // Quota is reserved here (after text extraction) so corrupt/unsupported files
   // never consume the user's daily allowance.
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  try {
+    getAiProviderConfig();
+  } catch {
     return apiError(503, "ai_failed", USER_COPY.ai.unavailable);
   }
 
@@ -126,27 +128,13 @@ export async function POST(request: Request) {
     console.log("[parse-resume]", { stage: "quota-bypassed", clientId });
   }
 
+  let content: string;
   try {
     console.log("[parse-resume]", { stage: "ai-call-start" });
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "Extract only career information from the supplied resume. Ignore names, contact details, addresses, photos, and other personal identifiers. Return one valid JSON object without markdown.",
-          },
-          {
-            role: "user",
-            content: `이력서에서 커리어 정보만 정리해주세요.
+    content = await createJsonCompletion({
+      systemPrompt:
+        "Extract only career information from the supplied resume. Ignore names, contact details, addresses, photos, and other personal identifiers. Return one valid JSON object without markdown.",
+      userPrompt: `이력서에서 커리어 정보만 정리해주세요.
 
 규칙:
 - 이름, 이메일, 전화번호, 주소, 생년월일 등 인적정보는 결과에 포함하지 않습니다.
@@ -165,45 +153,36 @@ export async function POST(request: Request) {
 
 --- 이력서 ---
 ${resumeText}`,
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(25_000),
+      temperature: 0.1,
+      timeoutMs: 45_000,
     });
-
-    if (!response.ok) {
-      console.error("[parse-resume]", {
-        stage: "ai-call-failed",
-        status: response.status,
-      });
-      if (!isOperator) void cancelResumeQuota(request, clientId);
-      return apiError(502, "ai_failed", USER_COPY.ai.failed);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content?.trim() ?? "";
-    let parsed: ModelProfile;
-    try {
-      parsed = JSON.parse(content.replace(/```json|```/g, "").trim()) as ModelProfile;
-    } catch {
-      console.error("[parse-resume]", { stage: "ai-json-parse-failed" });
-      if (!isOperator) void cancelResumeQuota(request, clientId);
-      return apiError(502, "ai_failed", USER_COPY.ai.failed);
-    }
-
-    console.log("[parse-resume]", { stage: "ai-call-success" });
-    const profile = normalizeProfile(parsed, resumeText);
-    return NextResponse.json({
-      ok: true,
-      profile,
-      warnings: profileWarnings(profile),
+  } catch (err) {
+    const httpStatus = err instanceof AiProviderError ? err.status : undefined;
+    console.error("[parse-resume]", {
+      stage: "ai-call-failed",
+      status: httpStatus,
     });
-  } catch {
     if (!isOperator) void cancelResumeQuota(request, clientId);
-    return apiError(502, "ai_failed", USER_COPY.ai.timeout);
+    const message = httpStatus ? USER_COPY.ai.failed : USER_COPY.ai.timeout;
+    return apiError(502, "ai_failed", message);
   }
+
+  let parsed: ModelProfile;
+  try {
+    parsed = JSON.parse(content.replace(/```json|```/g, "").trim()) as ModelProfile;
+  } catch {
+    console.error("[parse-resume]", { stage: "ai-json-parse-failed" });
+    if (!isOperator) void cancelResumeQuota(request, clientId);
+    return apiError(502, "ai_failed", USER_COPY.ai.failed);
+  }
+
+  console.log("[parse-resume]", { stage: "ai-call-success" });
+  const profile = normalizeProfile(parsed, resumeText);
+  return NextResponse.json({
+    ok: true,
+    profile,
+    warnings: profileWarnings(profile),
+  });
 }
 
 async function checkIsOperator(request: Request): Promise<boolean> {
